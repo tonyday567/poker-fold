@@ -1,0 +1,8 @@
+cradle:
+  stack:
+    - path: "./app/poker.hs"
+      component: "poker:exe:poker"
+    - path: "./src"
+      component: "poker:lib"
+    - path: "./test/poker.hs"
+      component: "poker:test:poker"
