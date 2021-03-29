@@ -8,3 +8,8 @@ extra-deps:
   - numhask-array-0.8.0
   - numhask-free-0.0.3
   - random-1.2.0
+  - chart-svg-0.2.2
+  - numhask-space-0.7.1.0
+  - perf-0.7.0
+
+allow-newer: true

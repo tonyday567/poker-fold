@@ -28,12 +28,18 @@ library
     -fwrite-ide-info
     -hiedir=.hie
   build-depends:
+    adjunctions,
+    distributive,
     base >=4.7 && <5,
     numhask >= 0.7 && < 0.8,
     numhask-array >= 0.8 && < 0.9,
     numhask-free >= 0.0.3 && < 0.1,
     containers,
     text,
+    chart-svg,
+    microlens,
+    perf,
+    vector,
   exposed-modules:
     Poker
   other-modules:
