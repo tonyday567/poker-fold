@@ -11,5 +11,6 @@ extra-deps:
   - chart-svg-0.2.2
   - numhask-space-0.7.1.0
   - perf-0.7.0
+  - mealy-0.0.3
 
 allow-newer: true

@@ -40,6 +40,8 @@ library
     microlens,
     perf,
     vector,
+    foldl,
+    mealy,
   exposed-modules:
     Poker
   other-modules:

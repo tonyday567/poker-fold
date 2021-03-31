@@ -13,7 +13,9 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
+{-# LANGUAGE FlexibleContexts #-}
 module Poker where
 
 import NumHask.Prelude
@@ -32,12 +34,18 @@ import Perf hiding (zero)
 import qualified Data.Vector as V
 import GHC.TypeLits
 import qualified NumHask.Array.Shape as Shape
+import qualified Control.Scanl as Scan
+import Data.Mealy
+import qualified Data.List as List
 
 class Short a where
   short :: a -> Text
 
-  pretty :: (Foldable f) => f a -> IO ()
-  pretty xs = putStrLn $ Text.intercalate "\n" $ short <$> toList xs
+  pretty :: a -> IO ()
+  pretty = putStrLn . short
+
+  pretties :: (Foldable f) => f a -> IO ()
+  pretties xs = putStrLn $ Text.intercalate "\n" $ short <$> toList xs
 
 data Rank = Two | Three | Four | Five | Six | Seven | Eight | Nine
           | Ten | Jack | Queen | King | Ace
@@ -90,171 +98,86 @@ instance (Functor f, Foldable f) => Short (f Card) where
 
 -- | a standard 52 card deck
 --
--- >>> putStrLn $ short  $ Hand $ fromList $ sortOn (Down . rank) $ toList $ deck
--- A♠ A♣ A♦ A♠ K♠ K♣ K♦ K♠ Q♠ Q♣ Q♦ Q♠ J♠ J♣ J♦ J♠ T♠ T♣ T♦ T♠ 9♠ 9♣ 9♦ 9♠ 8♠ 8♣ 8♦ 8♠ 7♠ 7♣ 7♦ 7♠ 6♠ 6♣ 6♦ 6♠ 5♠ 5♣ 5♦ 5♠ 4♠ 4♣ 4♦ 4♠ 3♠ 3♣ 3♦ 3♠ 2♠ 2♣ 2♦ 2♠
-deck :: Seq.Seq Card
-deck = Seq.fromList $ Card <$> [Two .. Ace] <*> [Hearts .. Spades]
-
-deck' :: Vector 52 Card
-deck' = fromList $ Card <$> [Two .. Ace] <*> [Hearts .. Spades]
-
--- Seq combinators
-
--- | delete a value in a Seq and return the ripped ends.
-cut1 :: Int -> Seq a -> (Seq a, Seq a)
-cut1 x s = (Seq.take x s, Seq.drop (x+1) s)
-
--- | delete a value in a Seq and return the remaining Seq.
-del1 :: Int -> Seq a -> Seq a
-del1 x s = Seq.take x s <> Seq.drop (x+1) s
-
-delN :: [Int] -> Seq a -> Seq a
-delN xs s = foldr del1 s xs
-
--- | Provide the element from a sequence at an index, together with the sequence with element removed.
-get1 :: Seq.Seq a -> Int -> (a, Seq.Seq a)
-get1 s x = (a, del1 x s)
-  where
-    (a Seq.:< _) = Seq.viewl (Seq.drop x s)
-
--- | Provide a random element from a sequence, togther with the sequence with element removed.
-draw1 :: (RandomGen g) => g -> Seq.Seq a -> (g, a, Seq.Seq a)
-draw1 g s = (g',e,s')
-  where
-    (e, s') = get1 s x
-    n = length s
-    (x, g') = uniformR (0, n-1) g
-
-data Pack = Pack
-  { dealt :: Seq.Seq Card,
-    remPack :: Seq.Seq Card
-  } deriving (Eq, Show, Generic)
-
-instance NFData Pack
-
-pack0 :: Pack
-pack0 = Pack Seq.Empty deck
-
-frozenDeal :: Seq.Seq Card -> Pack
-frozenDeal cs =
-  Pack cs (delN (toList $ fromEnum <$> cs) deck)
-
-data PackState = PackState
-  { currentPack :: Pack,
-    currentGen :: StdGen
-  } deriving (Eq, Show, Generic)
-
-defaultPackState :: Int -> PackState
-defaultPackState x = PackState pack0 (mkStdGen x)
-
-resetPack :: State PackState ()
-resetPack = modify (\x -> x { currentPack = pack0 })
-
-resetGen :: Int -> State PackState ()
-resetGen r = modify (\x -> x { currentGen = mkStdGen r })
-
--- | draw a single card
--- >>> putStrLn $ foldMap id $ fmap short $ fst $ flip runState (PackState pack0 (mkStdGen 41)) (Seq.replicateM 2 draw)
--- A♠2♣
-draw :: State PackState Card
-draw = do
-  (PackState p g) <- get
-  let ((drawn, rem'), g') = first (get1 (remPack p)) (uniformR (0, length (remPack p) - 1) g)
-  let p' = Pack (dealt p Seq.|> drawn) rem'
-  put (PackState p' g')
-  pure drawn
-
--- | draw n cards
+-- >>> pretty deck
+-- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
 --
--- >>> putStrLn $ short $ evalState (drawN 5) defaultPackState
--- A♠7♠T♠5♠6♣
+deck :: [Card]
+deck = Card <$> [Two .. Ace] <*> [Hearts .. Spades]
+
+-- | uniform random variate of an Int, typically an index into a structure.
+rvi :: (RandomGen g) => Int -> State g Int
+rvi n = do
+  g <- get
+  let (x,g') = uniformR (0, n - 1) g
+  put g'
+  pure x
+
+-- | finite population n samples without replacement
 --
--- putStrLn $ Text.intercalate "\n" $ short . hand <$> evalState (replicateM 10 (resetPack >> drawN 5)) defaultPackState
--- A♠T♠7♠6♣5♠
--- J♠9♠7♠7♠4♠
--- Q♣J♠J♠7♠3♣
--- K♠Q♣7♠5♠2♦
--- 9♣7♠3♣2♠2♠
--- K♠8♣8♣7♣3♦
--- K♣K♣T♠7♣4♠
--- A♠A♠K♦4♣3♦
--- A♠K♦T♣8♦4♣
--- A♠A♠T♣T♣7♣
+rvis :: (RandomGen g) => Int -> Int -> State g [Int]
+rvis n k = sequence (rvi . (n -) <$> [0..(k-1)])
+
+-- | a valid series of random index values to shuffle a population of 52 enums
 --
--- fst <$> Perf.tick (\x -> evalState (replicateM x (resetPack >> drawN 5)) (defaultPackState 40)) 10000
--- 611672144
+-- >>> rvs52
+-- [48,23,31,15,16,18,17,23,11,31,5,14,30,28,27,2,9,11,27,24,17,0,10,2,2,11,8,2,18,8,11,16,6,14,3,1,6,0,2,11,1,6,3,7,4,1,5,4,2,1,0,0]
+rvs52 :: [Int]
+rvs52 = flip evalState (mkStdGen 42) $ rvis 52 52
+
+-- | vector perfect shuffle
 --
-drawN :: Int -> State PackState (Seq Card)
-drawN n = Seq.replicateM n draw
+-- >>> shuffle 52 rvs52
+-- ([48,23,32,15,17,20,19,28,11,39,5,18,41,38,37,2,12,16,44,40,29,0,21,4,6,26,22,7,45,25,33,46,14,43,9,3,30,1,13,50,10,36,31,49,35,24,51,47,34,27,8,42],[])
+shuffle :: Int -> [Int] -> (V.Vector Int, V.Vector Int)
+shuffle n =
+  foldl'
+  (\(dealt, rem) i ->
+     let (x,rem') = cutV rem i in (V.snoc dealt x, rem'))
+  (V.empty, V.enumFromN 0 n)
 
-enumDraw2 :: (Enum a) => [a] -> [(a, a)]
-enumDraw2 p =
-  (\x y ->
-     bimap toEnum
-     (toEnum . (\s -> fst $ get1 s y))
-     (get1 (Seq.fromList [0..(length p - 1)]) x)) <$>
-  [0..(length p - 1)] <*> [0..(length p - 2)]
-
-
-{-
-enumDraw5 :: (Enum a) => [a] -> [Vector 5 a]
-enumDraw5 p =
-  (\x y ->
-     bimap toEnum
-     (toEnum . (\s -> fst $ get1 s y))
-     (get1 (Seq.fromList [0..(length p - 1)]) x)) <$>
-  [0..(length p - 1)] <*> [0..(length p - 2)]
-
--- | Provide the element from a sequence at an index, together with the sequence with element removed.
-get1' :: Seq.Seq a -> Int -> (a, Seq.Seq a)
-get1' s x = (a, del1 x s)
+-- | cut a vector at n, returning the n'th element, and the truncated vector
+cutV :: V.Vector a -> Int -> (a, V.Vector a)
+cutV v x =
+  (v V.! x,
+   V.unsafeSlice 0 x v <> V.unsafeSlice (x+1) (n - x - 1) v)
   where
-    (a Seq.:< _) = Seq.viewl (Seq.drop x s)
+    n = V.length v
 
--}
- 
-draw' :: forall a n. (KnownNat n) => Vector n a -> Int -> (a, Vector (n - 1) a)
-draw' a@(Array v) x = (index a [x], Array $ V.unsafeSlice 0 (x-1) v <> V.unsafeSlice (x+1) (n - x - 1) v)
+
+-- | isomorphic to shuffle, but keeps track of the sliced out bit.
+--
+-- eg
+--
+-- >>> shuffle 52 (take 52 rvs52) == ishuffle rvs52
+--
+ishuffle :: [Int] -> [Int]
+ishuffle as = go as []
   where
-    n = fromIntegral $ natVal @n Proxy
+    go [] dealt = reverse dealt
+    go (x0 : xs) dealt = go xs (x1:dealt)
+      where
+        x1 = foldl' (\acc d -> bool acc (acc+one) (d <= acc)) x0 (sort dealt)
 
-data Pack' d n = Pack'
-  { discards :: Vector d Card,
-    deckrem :: Vector n Card
-  } deriving (Eq, Generic)
+-- | deal n cards from a fresh, shuffled, standard pack.
+--
+-- >>>  putStrLn $ Text.intercalate "\n" $ fmap short <$> flip evalState (mkStdGen 44) $ replicateM 5 (dealN 5)
+-- A♣3♠K♠7♡9♠
+-- 9♠7♡2♣Q♢J♣
+-- K♢4♣9♢K♠7♠
+-- 7♣7♠J♡8♡J♢
+-- 5♠Q♣A♣Q♡T♠
+--
+dealN :: (RandomGen g) => Int -> State g [Card]
+dealN n = fmap toEnum . ishuffle <$> rvis 52 n
 
-data PackState' = PackState'
-  { currentPack' :: Pack,
-    currentGen' :: StdGen
-  } deriving (Eq, Show, Generic)
-
-defaultPackState' :: Int -> PackState'
-defaultPackState' x = PackState' pack0 (mkStdGen x)
-
-resetPack' :: State PackState' ()
-resetPack' = modify (\x -> x { currentPack' = pack0 })
-
-resetGen' :: Int -> State PackState' ()
-resetGen' r = modify (\x -> x { currentGen' = mkStdGen r })
-
-
-{-
--- | draw a single card
--- >>> putStrLn $ foldMap id $ fmap short $ fst $ flip runState (PackState pack0 (mkStdGen 41)) (Seq.replicateM 2 draw)
--- A♠2♣
-rdraw :: State PackState' Card
-rdraw = do
-  (PackState' p g) <- get
-  let ((drawn, rem'), g') =
-        first (draw' (deckrem p))
-        (uniformR (0, flatten $ shape (deckrem p) - 1) g)
-  let p' = Pack' (dealt p Seq.|> drawn) rem'
-  put (PackState' p' g')
-  pure drawn
-
--}
-
--- drawN' :: forall a n. (KnownNat n) => Vector n a -> 
+-- | An enumeration of 2 samples from a list without replacement
+--
+-- >>> enum2 [0..2]
+-- [(0,1),(0,2),(1,0),(1,2),(2,0),(2,1)]
+enum2 :: [a] -> [(a, a)]
+enum2 xs = fmap (\(x:y:_) -> (xs List.!! x, xs List.!! y)) $ fmap (fmap toEnum) . (\x y -> ishuffle [x,y]) <$> [0..(n-1)] <*> [0..(n-2)]
+  where
+    n = length xs
 
 newtype Hand = Hand { cards :: Seq.Seq Card } deriving (Eq, Show, Generic)
 
@@ -306,7 +229,7 @@ instance Short HandRank where
 
 -- | compute the hand rank
 --
--- >>> pretty $ handRank <$> hs
+-- >>> pretties $ handRank <$> hs
 --  1:AT765
 --  2:7J94
 --  2:JQ73
@@ -396,18 +319,22 @@ rankCount (Hand cs) =
   toList $
   fmap ((,1) . rank) cs
 
-rip75 :: Seq a -> [Seq a]
-rip75 s = mconcat $ (`ripHole2` s) <$> [0 .. (Seq.length s - 1)]
+rip75 :: [a] -> [[a]]
+rip75 s = mconcat $ (`ripHole2` s) <$> [0 .. (length s - 1)]
   where
-    ripHole2 x s = let (s0, s1) = cut1 x s in
-      (s0 <>) . (\y -> uncurry (<>) $ cut1 y s1) <$> [0 .. (Seq.length s1 - 1)]
+    ripHole2 x s = let (s0, s1) = cut x s in
+      (s0 <>) . (\y -> uncurry (<>) $ cut y s1) <$> [0 .. (length s1 - 1)]
+    cut x s = (take x s, drop (x+1) s)
 
-bestHand :: Seq.Seq Hand -> (Hand, Int)
-bestHand hs = fromMaybe (Hand Seq.Empty, 0) $ head $ Seq.sortOn (Down . handRank . fst) (Seq.zip hs (Seq.iterateN (Seq.length hs) (+1) 0))
+bestHand :: [Hand] -> (Hand, Int)
+bestHand hs =
+  fromMaybe (Hand (Seq.fromList []), 0) $
+  head $
+  sortOn (Down . handRank . fst) (zip hs [0..(length hs - 1)])
 
 data TableState = TableState
-  { players :: Seq.Seq (Seq.Seq Card),
-    hole :: Seq.Seq Card
+  { players :: [[Card]],
+    hole :: [Card]
   } deriving (Eq, Show, Generic)
 
 instance Short TableState where
@@ -415,9 +342,9 @@ instance Short TableState where
     Text.intercalate ","
     (short <$> toList ps) <> ":" <>
     Text.intercalate " "
-     [ short (Seq.take 3 h),
-       short (Seq.take 1 $ Seq.drop 3 h),
-       short (Seq.take 1 $ Seq.drop 4 h)
+     [ short (take 3 h),
+       short (take 1 $ drop 3 h),
+       short (take 1 $ drop 4 h)
      ]
 
 -- | deal a table from state
@@ -431,22 +358,21 @@ instance Short TableState where
 -- 611672144 / 10000 / 5 * 23 (num cards) = 281k cycles per table draw * 100 = 28m out of 2259m total cycles.
 --
 --
-dealTable :: Int -> State PackState TableState
+dealTable :: (RandomGen g) => Int -> State g TableState
 dealTable n = do
-  resetPack
-  cs <- drawN (5 + 2 * n)
+  cs <- dealN (5 + 2 * n)
   pure $
     TableState
-      ((\x -> Seq.take 2 $ Seq.drop (x*2) cs) <$> Seq.fromList [0..(n-1)])
-      (Seq.take 5 cs)
+      ((\x -> take 2 $ drop (x*2) cs) <$> [0..(n-1)])
+      (take 5 cs)
 
 -- | Provide the best hand for each player
 -- >>> ts0 = evalState (dealTable 1) defaultPackState
 -- >>> resolve5 ts0
 --
-resolve5 :: TableState -> Seq Hand
+resolve5 :: TableState -> [Hand]
 resolve5 (TableState ps h) = fmap fst $
-  (\p -> bestHand $ Seq.fromList $ hand <$> rip75 (p <> h)) <$> ps
+  (\p -> bestHand $ hand . Seq.fromList <$> rip75 (p <> h)) <$> ps
 
 -- | determine the winner for a table
 --
@@ -507,7 +433,7 @@ c2b (Card r s) (Card r' s')
   | otherwise = Offsuited (max r r') (min r r')
 
 mapb :: Map B Int
-mapb = Map.fromListWith (+) ((,1) . uncurry c2b <$> enumDraw2 (toList deck))
+mapb = Map.fromListWith (+) ((,1) . uncurry c2b <$> enum2 deck)
 
 -- | count the Bs in a full enumeration of dealing two cards.
 --
@@ -537,16 +463,15 @@ stratText =
 -- >>> countBs == (length . bToCards <$> bs)
 -- True
 bToCards :: B -> [(Card, Card)]
-bToCards (Paired r) = bimap (Card r) (Card r) <$> enumDraw2 [Hearts .. Spades]
+bToCards (Paired r) = bimap (Card r) (Card r) <$> enum2 [Hearts .. Spades]
 bToCards (Suited r0 r1) =
   ((\s -> (Card r0 s, Card r1 s)) <$> [Hearts .. Spades]) <>
   ((\s -> (Card r1 s, Card r0 s)) <$> [Hearts .. Spades])
 bToCards (Offsuited r0 r1) =
   (bimap (Card r0) (Card r1) <$>
-    enumDraw2 [Hearts .. Spades]) <>
+    enum2 [Hearts .. Spades]) <>
   (bimap (Card r1) (Card r0) <$>
-    enumDraw2 [Hearts .. Spades])
-
+    enum2 [Hearts .. Spades])
 
 -- | representation of each B as one pair of cards.
 --
@@ -559,16 +484,14 @@ bRep (Suited r0 r1) = [Card r0 Hearts, Card r1 Hearts]
 --
 -- >>> let xss = vsB 100 <$> (toEnum <$> [0..168])
 -- >>> let awin = Strat $ fromList xss
--- 
+--
 vsB :: Int -> B -> Double
 vsB n b = (\x -> fromIntegral (sum x) / fromIntegral (length x)) $
-  flip evalState (PackState (v1 p0) (mkStdGen 42)) $ replicateM n $ do
-    modify (\x -> x { currentPack = frozenDeal $ Seq.fromList p0 })
-    p1 <- drawN 2
-    h <- drawN 5
-    pure $ snd $ winner $ TableState (Seq.fromList [Seq.fromList p0, p1]) h
+  flip evalState (mkStdGen 42) $ replicateM n $ do
+    p1 <- dealN 2
+    h <- dealN 5
+    pure $ snd $ winner $ TableState [p0, p1] h
   where
-    v1 cs = Pack (Seq.fromList cs) (delN (fromEnum <$> cs) deck)
     p0 = bRep b
 
 -- | pixel chart of an array of Bs
