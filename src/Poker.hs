@@ -26,9 +26,6 @@ import qualified Data.Set as Set
 import NumHask.Array.Fixed as A
 import Data.Distributive (Distributive (..))
 import Data.Functor.Rep
--- import Data.Functor.Contravariant
--- import Data.Functor.Contravariant
-import Chart hiding (shape)
 import Lens.Micro
 import Perf hiding (zero)
 import qualified Data.Vector as V
@@ -37,7 +34,27 @@ import qualified NumHask.Array.Shape as Shape
 import qualified Control.Scanl as Scan
 import Data.Mealy
 import qualified Data.List as List
+import qualified Prelude as P
+import NumHask.Space
 
+
+-- | Unicode is used as a short text representation of most poker types
+--
+-- >>> short Hearts
+-- "\9825"
+--
+-- >>> putStrLn $ short Hearts
+-- ♡
+--
+-- >>> pretty (Card Ace Spades)
+-- A♠
+--
+-- >>> pretties $ (Card King) <$> [Hearts .. Spades]
+-- K♡
+-- K♣
+-- K♢
+-- K♠
+--
 class Short a where
   short :: a -> Text
 
@@ -47,6 +64,10 @@ class Short a where
   pretties :: (Foldable f) => f a -> IO ()
   pretties xs = putStrLn $ Text.intercalate "\n" $ short <$> toList xs
 
+-- | Rank of a Card
+--
+-- >>> mconcat $ fmap short (sortOn Down [Two .. Ace])
+-- "AKQJT98765432"
 data Rank = Two | Three | Four | Five | Six | Seven | Eight | Nine
           | Ten | Jack | Queen | King | Ace
           deriving (Eq, Ord, Show, Enum, Generic)
@@ -68,6 +89,10 @@ instance Short Rank where
   short King = "K"
   short Ace = "A"
 
+-- | Suit of a Card
+--
+-- >>> putStrLn $ mconcat $ fmap short [Hearts .. Spades]
+-- ♡♣♢♠
 data Suit = Hearts | Clubs | Diamonds| Spades deriving (Eq, Show, Ord, Enum, Generic)
 
 instance NFData Suit
@@ -79,6 +104,10 @@ instance Short Suit where
   short Diamonds = "\9826"
   short Spades = "\9824"
 
+-- | Card from a standard 52 card pack.
+--
+-- >>> pretty $ Card Ten Hearts
+-- T♡
 data Card = Card { rank :: Rank, suit :: Suit } deriving (Eq, Show, Generic)
 
 instance NFData Card
@@ -103,6 +132,139 @@ instance (Functor f, Foldable f) => Short (f Card) where
 --
 deck :: [Card]
 deck = Card <$> [Two .. Ace] <*> [Hearts .. Spades]
+
+-- | Card pairs dealt to a holdem player have identical probability structure to each other. Iso-sets of card pairs map to a dense representation. This representation forms a basis for modelling player actions, in the presence of uncertainty.
+--
+-- In the transformation, the suit information is forgotten.
+--
+-- A (Card, Card) can be:
+--
+-- - a pair (same rank), which can happen 12 ways. (4 suits x 3 suits)
+--
+-- - offsuited (of different rank), which can happen 24 ways: lo/high x 4 suits x 3 suits
+--
+-- - suited (of different rank and the same suit), 8 ways (lo/high rank x 4 suits)
+--
+-- ![count example](other/count.svg)
+--
+data B = Suited Rank Rank | Offsuited Rank Rank | Paired Rank deriving (Eq, Show, Ord)
+
+-- | convert from a Card pair to a B
+--
+-- >>> c2b (Card Ace Hearts, Card Ace Spades)
+-- Paired Ace
+--
+-- Unpaired cards are forced to high low order.
+--
+-- >>> c2b (Card Two Hearts, Card Ace Spades)
+-- Offsuited Ace Two
+--
+c2b :: (Card, Card) -> B
+c2b (Card r s, Card r' s')
+  | r==r' = Paired r
+  | s==s' = Suited (max r r') (min r r')
+  | otherwise = Offsuited (max r r') (min r r')
+
+-- | Enumeration of the (Card,Card)'s that B represents.
+--
+-- >>> putStrLn $ Text.intercalate "." $ (\(x,y) -> short x <> short y) <$> btocs (Paired Ace)
+-- A♡A♣.A♡A♢.A♡A♠.A♣A♡.A♣A♢.A♣A♠.A♢A♡.A♢A♣.A♢A♠.A♠A♡.A♠A♣.A♠A♢
+btocs :: B -> [(Card, Card)]
+btocs (Paired r) = bimap (Card r) (Card r) <$> enum2 [Hearts .. Spades]
+btocs (Suited r0 r1) =
+  ((\s -> (Card r0 s, Card r1 s)) <$> [Hearts .. Spades]) <>
+  ((\s -> (Card r1 s, Card r0 s)) <$> [Hearts .. Spades])
+btocs (Offsuited r0 r1) =
+  (bimap (Card r0) (Card r1) <$>
+    enum2 [Hearts .. Spades]) <>
+  (bimap (Card r1) (Card r0) <$>
+    enum2 [Hearts .. Spades])
+
+-- | a representative pair of cards for a B, choosing Hearts and Spades.
+--
+-- Always have a good think about this in the realm of raw card simulation.
+--
+btoc :: B -> (Card, Card)
+btoc (Paired r) = (Card r Hearts, Card r Spades)
+btoc (Offsuited r0 r1) = (Card r0 Hearts, Card r1 Spades)
+btoc (Suited r0 r1) = (Card r0 Hearts, Card r1 Hearts)
+
+instance Enum B where
+  fromEnum (Paired p) = fromEnum p * 13 + fromEnum p
+  fromEnum (Suited r0 r1) = fromEnum r0 + fromEnum r1 * 13
+  fromEnum (Offsuited r0 r1) = fromEnum r0 * 13 + fromEnum r1
+
+  toEnum x = case compare d m of
+    EQ -> Paired $ toEnum d
+    LT -> Suited (toEnum m) (toEnum d)
+    GT -> Offsuited (toEnum d) (toEnum m)
+    where
+      (d,m) = x `divMod` 13
+
+instance Short B where
+  short (Paired p) = short p <> short p
+  short (Suited r0 r1) = short r0 <> short r1 <> "s"
+  short (Offsuited r0 r1) = short r0 <> short r1 <> "o"
+
+-- | A Strat represents an array of a's indexed by B's.
+--
+-- Here is a chart of the chances of winning given a B, against another player with any 2.
+--
+-- ![bwin example](other/bwin.svg)
+newtype Strat a =
+  Strat
+  { array :: Array '[169] a
+  } deriving (Eq, Show)
+
+instance Functor Strat where
+  fmap f (Strat a) = Strat (fmap f a)
+
+instance Data.Distributive.Distributive Strat where
+  distribute = distributeRep
+
+instance Representable Strat where
+  type Rep Strat = B
+
+  tabulate f = Strat $ tabulate (f . (\(x:_) -> toEnum x))
+
+  index (Strat a) = index a . (:[]) . fromEnum
+
+-- | enumeration of all the B's
+--
+-- This chart compares the chances of winning in a 2 player game versus a 9 player game, given hero is holding a B.
+--
+--
+bs :: Strat B
+bs = Strat $ fromList $ toEnum <$> [0..168]
+
+-- | count the Bs in a full enumeration of dealing two cards.
+--
+-- uses enumeration rather than is random
+--
+-- >>> take 5 $ reverse $ toList $ array countBs
+-- [Paired Ace,Paired Ace,Paired Ace,Suited Ace King,Offsuited Ace King]
+countBs :: Strat Int
+countBs = tabulate (\k -> fromMaybe zero $ Map.lookup k (Map.fromListWith (+) ((,1) . c2b <$> enum2 deck)))
+
+dealB :: (RandomGen g) => Int -> B -> State g [Card]
+dealB p b = dealNWith (5+2*p) (deck List.\\ (\(x,y)->[x,y]) (btoc b))
+
+-- >>> let a = evalState (tableStateB 1 (Paired Ace)) (mkStdGen 42)
+tableStateB :: (RandomGen g) => Int -> B -> State g TableState
+tableStateB p b = do
+  cs <- dealB p b
+  pure $ TableState ([btoc b] <> ((\x -> (cs List.!! (2*x), cs List.!! (2*x+1))) <$> [0..p-1])) (drop (p*2) cs)
+
+-- | The minimum 2-player game consists of the hero (p0) headsup versus the enemy (p1).
+--
+-- The hero can Fold, and we can consider this to have value zero, and 1.5b for the enemy. (0b)
+-- The hero can Call, by convention, this costs half a blind.
+-- The hero can raise AllIn x.
+-- On a Call, the enemy can Check. At this point, we assume no further betting, and resolve. (+1.5,-0.5)
+-- On a Call, the enemy can AllIn x-0.5. hero can Fold (-0.5b). hero can Call (x+1.5b, -x)
+-- On an AllIn x, enemy can Fold (+1.5b) or Call (x+1.5b,-x)
+
+data Action = Fold | Call | AllIn Double
 
 -- | uniform random variate of an Int, typically an index into a structure.
 rvi :: (RandomGen g) => Int -> State g Int
@@ -170,6 +332,12 @@ ishuffle as = go as []
 dealN :: (RandomGen g) => Int -> State g [Card]
 dealN n = fmap toEnum . ishuffle <$> rvis 52 n
 
+dealN' :: (RandomGen g) => Int -> State g [Card]
+dealN' n = fmap toEnum . V.toList . fst . shuffle 52 <$> rvis 52 n
+
+dealNWith :: (RandomGen g) => Int -> [Card] -> State g [Card]
+dealNWith n cs = fmap (cs List.!!) . ishuffle <$> rvis (length cs) n
+
 -- | An enumeration of 2 samples from a list without replacement
 --
 -- >>> enum2 [0..2]
@@ -179,163 +347,209 @@ enum2 xs = fmap (\(x:y:_) -> (xs List.!! x, xs List.!! y)) $ fmap (fmap toEnum) 
   where
     n = length xs
 
-newtype Hand = Hand { cards :: Seq.Seq Card } deriving (Eq, Show, Generic)
+newtype Hand = Hand { cards :: [Card] } deriving (Eq, Show, Generic)
 
 instance Short Hand where
   short (Hand cs) =
-    Text.intercalate "" (toList $ fmap short cs)
+    Text.intercalate "" (fmap short cs)
 
 instance NFData Hand
 
-hand :: Seq.Seq Card -> Hand
-hand cs = Hand $ Seq.sortOn Down cs
+hand :: [Card] -> Hand
+hand cs = Hand $ sortOn Down cs
 
 ranks :: Hand -> Set.Set Rank
-ranks (Hand cs) = Set.fromDescList $ toList $ rank <$> cs
+ranks (Hand cs) = Set.fromDescList $ rank <$> cs
 
 suits :: Hand -> Set.Set Suit
-suits (Hand cs) = Set.fromList $ toList $ suit <$> cs
+suits (Hand cs) = Set.fromList $ suit <$> cs
 
-data HandRank = HighCard (Seq.Seq Rank)
-              | Pair  (Seq.Seq Rank)
-              | TwoPair (Seq.Seq Rank)
-              | ThreeOfAKind (Seq.Seq Rank)
-              | Straight (Seq.Seq Rank)
-              | Flush (Seq.Seq Rank)
-              | FullHouse (Seq.Seq Rank)
-              | FourOfAKind (Seq.Seq Rank)
-              | StraightFlush (Seq.Seq Rank)
-              deriving (Eq, Ord, Show)
-
-instance Short HandRank where
-  short (HighCard rs) = " 1:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (Pair rs) = " 2:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (TwoPair rs) = "22:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (ThreeOfAKind rs) = " 3:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (FourOfAKind rs) = " 4:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (FullHouse rs) = "32:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (Straight rs) = " S:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (Flush rs) = " F:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-  short (StraightFlush rs) = "SF:" <>
-    Text.intercalate "" (toList $ fmap short rs)
-
--- | compute the hand rank
+-- | 5 card standard poker rankings
 --
--- >>> pretties $ handRank <$> hs
---  1:AT765
---  2:7J94
---  2:JQ73
---  1:KQ752
---  2:2973
---  2:8K73
---  2:KT74
---  2:AK43
---  1:AKT84
--- 22:AT7
-handRank :: Hand -> HandRank
-handRank h = fromMaybe (kind h)
-  (sflush h <|>
-   flush h <|>
-   straight h)
+-- >>> toEnum $ fromEnum (HighCard Ace King Ten Six Three) :: HandRank
+-- 
+data HandRank = HighCard Rank Rank Rank Rank Rank
+              | Pair Rank Rank Rank Rank
+              | TwoPair Rank Rank Rank
+              | ThreeOfAKind Rank Rank Rank
+              | Straight Rank
+              | Flush Rank Rank Rank Rank Rank
+              | FullHouse Rank Rank
+              | FourOfAKind Rank Rank
+              | StraightFlush Rank
+              deriving (Eq, Ord, Show, Generic)
 
--- | provide the ranks if the cards are an exact flush.
+instance NFData HandRank
+
+instance Enum HandRank where
+  fromEnum (HighCard r0 r1 r2 r3 r4) = sum $ zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r4,r3,r2,r1,r0]) [0..4]
+  fromEnum (Pair r0 r1 r2 r3) = (13 P.^ 5) + sum (zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r3,r2,r1,r0]) [0..3::Int])
+  fromEnum (TwoPair r0 r1 r2) = 13 P.^ 5 + 13 P.^ 4 + sum (zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r2,r1,r0]) [0..2])
+  fromEnum (ThreeOfAKind r0 r1 r2) = 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + sum (zipWith (\r i -> r * 13  P.^  i) (fromEnum <$> [r2,r1,r0]) [0..2])
+  fromEnum (Straight r0) = 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + fromEnum r0
+  fromEnum (Flush r0 r1 r2 r3 r4) = 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 + sum (zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r4,r3,r2,r1,r0]) [0..4])
+  fromEnum (FullHouse r0 r1) = 2 * 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + 13 + sum (zipWith (\r i -> r * 13  P.^  i) (fromEnum <$> [r1,r0]) [0..1])
+  fromEnum (FourOfAKind r0 r1) = 2 * 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + 13 P.^ 2 + 13 + sum (zipWith (\r i -> r * 13  P.^  i) (fromEnum <$> [r1,r0]) [0..1])
+  fromEnum (StraightFlush r0) = 2 * 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + 2 * 13 P.^ 2 + 13 + fromEnum r0
+
+  toEnum x
+    | x < 13 P.^ 5 =
+      (\(r0:r1:r2:r3:r4:_) -> HighCard r0 r1 r2 r3 r4) $ fmap toEnum $ base13 x
+    | x < 13 P.^ 5 + 13 P.^ 4 =
+      (\(r0:r1:r2:r3:_) -> Pair r0 r1 r2 r3) $ fmap toEnum $ base13 (x - 13 P.^ 5)
+    | x < 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 =
+      (\(r0:r1:r2:_) -> TwoPair r0 r1 r2) $ fmap toEnum $ base13 (x - (13 P.^ 5 + 13 P.^ 4))
+    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 =
+      (\(r0:r1:r2:_) -> ThreeOfAKind r0 r1 r2) $ fmap toEnum $ base13 (x - (13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3))
+    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 =
+      Straight (toEnum $ x - (13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3))
+    | x < 2 * 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 =
+      (\(r0:r1:r2:r3:r4:_) -> Flush r0 r1 r2 r3 r4) $ fmap toEnum $ base13 x
+    | x < 2 * 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 P.^ 2 + 13 =
+      (\(r0:r1:_) -> FullHouse r0 r1) $ fmap toEnum $ base13 (x - (2 * 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13))
+    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 13 =
+      (\(r0:r1:_) -> FourOfAKind r0 r1) $ fmap toEnum $ base13 (x - (13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 13))
+    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 2 * 13 =
+      StraightFlush (toEnum $ x - (13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 13))
+    | otherwise = StraightFlush Ace
+
+base13 :: (Eq a, Num a, Integral a) => a -> [a]
+base13 x = go x []
+  where
+    go 0 l = l
+    go acc l = let (d,m) = acc `divMod` 13 in go d (m:l)
+
+
+-- | compute the hand ranking
 --
--- >>> flush (Seq.fromList [Card Ace Hearts, Card King Hearts, Card Queen Hearts])
--- Just (Flush (fromList [Queen,King,Ace]))
+-- >>> let h = hand $ flip evalState (mkStdGen 55) $ dealN 7
+-- >>> Perf.tick handRank h
+-- (328006,Just (TwoPair Four Queen Five))
 --
--- >>> flush (Seq.fromList [Card Ace Hearts, Card King Hearts, Card Queen Hearts, Card Jack Spades])
--- Nothing
-flush :: Hand -> Maybe HandRank
-flush h =
-  bool
-  Nothing
-  (Just $ Flush $ rankFlush h)
-  (isFlush h)
-
-isFlush :: Hand -> Bool
-isFlush h = 1 == Set.size (suits h)
-
-rankFlush :: Hand -> Seq.Seq Rank
-rankFlush h = fromList $ Set.toDescList $ ranks h
+-- >>> putStrLn =<< (\(c,t) -> comma (Just 2) (fromIntegral (P.toInteger c)/2.6e3 :: Double) <> "\181: " <> (show t :: Text)) <$> Perf.tick (handRank . fst . winner) (ts List.!! 0)
+-- 929µ: Just (TwoPair Nine Ace Three)
+--
+-- >>> putStrLn =<< (\(c,t) -> comma (Just 2) (fromIntegral (P.toInteger c) :: Double) <> " " <> (show t :: Text)) <$> Perf.tick (handRank . fst . winner) (ts List.!! 0)
+-- 2.40e6 Just (TwoPair Nine Ace Three)
+handRank :: Hand -> Maybe HandRank
+handRank h =
+  flush h <|>
+  straight h <|>
+  kind h
 
 straight :: Hand -> Maybe HandRank
-straight h =
-  bool
-  Nothing
-  (Just $ Straight (Seq.singleton (rankStraight h)))
-  (isStraight h)
+straight h = Straight <$> str8 (toList $ ranks h)
 
-isStraight :: Hand -> Bool
-isStraight h =
-  4 == (fromEnum (Set.findMax (suits h)) - fromEnum (Set.findMin (suits h)))
+rangeCount :: (Enum a) => Mealy a [(a,a)]
+rangeCount = M (\a -> ((a,a),[])) (\((rmin,rmax), rs) a -> bool ((a,a),(rmin,rmax):rs) ((rmin,a),rs) (fromEnum a == fromEnum rmax + one)) (\x -> fst x:snd x)
 
-rankStraight :: Hand -> Rank
-rankStraight h = Set.findMax (ranks h)
+str8 :: Enum a => [a] -> Maybe a
+str8 xs = case runs of
+  [] -> Nothing
+  ((_,r):_) -> Just r
+  where
+    runs = filter (\(x,y) -> fromEnum y - fromEnum x >= 4) (Data.Mealy.fold rangeCount xs)
 
-isSFlush :: Hand -> Bool
-isSFlush h = isFlush h && isStraight h
+flush :: Hand -> Maybe HandRank
+flush h =
+  case filter ((>=5) . length . snd) (suitRanks h) of
+    [] -> Nothing
+    ((_,rs@(r0:r1:r2:r3:r4:_)):_) ->
+      Just $
+      maybe
+      (Flush r0 r1 r2 r3 r4)
+      StraightFlush
+      (str8 rs)
+    _ -> Nothing
 
-sflush :: Hand -> Maybe HandRank
-sflush h =
-  bool
-  Nothing
-  (Just $ StraightFlush (Seq.singleton (rankStraight h)))
-  (isSFlush h)
+suitRanks :: Hand -> [(Suit, [Rank])]
+suitRanks (Hand cs) =
+  Map.toList $
+  Map.fromDescListWith (<>) $
+  fmap (\(Card r s) -> (s,[r])) cs
 
-kind :: Hand -> HandRank
-kind h = let rx@((r, x) Seq.:<| xs) = rankCount h in
-  case x of
-    4 -> FourOfAKind (Seq.singleton r)
-    3 -> case xs of
-          Seq.Empty -> ThreeOfAKind (Seq.singleton r)
-          ((r', x') Seq.:<| _) ->
-            bool
-            (ThreeOfAKind (r Seq.:<| (fst <$> xs)))
-            (FullHouse (r Seq.:<| r' Seq.:<| Seq.Empty)) (x'==2)
-    2 -> case xs of
-          Seq.Empty -> Pair (Seq.singleton r)
-          ((r', x') Seq.:<| xs') ->
-            bool
-            (Pair (r Seq.:<| fmap fst xs))
-            (TwoPair $ r Seq.:<| r' Seq.:<| fmap fst xs')
-            (x' == 2)
-    1 -> HighCard (fmap fst rx)
-    _ -> HighCard (fmap fst rx)
-
-rankCount :: Hand -> Seq.Seq (Rank, Int)
+rankCount :: Hand -> [(Rank,Int)]
 rankCount (Hand cs) =
-  Seq.sortOn (\(r,x) -> Down (x,r)) $
-  fromList $
+  sortOn (Down . swap) $
   Map.toList $
   Map.fromDescListWith (+) $
-  toList $
-  fmap ((,1) . rank) cs
+  fmap (\(Card r _) -> (r,1)) cs
 
-rip75 :: [a] -> [[a]]
-rip75 s = mconcat $ (`ripHole2` s) <$> [0 .. (length s - 1)]
-  where
-    ripHole2 x s = let (s0, s1) = cut x s in
-      (s0 <>) . (\y -> uncurry (<>) $ cut y s1) <$> [0 .. (length s1 - 1)]
-    cut x s = (take x s, drop (x+1) s)
+kind :: Hand -> Maybe HandRank
+kind h = case rankCount h of
+  [] -> Nothing
+  ((r0,n0):rs) -> case n0 of
+    2 -> case rs of
+      [] -> Nothing
+      ((r1,n1):rs') ->
+        case rs' of
+          [] -> Nothing
+          ((r2,_):rs'') ->
+            bool
+            (case rs'' of
+               [] -> Nothing
+               ((r3,_):_) -> Just $ Pair r0 r1 r2 r3)
+            (Just $ TwoPair r0 r1 r2)
+            (n1==2)
+    1 -> case rs of
+      [] -> Nothing
+      ((r1,_):rs') ->
+        case rs' of
+          [] -> Nothing
+          ((r2,_):rs'') ->
+            case rs'' of
+              [] -> Nothing
+              ((r3,_):rs''') ->
+                case rs''' of
+                  [] -> Nothing
+                  ((r4,_):_) -> Just $ HighCard r0 r1 r2 r3 r4
+    3 -> case rs of
+      [] -> Nothing
+      ((r1,n1):rs') -> case rs' of
+        [] -> Nothing
+        ((r2,_):_) -> Just $
+          bool
+          (ThreeOfAKind r0 r1 r2)
+          (FullHouse r0 r1)
+          (n1>1)
+    4 -> case rs of
+      [] -> Nothing
+      ((r1,_):_) -> Just $ FourOfAKind r0 r1
+    _ -> Nothing
 
-bestHand :: [Hand] -> (Hand, Int)
+instance Short HandRank where
+  short (HighCard r0 r1 r2 r3 r4) = " H:" <>
+    short r0 <> short r1 <> short r2 <> short r3 <> short r4
+  short (Pair r0 r1 r2 r3) = " P:" <>
+    short r0 <> short r1 <> short r2 <> short r3
+  short (TwoPair r0 r1 r2) = "2P:" <>
+    short r0 <> short r1 <> short r2
+  short (ThreeOfAKind r0 r1 r2) = " 3:" <>
+    short r0 <> short r1 <> short r2
+  short (FourOfAKind r0 r1) = " 4:" <>
+    short r0 <> short r1
+  short (FullHouse r0 r1) = "32:" <>
+    short r0 <> short r1
+  short (Straight r0) = " S:" <>
+    short r0
+  short (Flush r0 r1 r2 r3 r4) = " F:" <>
+    short r0 <> short r1 <> short r2 <> short r3 <> short r4
+  short (StraightFlush r0) = "SF:" <>
+    short r0
+
+bestHand :: [Hand] -> Int
 bestHand hs =
-  fromMaybe (Hand (Seq.fromList []), 0) $
+  fromMaybe 0 $
   head $
+  fmap snd $
   sortOn (Down . handRank . fst) (zip hs [0..(length hs - 1)])
 
 data TableState = TableState
-  { players :: [[Card]],
+  { players :: [(Card, Card)],
     hole :: [Card]
   } deriving (Eq, Show, Generic)
+
+instance NFData TableState
 
 instance Short TableState where
   short (TableState ps h) =
@@ -347,172 +561,60 @@ instance Short TableState where
        short (take 1 $ drop 4 h)
      ]
 
--- | deal a table from state
+-- | deal a random table
 --
--- >>> fst <$> Perf.tick (\x -> evalState (fmap (fst . winner) <$> replicateM x (dealTable 9)) (defaultPackState 42)) 100
--- 2259275382
+-- >>> fst <$> Perf.tick (\x -> evalState (replicateM x (dealTable 9)) (mkStdGen 42)) 100
+-- 36849002
 --
--- So this is 100 events x 21 (rip75 combos) x 9 (num players) = 18900 handRank evaluations.
--- 2259275382 / 18900 = 119k cycles per evaluation.
+-- >>> fst <$> Perf.tick (\x -> evalState (replicateM x (dealTable 9)) (mkStdGen 42)) 1000
+-- 356727876
 --
--- 611672144 / 10000 / 5 * 23 (num cards) = 281k cycles per table draw * 100 = 28m out of 2259m total cycles.
---
+-- let t = evalState (dealTable 2) (mkStdGen 42)
+-- >>> pretty t
+-- 7♡6♠,9♡4♠:A♡7♠T♡ 5♠ 6♣
 --
 dealTable :: (RandomGen g) => Int -> State g TableState
 dealTable n = do
-  cs <- dealN (5 + 2 * n)
+  cs <- dealN' (5 + 2 * n)
   pure $
     TableState
-      ((\x -> take 2 $ drop (x*2) cs) <$> [0..(n-1)])
+      ((\x -> (\(x:y:_) -> (x,y)) $ take 2 $ drop (5+x*2) cs) <$> [0..(n-1)])
       (take 5 cs)
 
 -- | Provide the best hand for each player
--- >>> ts0 = evalState (dealTable 1) defaultPackState
--- >>> resolve5 ts0
+-- >>> pretties $ resolve t
+-- A♡7♠7♡6♣6♠
+-- A♡T♡9♡7♠6♣
 --
-resolve5 :: TableState -> [Hand]
-resolve5 (TableState ps h) = fmap fst $
-  (\p -> bestHand $ hand . Seq.fromList <$> rip75 (p <> h)) <$> ps
+hands  :: TableState -> [Hand]
+hands (TableState ps h) =
+  (\(x,y) -> hand ([x,y] <> h)) <$> ps
 
 -- | determine the winner for a table
 --
--- >>> ts = evalState (replicateM 1000 (dealTable 9)) defaultPackState
--- >>> sum $ snd . winner <$> ts
--- 4052
-winner :: TableState -> (Hand, Int)
-winner ts = bestHand (resolve5 ts)
-
-data B = Suited Rank Rank | Offsuited Rank Rank | Paired Rank deriving (Eq, Show, Ord)
-
-instance Enum B where
-  -- dense packing
-  fromEnum (Paired p) = fromEnum p * 13 + fromEnum p
-  fromEnum (Suited r0 r1) = fromEnum r0 + fromEnum r1 * 13
-  fromEnum (Offsuited r0 r1) = fromEnum r0 * 13 + fromEnum r1
-
-  toEnum x = case compare d m of
-    EQ -> Paired $ toEnum d
-    LT -> Suited (toEnum m) (toEnum d)
-    GT -> Offsuited (toEnum d) (toEnum m)
-    where
-      (d,m) = x `divMod` 13
-
-instance Short B where
-  short (Paired p) = short p <> short p
-  short (Suited r0 r1) = short r0 <> short r1 <> "s"
-  short (Offsuited r0 r1) = short r0 <> short r1 <> "o"
-
-newtype Strat a =
-  Strat
-  { array :: Array '[169] a
-  } deriving (Eq, Show)
-
-instance Functor Strat where
-  fmap f (Strat a) = Strat (fmap f a)
-
-instance Data.Distributive.Distributive Strat where
-  distribute = distributeRep
-
-instance Representable Strat where
-  type Rep Strat = B
-
-  tabulate f = Strat $ tabulate (f . (\(x:_) -> toEnum x))
-
-  index (Strat a) = index a . (:[]) . fromEnum
-
-bs :: Strat B
-bs = Strat $ fromList $ toEnum <$> [0..168]
-
-asMatrix :: Strat a -> Array '[13,13] a
-asMatrix (Strat a) = reshape a
-
-c2b :: Card -> Card -> B
-c2b (Card r s) (Card r' s')
-  | r==r' = Paired r
-  | s==s' = Suited (max r r') (min r r')
-  | otherwise = Offsuited (max r r') (min r r')
-
-mapb :: Map B Int
-mapb = Map.fromListWith (+) ((,1) . uncurry c2b <$> enum2 deck)
-
--- | count the Bs in a full enumeration of dealing two cards.
+-- >>> let t = evalState (dealTable 9) (mkStdGen 42)
+-- >>> pretty t
+-- pretty t
+-- 7♡6♠,9♡4♠,J♠3♣,6♢Q♣,J♢J♣,2♢5♡,6♡K♡,Q♡9♣,2♡7♣:A♡7♠T♡ 5♠ 6♣
+-- >>> winner t
+-- putStrLn $ (\(x,y) -> y <> ": " <> x) $ bimap short show $ winner t
+-- 0: A♡7♠7♡6♣6♠
 --
--- uses enumeration rather than is random
+-- first player wins with two pair.
 --
--- >>> take 5 $ reverse $ toList $ array countBs
--- [Paired Ace,Paired Ace,Paired Ace,Suited Ace King,Offsuited Ace King]
-countBs :: Strat Int
-countBs = tabulate (\k -> fromMaybe zero $ Map.lookup k mapb)
+winner :: TableState -> Int
+winner ts = bestHand (hands ts)
 
-stratText :: ChartSvg
-stratText =
-  mempty &
-  #hudOptions .~ mempty &
-  #chartList .~
-  [ Chart (TextA
-           ( defaultTextStyle &
-             #size .~ 0.03
-           )
-           (toList $ short <$> array bs))
-    (PointXY . (\(Point x y) -> Point (-x) y) <$> gs)]
-  where
-    gs = grid MidPos (one :: Rect Double) (Point 13 13) :: [Point Double]
 
--- | Enumeration of (Card,Card) that B represents.
---
--- >>> countBs == (length . bToCards <$> bs)
--- True
-bToCards :: B -> [(Card, Card)]
-bToCards (Paired r) = bimap (Card r) (Card r) <$> enum2 [Hearts .. Spades]
-bToCards (Suited r0 r1) =
-  ((\s -> (Card r0 s, Card r1 s)) <$> [Hearts .. Spades]) <>
-  ((\s -> (Card r1 s, Card r0 s)) <$> [Hearts .. Spades])
-bToCards (Offsuited r0 r1) =
-  (bimap (Card r0) (Card r1) <$>
-    enum2 [Hearts .. Spades]) <>
-  (bimap (Card r1) (Card r0) <$>
-    enum2 [Hearts .. Spades])
+winB :: B -> Int -> Int -> Double
+winB b p n = (/fromIntegral n) $ sum $ bool 0 (1::Double) . (0==) . winner <$> evalState (replicateM n (tableStateB p b)) (mkStdGen 42)
 
--- | representation of each B as one pair of cards.
---
-bRep :: B -> [Card]
-bRep (Paired r) = [Card r Hearts, Card r Spades]
-bRep (Offsuited r0 r1) = [Card r0 Hearts, Card r1 Spades]
-bRep (Suited r0 r1) = [Card r0 Hearts, Card r1 Hearts]
+ordB :: Int -> Int -> [(B,Double)]
+ordB p n = sortOn (Down . snd) $ zip (toEnum <$> [0..168]) $ toList $ array $ (\x -> winB x p n) <$> bs
 
--- | a sample of the probability of losing, given a B
---
--- >>> let xss = vsB 100 <$> (toEnum <$> [0..168])
--- >>> let awin = Strat $ fromList xss
---
-vsB :: Int -> B -> Double
-vsB n b = (\x -> fromIntegral (sum x) / fromIntegral (length x)) $
-  flip evalState (mkStdGen 42) $ replicateM n $ do
-    p1 <- dealN 2
-    h <- dealN 5
-    pure $ snd $ winner $ TableState [p0, p1] h
-  where
-    p0 = bRep b
+compare29 :: B -> Point Double
+compare29 x = Point (winB x 1 1000) (winB x 8 1000)
 
--- | pixel chart of an array of Bs
---
--- >>> writeChartSvg "other/win.svg" $ stratText & #chartList %~ (\x -> bPixelChart (defaultSurfaceStyle & #surfaceColors .~ [Colour 0 1 0 1, Colour 1 0 0 1]) (defaultSurfaceLegendOptions $ pack "win") (Strat $ fromList $ vsB 100 <$> (toEnum <$> [0..168])) <> x)
---
-bPixelChart ::
-  SurfaceStyle ->
-  SurfaceLegendOptions ->
-  Strat Double ->
-  [Chart Double]
-bPixelChart pixelStyle plo s =
-  runHud (aspect 1) hs1 cs1
-  where
-    pts = Point 13 13
-    gr :: Rect Double
-    gr = Rect 0 13 0 13
-    f :: Point Double -> Double
-    f (Point x y) = index s (toEnum $ (12 - floor x) + 13 * floor y)
-    (cs1, hs1) =
-      surfacefl
-        f
-        (SurfaceOptions pixelStyle pts gr)
-        plo
+compare29s :: [Point Double]
+compare29s = compare29 . toEnum <$> [0..168]
+
