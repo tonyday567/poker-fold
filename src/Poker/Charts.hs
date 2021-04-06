@@ -14,11 +14,10 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-
 {-# LANGUAGE FlexibleContexts #-}
+
 module Poker.Charts where
 
-import Poker
 import NumHask.Prelude
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -37,20 +36,21 @@ import qualified Control.Scanl as Scan
 import Data.Mealy
 import qualified Data.List as List
 import qualified Prelude as P
-
+import Poker.HandRank
+import Poker.Types
 
 -- | chart text in a Strat square format
 --
--- >>> writeChartSvg "other/bs.svg" $ mempty & #chartList .~ [stratText (short <$> bs)]
+-- >>> writeChartSvg "other/bs.svg" $ mempty & #chartList .~ [stratText]
 --
 -- ![bs example](other/bs.svg)
-stratText :: Strat Text -> Chart Double
-stratText s =
+stratText :: Chart Double
+stratText =
   Chart (TextA
            ( defaultTextStyle &
              #size .~ 0.03
            )
-           (toList $ array s))
+           (short <$> ((toEnum <$> [0..168]) :: [B])))
     (PointXY . (\(Point x y) -> Point (-x) y) <$> gs)
   where
     gs = grid MidPos (one :: Rect Double) (Point 13 13) :: [Point Double]
@@ -79,8 +79,8 @@ bPixelChart pixelStyle plo s =
 
 bChart :: [Colour] -> Strat Double -> ChartSvg
 bChart cs xs = mempty & #chartList .~
-  [ stratText (short <$> bs)] <>
-    bPixelChart
+  stratText:
+  bPixelChart
      (defaultSurfaceStyle & #surfaceColors .~ cs)
      (defaultSurfaceLegendOptions (pack "") &
       #sloStyle . #surfaceColors .~ cs)
@@ -97,26 +97,11 @@ countChart =
   [Colour 0 1 0 0.3, Colour 0 0 1 0.3, Colour 1 0 0 0.3]
   (fromIntegral <$> countBs)
 
--- | Given a B in headsup SB, what is the win rate against any 2?
---
--- >>> writeChartSvg "other/bwin.svg" (bWinChart 1000 1)
---
--- ![bwin example](other/bwin.svg)
-bWinChart :: Int -> Int -> ChartSvg
-bWinChart n p =
-  bChart
-  [Colour 0 1 0 0.3, Colour 0 0 1 0.3, Colour 1 0 0 0.3]
-  ((\x -> winB x p n) <$> bs)
-
--- | comparing win percentages for B's for 2 handed versus 9 handed tabes.
---
--- >>> writeChartSvg "other/compare29.svg" compare29Chart
---
--- ![compare29 example](other/compare29.svg)
--- 
-compare29Chart :: ChartSvg
-compare29Chart = mempty & #hudOptions .~ (defaultHudOptions & #hudAxes %~ drop 1 & #hudCanvas .~ Nothing) & #chartList .~ [c]
+-- | map to a location
+b2Chart :: (B -> Point Double) -> ChartSvg
+b2Chart f = mempty & #hudOptions .~ (defaultHudOptions & #hudAxes %~ drop 1 & #hudCanvas .~ Nothing) & #chartList .~ [c]
   where
     c = Chart (TextA (defaultTextStyle & #size .~ 0.05 & #color %~ setOpac 0.1) ls) (fmap PointXY ps)
     ls = short <$> (toEnum <$> [0..168] :: [B])
-    ps = compare29 . toEnum <$> [0..168]
+    ps = f . toEnum <$> [0..168]
+

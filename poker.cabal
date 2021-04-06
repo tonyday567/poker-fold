@@ -48,6 +48,9 @@ library
   exposed-modules:
     Poker
     Poker.Charts
+    Poker.HandRank
+    Poker.Random
+    Poker.Types
   other-modules:
   default-language: Haskell2010
 

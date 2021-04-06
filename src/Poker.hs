@@ -16,8 +16,15 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
 {-# LANGUAGE FlexibleContexts #-}
+
+-- | TODO:
+--
+-- https://commons.wikimedia.org/wiki/Category:Playing_cards_set_by_Byron_Knoll
+--
+
 module Poker where
 
+import Chart
 import NumHask.Prelude
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -37,565 +44,110 @@ import qualified Data.List as List
 import qualified Prelude as P
 import NumHask.Space
 
+import Poker.Types
+import Poker.HandRank
+import Poker.Charts
+import Poker.Random
 
--- | Unicode is used as a short text representation of most poker types
+
+-- | A game is the progress from a TableState to the resolution of the current hand.
 --
--- >>> short Hearts
--- "\9825"
+-- > sum stacks (game _ t) == sum stacks t
 --
--- >>> putStrLn $ short Hearts
--- ♡
---
--- >>> pretty (Card Ace Spades)
--- A♠
---
--- >>> pretties $ (Card King) <$> [Hearts .. Spades]
--- K♡
--- K♣
--- K♢
--- K♠
---
-class Short a where
-  short :: a -> Text
-
-  pretty :: a -> IO ()
-  pretty = putStrLn . short
-
-  pretties :: (Foldable f) => f a -> IO ()
-  pretties xs = putStrLn $ Text.intercalate "\n" $ short <$> toList xs
-
--- | Rank of a Card
---
--- >>> mconcat $ fmap short (sortOn Down [Two .. Ace])
--- "AKQJT98765432"
-data Rank = Two | Three | Four | Five | Six | Seven | Eight | Nine
-          | Ten | Jack | Queen | King | Ace
-          deriving (Eq, Ord, Show, Enum, Generic)
-
-instance NFData Rank
-
-instance Short Rank where
-  short Two = "2"
-  short Three = "3"
-  short Four = "4"
-  short Five = "5"
-  short Six = "6"
-  short Seven = "7"
-  short Eight = "8"
-  short Nine = "9"
-  short Ten = "T"
-  short Jack = "J"
-  short Queen = "Q"
-  short King = "K"
-  short Ace = "A"
-
--- | Suit of a Card
---
--- >>> putStrLn $ mconcat $ fmap short [Hearts .. Spades]
--- ♡♣♢♠
-data Suit = Hearts | Clubs | Diamonds| Spades deriving (Eq, Show, Ord, Enum, Generic)
-
-instance NFData Suit
-
--- | see https://decodeunicode.org/en/u+1F0A2
-instance Short Suit where
-  short Hearts = "\9825"
-  short Clubs = "\9827"
-  short Diamonds = "\9826"
-  short Spades = "\9824"
-
--- | Card from a standard 52 card pack.
---
--- >>> pretty $ Card Ten Hearts
--- T♡
-data Card = Card { rank :: Rank, suit :: Suit } deriving (Eq, Show, Generic)
-
-instance NFData Card
-
-instance Enum Card where
-  fromEnum c = fromEnum (rank c) * 4 + fromEnum (suit c)
-  toEnum x = let (d,m) = x `divMod` 4 in Card (toEnum d) (toEnum m)
-
-instance Ord Card where
-  (<=) c c' = rank c <= rank c'
-
-instance Short Card where
-  short (Card r s) = short r <> short s
-
-instance (Functor f, Foldable f) => Short (f Card) where
-  short cs = Text.intercalate "" (toList $ short <$> cs)
-
--- | a standard 52 card deck
---
--- >>> pretty deck
--- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
---
-deck :: [Card]
-deck = Card <$> [Two .. Ace] <*> [Hearts .. Spades]
-
--- | Card pairs dealt to a holdem player have identical probability structure to each other. Iso-sets of card pairs map to a dense representation. This representation forms a basis for modelling player actions, in the presence of uncertainty.
---
--- In the transformation, the suit information is forgotten.
---
--- A (Card, Card) can be:
---
--- - a pair (same rank), which can happen 12 ways. (4 suits x 3 suits)
---
--- - offsuited (of different rank), which can happen 24 ways: lo/high x 4 suits x 3 suits
---
--- - suited (of different rank and the same suit), 8 ways (lo/high rank x 4 suits)
---
--- ![count example](other/count.svg)
---
-data B = Suited Rank Rank | Offsuited Rank Rank | Paired Rank deriving (Eq, Show, Ord)
-
--- | convert from a Card pair to a B
---
--- >>> c2b (Card Ace Hearts, Card Ace Spades)
--- Paired Ace
---
--- Unpaired cards are forced to high low order.
---
--- >>> c2b (Card Two Hearts, Card Ace Spades)
--- Offsuited Ace Two
---
-c2b :: (Card, Card) -> B
-c2b (Card r s, Card r' s')
-  | r==r' = Paired r
-  | s==s' = Suited (max r r') (min r r')
-  | otherwise = Offsuited (max r r') (min r r')
-
--- | Enumeration of the (Card,Card)'s that B represents.
---
--- >>> putStrLn $ Text.intercalate "." $ (\(x,y) -> short x <> short y) <$> btocs (Paired Ace)
--- A♡A♣.A♡A♢.A♡A♠.A♣A♡.A♣A♢.A♣A♠.A♢A♡.A♢A♣.A♢A♠.A♠A♡.A♠A♣.A♠A♢
-btocs :: B -> [(Card, Card)]
-btocs (Paired r) = bimap (Card r) (Card r) <$> enum2 [Hearts .. Spades]
-btocs (Suited r0 r1) =
-  ((\s -> (Card r0 s, Card r1 s)) <$> [Hearts .. Spades]) <>
-  ((\s -> (Card r1 s, Card r0 s)) <$> [Hearts .. Spades])
-btocs (Offsuited r0 r1) =
-  (bimap (Card r0) (Card r1) <$>
-    enum2 [Hearts .. Spades]) <>
-  (bimap (Card r1) (Card r0) <$>
-    enum2 [Hearts .. Spades])
-
--- | a representative pair of cards for a B, choosing Hearts and Spades.
---
--- Always have a good think about this in the realm of raw card simulation.
---
-btoc :: B -> (Card, Card)
-btoc (Paired r) = (Card r Hearts, Card r Spades)
-btoc (Offsuited r0 r1) = (Card r0 Hearts, Card r1 Spades)
-btoc (Suited r0 r1) = (Card r0 Hearts, Card r1 Hearts)
-
-instance Enum B where
-  fromEnum (Paired p) = fromEnum p * 13 + fromEnum p
-  fromEnum (Suited r0 r1) = fromEnum r0 + fromEnum r1 * 13
-  fromEnum (Offsuited r0 r1) = fromEnum r0 * 13 + fromEnum r1
-
-  toEnum x = case compare d m of
-    EQ -> Paired $ toEnum d
-    LT -> Suited (toEnum m) (toEnum d)
-    GT -> Offsuited (toEnum d) (toEnum m)
-    where
-      (d,m) = x `divMod` 13
-
-instance Short B where
-  short (Paired p) = short p <> short p
-  short (Suited r0 r1) = short r0 <> short r1 <> "s"
-  short (Offsuited r0 r1) = short r0 <> short r1 <> "o"
-
--- | A Strat represents an array of a's indexed by B's.
---
--- Here is a chart of the chances of winning given a B, against another player with any 2.
---
--- ![bwin example](other/bwin.svg)
-newtype Strat a =
-  Strat
-  { array :: Array '[169] a
-  } deriving (Eq, Show)
-
-instance Functor Strat where
-  fmap f (Strat a) = Strat (fmap f a)
-
-instance Data.Distributive.Distributive Strat where
-  distribute = distributeRep
-
-instance Representable Strat where
-  type Rep Strat = B
-
-  tabulate f = Strat $ tabulate (f . (\(x:_) -> toEnum x))
-
-  index (Strat a) = index a . (:[]) . fromEnum
-
--- | enumeration of all the B's
---
--- This chart compares the chances of winning in a 2 player game versus a 9 player game, given hero is holding a B.
---
---
-bs :: Strat B
-bs = Strat $ fromList $ toEnum <$> [0..168]
-
--- | count the Bs in a full enumeration of dealing two cards.
---
--- uses enumeration rather than is random
---
--- >>> take 5 $ reverse $ toList $ array countBs
--- [Paired Ace,Paired Ace,Paired Ace,Suited Ace King,Offsuited Ace King]
-countBs :: Strat Int
-countBs = tabulate (\k -> fromMaybe zero $ Map.lookup k (Map.fromListWith (+) ((,1) . c2b <$> enum2 deck)))
-
-dealB :: (RandomGen g) => Int -> B -> State g [Card]
-dealB p b = dealNWith (5+2*p) (deck List.\\ (\(x,y)->[x,y]) (btoc b))
-
--- >>> let a = evalState (tableStateB 1 (Paired Ace)) (mkStdGen 42)
-tableStateB :: (RandomGen g) => Int -> B -> State g TableState
-tableStateB p b = do
-  cs <- dealB p b
-  pure $ TableState ([btoc b] <> ((\x -> (cs List.!! (2*x), cs List.!! (2*x+1))) <$> [0..p-1])) (drop (p*2) cs)
-
--- | The minimum 2-player game consists of the hero (p0) headsup versus the enemy (p1).
---
--- The hero can Fold, and we can consider this to have value zero, and 1.5b for the enemy. (0b)
--- The hero can Call, by convention, this costs half a blind.
--- The hero can raise AllIn x.
--- On a Call, the enemy can Check. At this point, we assume no further betting, and resolve. (+1.5,-0.5)
--- On a Call, the enemy can AllIn x-0.5. hero can Fold (-0.5b). hero can Call (x+1.5b, -x)
--- On an AllIn x, enemy can Fold (+1.5b) or Call (x+1.5b,-x)
-
-data Action = Fold | Call | AllIn Double
-
--- | uniform random variate of an Int, typically an index into a structure.
-rvi :: (RandomGen g) => Int -> State g Int
-rvi n = do
-  g <- get
-  let (x,g') = uniformR (0, n - 1) g
-  put g'
-  pure x
-
--- | finite population n samples without replacement
---
-rvis :: (RandomGen g) => Int -> Int -> State g [Int]
-rvis n k = sequence (rvi . (n -) <$> [0..(k-1)])
-
--- | a valid series of random index values to shuffle a population of 52 enums
---
--- >>> rvs52
--- [48,23,31,15,16,18,17,23,11,31,5,14,30,28,27,2,9,11,27,24,17,0,10,2,2,11,8,2,18,8,11,16,6,14,3,1,6,0,2,11,1,6,3,7,4,1,5,4,2,1,0,0]
-rvs52 :: [Int]
-rvs52 = flip evalState (mkStdGen 42) $ rvis 52 52
-
--- | vector perfect shuffle
---
--- >>> shuffle 52 rvs52
--- ([48,23,32,15,17,20,19,28,11,39,5,18,41,38,37,2,12,16,44,40,29,0,21,4,6,26,22,7,45,25,33,46,14,43,9,3,30,1,13,50,10,36,31,49,35,24,51,47,34,27,8,42],[])
-shuffle :: Int -> [Int] -> (V.Vector Int, V.Vector Int)
-shuffle n =
-  foldl'
-  (\(dealt, rem) i ->
-     let (x,rem') = cutV rem i in (V.snoc dealt x, rem'))
-  (V.empty, V.enumFromN 0 n)
-
--- | cut a vector at n, returning the n'th element, and the truncated vector
-cutV :: V.Vector a -> Int -> (a, V.Vector a)
-cutV v x =
-  (v V.! x,
-   V.unsafeSlice 0 x v <> V.unsafeSlice (x+1) (n - x - 1) v)
+game :: [Strat Action] -> TableState -> TableState
+game acts ts = loop ts 0
   where
-    n = V.length v
+    loop ts' n =
+      let t = progressTable (act (acts List.!! n) ts') ts' in
+      bool (loop t (n+1)) (shipit t) (bettingOver t)
 
+{- | history of progress through the game
 
--- | isomorphic to shuffle, but keeps track of the sliced out bit.
---
--- eg
---
--- >>> shuffle 52 (take 52 rvs52) == ishuffle rvs52
---
-ishuffle :: [Int] -> [Int]
-ishuffle as = go as []
+>>> acts = [actionCuts 10 0.2 0.9, actionCuts 10 0.2 0.9, actionCuts 10 0.2 0.9, always (Raise 10)]
+>>> cards = evalState (replicateM 100 (dealN (5+2*2))) (mkStdGen 42)
+>>> pretties $ snd <$> (gameHistory acts $ table0 (defaultTableConfig 10 & #numPlayers .~ 2) (cards List.!! 9))
+K♣Q♢ A♢9♢,A♣4♠2♣K♢8♣,hero: 99,c c,0 20,0 0,0
+K♣Q♢ A♢9♢,A♣4♠2♣K♢8♣,hero: 99,c c,0 0,10 10,0
+K♣Q♢ A♢9♢,A♣4♠2♣K♢8♣,hero: 0,o c,0 0,10 10,0
+K♣Q♢ A♢9♢,A♣4♠2♣K♢8♣,hero: 1,o o,0 9,10 1,0
+K♣Q♢ A♢9♢,A♣4♠2♣K♢8♣,hero: 0,o o,9.5 9,0.5 1,0
+
+>>> fst <$> (gameHistory acts $ table0 (defaultTableConfig 10 & #numPlayers .~ 2) (cards List.!! 9))
+[Nothing,Just (Raise 10.0),Just (Raise 10.0),Just (Raise 10.0),Nothing]
+
+-}
+gameHistory :: [Strat Action] -> TableState -> [(Maybe Action, TableState)]
+gameHistory acts ts = loop ts 0 [(Nothing, ts)]
   where
-    go [] dealt = reverse dealt
-    go (x0 : xs) dealt = go xs (x1:dealt)
-      where
-        x1 = foldl' (\acc d -> bool acc (acc+one) (d <= acc)) x0 (sort dealt)
+    loop t n xs =
+      let (a,t') = (act (acts List.!! n) t, progressTable (act (acts List.!! n) t) t) in
+      bool (loop t' (n+1) ((Just a,t'):xs)) ((Nothing, shipit t'):(Just a,t'):xs) (bettingOver t')
 
--- | deal n cards from a fresh, shuffled, standard pack.
---
--- >>>  putStrLn $ Text.intercalate "\n" $ fmap short <$> flip evalState (mkStdGen 44) $ replicateM 5 (dealN 5)
--- A♣3♠K♠7♡9♠
--- 9♠7♡2♣Q♢J♣
--- K♢4♣9♢K♠7♠
--- 7♣7♠J♡8♡J♢
--- 5♠Q♣A♣Q♡T♠
---
-dealN :: (RandomGen g) => Int -> State g [Card]
-dealN n = fmap toEnum . ishuffle <$> rvis 52 n
-
-dealN' :: (RandomGen g) => Int -> State g [Card]
-dealN' n = fmap toEnum . V.toList . fst . shuffle 52 <$> rvis 52 n
-
-dealNWith :: (RandomGen g) => Int -> [Card] -> State g [Card]
-dealNWith n cs = fmap (cs List.!!) . ishuffle <$> rvis (length cs) n
-
--- | An enumeration of 2 samples from a list without replacement
---
--- >>> enum2 [0..2]
--- [(0,1),(0,2),(1,0),(1,2),(2,0),(2,1)]
-enum2 :: [a] -> [(a, a)]
-enum2 xs = fmap (\(x:y:_) -> (xs List.!! x, xs List.!! y)) $ fmap (fmap toEnum) . (\x y -> ishuffle [x,y]) <$> [0..(n-1)] <*> [0..(n-2)]
+-- | Ship the pot to the winning hands
+shipit :: TableState -> TableState
+shipit ts =
+  ts &
+  #stacks %~ (\s -> foldr ($) s (Seq.adjust' (+pot'/fromIntegral (length winners)) <$> winners)) &
+  #bets .~ fromList (replicate (numSeats ts) 0) &
+  #pot .~ 0
   where
-    n = length xs
+    pot' = sum (ts ^. #bets) + (ts ^. #pot)
+    winners = bestLiveHand ts
 
-newtype Hand = Hand { cards :: [Card] } deriving (Eq, Show, Generic)
+-- | index of the winning hands
+bestLiveHand :: TableState -> [Int]
+bestLiveHand ts =
+  fromMaybe [] $
+  fmap (fmap fst) $
+  head $
+  List.groupBy (\x y -> (snd x :: Maybe HandRank) == snd y)
+  (sortOn (Down . snd) (second handRank <$> liveHands ts))
 
-instance Short Hand where
-  short (Hand cs) =
-    Text.intercalate "" (fmap short cs)
+thisB :: Int -> TableState -> B
+thisB n ts = c2b (toList (ts ^. #cards . #players) List.!! n)
 
-instance NFData Hand
-
-hand :: [Card] -> Hand
-hand cs = Hand $ sortOn Down cs
-
-ranks :: Hand -> Set.Set Rank
-ranks (Hand cs) = Set.fromDescList $ rank <$> cs
-
-suits :: Hand -> Set.Set Suit
-suits (Hand cs) = Set.fromList $ suit <$> cs
-
--- | 5 card standard poker rankings
---
--- >>> toEnum $ fromEnum (HighCard Ace King Ten Six Three) :: HandRank
--- 
-data HandRank = HighCard Rank Rank Rank Rank Rank
-              | Pair Rank Rank Rank Rank
-              | TwoPair Rank Rank Rank
-              | ThreeOfAKind Rank Rank Rank
-              | Straight Rank
-              | Flush Rank Rank Rank Rank Rank
-              | FullHouse Rank Rank
-              | FourOfAKind Rank Rank
-              | StraightFlush Rank
-              deriving (Eq, Ord, Show, Generic)
-
-instance NFData HandRank
-
-instance Enum HandRank where
-  fromEnum (HighCard r0 r1 r2 r3 r4) = sum $ zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r4,r3,r2,r1,r0]) [0..4]
-  fromEnum (Pair r0 r1 r2 r3) = (13 P.^ 5) + sum (zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r3,r2,r1,r0]) [0..3::Int])
-  fromEnum (TwoPair r0 r1 r2) = 13 P.^ 5 + 13 P.^ 4 + sum (zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r2,r1,r0]) [0..2])
-  fromEnum (ThreeOfAKind r0 r1 r2) = 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + sum (zipWith (\r i -> r * 13  P.^  i) (fromEnum <$> [r2,r1,r0]) [0..2])
-  fromEnum (Straight r0) = 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + fromEnum r0
-  fromEnum (Flush r0 r1 r2 r3 r4) = 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 + sum (zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r4,r3,r2,r1,r0]) [0..4])
-  fromEnum (FullHouse r0 r1) = 2 * 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + 13 + sum (zipWith (\r i -> r * 13  P.^  i) (fromEnum <$> [r1,r0]) [0..1])
-  fromEnum (FourOfAKind r0 r1) = 2 * 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + 13 P.^ 2 + 13 + sum (zipWith (\r i -> r * 13  P.^  i) (fromEnum <$> [r1,r0]) [0..1])
-  fromEnum (StraightFlush r0) = 2 * 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 + 2 * 13 P.^ 2 + 13 + fromEnum r0
-
-  toEnum x
-    | x < 13 P.^ 5 =
-      (\(r0:r1:r2:r3:r4:_) -> HighCard r0 r1 r2 r3 r4) $ fmap toEnum $ base13 x
-    | x < 13 P.^ 5 + 13 P.^ 4 =
-      (\(r0:r1:r2:r3:_) -> Pair r0 r1 r2 r3) $ fmap toEnum $ base13 (x - 13 P.^ 5)
-    | x < 13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3 =
-      (\(r0:r1:r2:_) -> TwoPair r0 r1 r2) $ fmap toEnum $ base13 (x - (13 P.^ 5 + 13 P.^ 4))
-    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 =
-      (\(r0:r1:r2:_) -> ThreeOfAKind r0 r1 r2) $ fmap toEnum $ base13 (x - (13 P.^ 5 + 13 P.^ 4 + 13 P.^ 3))
-    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 =
-      Straight (toEnum $ x - (13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3))
-    | x < 2 * 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 =
-      (\(r0:r1:r2:r3:r4:_) -> Flush r0 r1 r2 r3 r4) $ fmap toEnum $ base13 x
-    | x < 2 * 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13 P.^ 2 + 13 =
-      (\(r0:r1:_) -> FullHouse r0 r1) $ fmap toEnum $ base13 (x - (2 * 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 13))
-    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 13 =
-      (\(r0:r1:_) -> FourOfAKind r0 r1) $ fmap toEnum $ base13 (x - (13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 13))
-    | x < 13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 2 * 13 =
-      StraightFlush (toEnum $ x - (13 P.^ 5 + 13 P.^ 4 + 2 * 13 P.^ 3 + 2 * 13 P.^ 2 + 13))
-    | otherwise = StraightFlush Ace
-
-base13 :: (Eq a, Num a, Integral a) => a -> [a]
-base13 x = go x []
-  where
-    go 0 l = l
-    go acc l = let (d,m) = acc `divMod` 13 in go d (m:l)
-
-
--- | compute the hand ranking
---
--- >>> let h = hand $ flip evalState (mkStdGen 55) $ dealN 7
--- >>> Perf.tick handRank h
--- (328006,Just (TwoPair Four Queen Five))
---
--- >>> putStrLn =<< (\(c,t) -> comma (Just 2) (fromIntegral (P.toInteger c)/2.6e3 :: Double) <> "\181: " <> (show t :: Text)) <$> Perf.tick (handRank . fst . winner) (ts List.!! 0)
--- 929µ: Just (TwoPair Nine Ace Three)
---
--- >>> putStrLn =<< (\(c,t) -> comma (Just 2) (fromIntegral (P.toInteger c) :: Double) <> " " <> (show t :: Text)) <$> Perf.tick (handRank . fst . winner) (ts List.!! 0)
--- 2.40e6 Just (TwoPair Nine Ace Three)
-handRank :: Hand -> Maybe HandRank
-handRank h =
-  flush h <|>
-  straight h <|>
-  kind h
-
-straight :: Hand -> Maybe HandRank
-straight h = Straight <$> str8 (toList $ ranks h)
-
-rangeCount :: (Enum a) => Mealy a [(a,a)]
-rangeCount = M (\a -> ((a,a),[])) (\((rmin,rmax), rs) a -> bool ((a,a),(rmin,rmax):rs) ((rmin,a),rs) (fromEnum a == fromEnum rmax + one)) (\x -> fst x:snd x)
-
-str8 :: Enum a => [a] -> Maybe a
-str8 xs = case runs of
-  [] -> Nothing
-  ((_,r):_) -> Just r
-  where
-    runs = filter (\(x,y) -> fromEnum y - fromEnum x >= 4) (Data.Mealy.fold rangeCount xs)
-
-flush :: Hand -> Maybe HandRank
-flush h =
-  case filter ((>=5) . length . snd) (suitRanks h) of
-    [] -> Nothing
-    ((_,rs@(r0:r1:r2:r3:r4:_)):_) ->
-      Just $
-      maybe
-      (Flush r0 r1 r2 r3 r4)
-      StraightFlush
-      (str8 rs)
-    _ -> Nothing
-
-suitRanks :: Hand -> [(Suit, [Rank])]
-suitRanks (Hand cs) =
-  Map.toList $
-  Map.fromDescListWith (<>) $
-  fmap (\(Card r s) -> (s,[r])) cs
-
-rankCount :: Hand -> [(Rank,Int)]
-rankCount (Hand cs) =
-  sortOn (Down . swap) $
-  Map.toList $
-  Map.fromDescListWith (+) $
-  fmap (\(Card r _) -> (r,1)) cs
-
-kind :: Hand -> Maybe HandRank
-kind h = case rankCount h of
-  [] -> Nothing
-  ((r0,n0):rs) -> case n0 of
-    2 -> case rs of
-      [] -> Nothing
-      ((r1,n1):rs') ->
-        case rs' of
-          [] -> Nothing
-          ((r2,_):rs'') ->
-            bool
-            (case rs'' of
-               [] -> Nothing
-               ((r3,_):_) -> Just $ Pair r0 r1 r2 r3)
-            (Just $ TwoPair r0 r1 r2)
-            (n1==2)
-    1 -> case rs of
-      [] -> Nothing
-      ((r1,_):rs') ->
-        case rs' of
-          [] -> Nothing
-          ((r2,_):rs'') ->
-            case rs'' of
-              [] -> Nothing
-              ((r3,_):rs''') ->
-                case rs''' of
-                  [] -> Nothing
-                  ((r4,_):_) -> Just $ HighCard r0 r1 r2 r3 r4
-    3 -> case rs of
-      [] -> Nothing
-      ((r1,n1):rs') -> case rs' of
-        [] -> Nothing
-        ((r2,_):_) -> Just $
-          bool
-          (ThreeOfAKind r0 r1 r2)
-          (FullHouse r0 r1)
-          (n1>1)
-    4 -> case rs of
-      [] -> Nothing
-      ((r1,_):_) -> Just $ FourOfAKind r0 r1
-    _ -> Nothing
-
-instance Short HandRank where
-  short (HighCard r0 r1 r2 r3 r4) = " H:" <>
-    short r0 <> short r1 <> short r2 <> short r3 <> short r4
-  short (Pair r0 r1 r2 r3) = " P:" <>
-    short r0 <> short r1 <> short r2 <> short r3
-  short (TwoPair r0 r1 r2) = "2P:" <>
-    short r0 <> short r1 <> short r2
-  short (ThreeOfAKind r0 r1 r2) = " 3:" <>
-    short r0 <> short r1 <> short r2
-  short (FourOfAKind r0 r1) = " 4:" <>
-    short r0 <> short r1
-  short (FullHouse r0 r1) = "32:" <>
-    short r0 <> short r1
-  short (Straight r0) = " S:" <>
-    short r0
-  short (Flush r0 r1 r2 r3 r4) = " F:" <>
-    short r0 <> short r1 <> short r2 <> short r3 <> short r4
-  short (StraightFlush r0) = "SF:" <>
-    short r0
-
-bestHand :: [Hand] -> Int
+-- | best hands of those remaining in the pot
+bestHand :: [(Int, [Card])] -> Int
 bestHand hs =
   fromMaybe 0 $
   head $
-  fmap snd $
-  sortOn (Down . handRank . fst) (zip hs [0..(length hs - 1)])
+  fmap fst $
+  sortOn (Down . handRank . snd) hs
 
-data TableState = TableState
-  { players :: [(Card, Card)],
-    hole :: [Card]
-  } deriving (Eq, Show, Generic)
+-- | Simulate the expected value of a strategy set
+--
+-- >>> putStrLn $ Text.intercalate "," $ comma (Just 2) <$> ev 2 10 10000 (replicate 4 (always Call))
+-- 0.0192,-0.0192
+--
+-- >>> ev 2 10 10000 (replicate 10 (always (Raise 10)))
+-- [0.19200000000000017,-0.19200000000000017]
+--
+-- >>> ev 2 10 10000 (replicate 4 (always (Fold)))
+-- [9.5,10.5]
+--
+-- >>> ev 2 10 1000 [actionCuts 10 0.2 0.9, actionCuts 10 0.3 0.9, actionCuts 10 0.1 0.5, actionCuts 10 0.6 0.8]
+-- [0.20899999999999963,-0.20899999999999963]
+ev :: Int -> Double -> Int -> [Strat Action] -> [Double]
+ev n x sims acts =
+  fmap (+ negate x) $
+  fmap (/fromIntegral sims) $
+  fmap sum $
+  List.transpose $
+  fmap (\x -> toList $ x ^. #stacks) $
+  game acts .
+  table0 (defaultTableConfig x & #numPlayers .~ n) <$> cards
+  where
+    cards = evalState (replicateM sims (dealN (5+2*n))) (mkStdGen 42)
 
-instance NFData TableState
-
-instance Short TableState where
-  short (TableState ps h) =
-    Text.intercalate ","
-    (short <$> toList ps) <> ":" <>
-    Text.intercalate " "
-     [ short (take 3 h),
-       short (take 1 $ drop 3 h),
-       short (take 1 $ drop 4 h)
-     ]
-
--- | deal a random table
---
--- >>> fst <$> Perf.tick (\x -> evalState (replicateM x (dealTable 9)) (mkStdGen 42)) 100
--- 36849002
---
--- >>> fst <$> Perf.tick (\x -> evalState (replicateM x (dealTable 9)) (mkStdGen 42)) 1000
--- 356727876
---
--- let t = evalState (dealTable 2) (mkStdGen 42)
--- >>> pretty t
--- 7♡6♠,9♡4♠:A♡7♠T♡ 5♠ 6♣
---
-dealTable :: (RandomGen g) => Int -> State g TableState
-dealTable n = do
-  cs <- dealN' (5 + 2 * n)
-  pure $
-    TableState
-      ((\x -> (\(x:y:_) -> (x,y)) $ take 2 $ drop (5+x*2) cs) <$> [0..(n-1)])
-      (take 5 cs)
-
--- | Provide the best hand for each player
--- >>> pretties $ resolve t
--- A♡7♠7♡6♣6♠
--- A♡T♡9♡7♠6♣
---
-hands  :: TableState -> [Hand]
-hands (TableState ps h) =
-  (\(x,y) -> hand ([x,y] <> h)) <$> ps
+ev' :: [Double] -> Double
+ev' (s0r:s0c:s1r:s2r:s3r:_)= (\(x:_) -> x) $ ev 2 5 1000 [actionCuts 5 s0r s0c, actionCuts 5 s1r 1, actionCuts 5 0 s2r, actionCuts 5 0 s3r]
 
 -- | determine the winner for a table
 --
 -- >>> let t = evalState (dealTable 9) (mkStdGen 42)
 -- >>> pretty t
--- pretty t
 -- 7♡6♠,9♡4♠,J♠3♣,6♢Q♣,J♢J♣,2♢5♡,6♡K♡,Q♡9♣,2♡7♣:A♡7♠T♡ 5♠ 6♣
+--
 -- >>> winner t
 -- putStrLn $ (\(x,y) -> y <> ": " <> x) $ bimap short show $ winner t
 -- 0: A♡7♠7♡6♣6♠
@@ -603,18 +155,63 @@ hands (TableState ps h) =
 -- first player wins with two pair.
 --
 winner :: TableState -> Int
-winner ts = bestHand (hands ts)
+winner ts = bestHand (liveHands ts)
 
-
+-- | Given a B, what is the chance of that player winning against p other players, simulated n times.
+--
 winB :: B -> Int -> Int -> Double
-winB b p n = (/fromIntegral n) $ sum $ bool 0 (1::Double) . (0==) . winner <$> evalState (replicateM n (tableStateB p b)) (mkStdGen 42)
+winB b p n = (/fromIntegral n) $ sum $ bool 0 (1::Double) . (0==) . winner <$> evalState (replicateM n (dealTableB (defaultTableConfig 1 & #numPlayers .~ p) 0 b)) (mkStdGen 42)
 
-ordB :: Int -> Int -> [(B,Double)]
-ordB p n = sortOn (Down . snd) $ zip (toEnum <$> [0..168]) $ toList $ array $ (\x -> winB x p n) <$> bs
+-- | ordered list of B's, ordered by headsup odds
+--
+--
+obs :: Int -> Int -> [(B,Double)]
+obs p n = sortOn (Down . snd) $ (\x -> (toEnum x, win x)) <$> [0..168]
+  where
+    win x = winB (toEnum x) p n
 
+-- | Given a B in position 0 headsup, what is the win rate against any two cards?
+--
+-- >>> writeChartSvg "other/bwin.svg" (bWinChart 1000 1)
+--
+-- ![bwin example](other/bwin.svg)
+bWinChart :: Int -> Int -> ChartSvg
+bWinChart n p =
+  bChart
+  [Colour 0 1 0 0.3, Colour 0 0 1 0.3, Colour 1 0 0 0.3]
+  (Strat (fromList ((\x -> winB x p n) <$> (toEnum <$> [0..168]))))
+
+-- | compare 2 player (x-axis) to 9 player (y-axis) win rates.
+--
+-- >>> writeChartSvg "other/compare29.svg" (b2Chart compare29)
+--
+-- ![compare example](other/compare29.svg)
 compare29 :: B -> Point Double
 compare29 x = Point (winB x 1 1000) (winB x 8 1000)
 
-compare29s :: [Point Double]
-compare29s = compare29 . toEnum <$> [0..168]
+-- | Make all the document charts.
+writeAllCharts :: IO ()
+writeAllCharts = do
+  writeChartSvg "other/count.svg" countChart
+  writeChartSvg "other/compare29.svg" (b2Chart compare29)
+  writeChartSvg "other/bwin.svg" (bWinChart 1000 1)
+  writeChartSvg "other/bs.svg" $ mempty & #chartList .~ [stratText]
+  writeChartSvg "other/top10.svg" (bChart [Colour 0 1 0 0.3, Colour 0 0 1 0.3, Colour 1 0 0 0.3] (bool 0 1 <$> best 0.5))
 
+-- | top x percent of Bs for 2-handed.
+--
+-- >>> writeChartSvg "other/top10.svg" (bChart [Colour 0 1 0 0.3, Colour 0 0 1 0.3, Colour 1 0 0 0.3] (Poker.top 0.5))
+--
+-- ![top10 example](other/top10.svg)
+best :: Double -> Strat Bool
+best x = tabulate (`elem` bestBs)
+  where
+    bestBs = take (floor $ x * 169.0) (fst <$> cannedObs2)
+
+actionCuts :: Double -> Double -> Double -> Strat Action
+actionCuts r x y =
+  tabulate
+  (\b -> bool Fold (bool Call (Raise r) (index (best x) b)) (index (best y) b))
+
+cannedObs2 :: [(B,Double)]
+cannedObs2 = [(Paired Ace,0.89),(Paired King,0.861),(Paired Queen,0.8160000000000001),(Paired Jack,0.786),(Paired Ten,0.759),(Paired Nine,0.73),(Paired Eight,0.7020000000000001),(Paired Seven,0.684),(Offsuited Ace King,0.669),(Suited Ace Queen,0.667),(Suited Ace King,0.666),(Offsuited Ace Queen,0.663),(Paired Six,0.662),(Suited Ace Eight,0.661),(Suited Ace Ten,0.661),(Offsuited Ace Eight,0.658),(Offsuited Ace Ten,0.657),(Suited Ace Jack,0.648),(Suited King Queen,0.647),(Offsuited Ace Jack,0.645),(Offsuited King Queen,0.645),(Offsuited Ace Nine,0.644),(Suited Ace Nine,0.644),(Suited Ace Five,0.631),(Suited Ace Seven,0.63),(Offsuited Ace Seven,0.628),(Suited Ace Six,0.628),(Offsuited Ace Five,0.627),(Offsuited Ace Six,0.623),(Paired Five,0.621),(Suited King Ten,0.621),(Offsuited King Ten,0.618),(Suited King Jack,0.618),(Offsuited King Jack,0.616),(Suited King Eight,0.616),(Offsuited King Eight,0.613),(Suited King Nine,0.61),(Offsuited King Nine,0.609),(Suited King Five,0.602),(Suited King Seven,0.602),(Suited Ace Three,0.6),(Offsuited King Seven,0.598),(Suited King Six,0.598),(Offsuited Ace Three,0.597),(Offsuited Ace Four,0.596),(Offsuited King Five,0.596),(Suited Ace Four,0.596),(Suited Queen Jack,0.595),(Offsuited King Six,0.593),(Offsuited Queen Jack,0.588),(Suited Queen Ten,0.586),(Suited Ace Two,0.585),(Offsuited Ace Two,0.583),(Offsuited Queen Ten,0.582),(Suited Queen Nine,0.578),(Paired Four,0.5750000000000001),(Offsuited Queen Nine,0.5740000000000001),(Suited Jack Ten,0.5740000000000001),(Suited King Three,0.5700000000000001),(Suited Jack Nine,0.5690000000000001),(Offsuited Jack Ten,0.5680000000000001),(Offsuited King Three,0.5670000000000001),(Offsuited Jack Nine,0.5630000000000001),(Suited Queen Eight,0.561),(Suited King Two,0.561),(Suited King Four,0.559),(Offsuited King Two,0.558),(Paired Three,0.558),(Offsuited Queen Eight,0.558),(Offsuited King Four,0.556),(Suited Queen Six,0.552),(Suited Queen Seven,0.547),(Offsuited Queen Six,0.544),(Suited Queen Five,0.542),(Offsuited Queen Seven,0.541),(Suited Jack Eight,0.541),(Offsuited Jack Eight,0.54),(Suited Jack Seven,0.534),(Offsuited Queen Five,0.533),(Suited Nine Eight,0.533),(Suited Ten Eight,0.533),(Suited Ten Nine,0.532),(Offsuited Jack Seven,0.529),(Offsuited Nine Eight,0.527),(Offsuited Ten Eight,0.525),(Offsuited Ten Nine,0.523),(Suited Queen Three,0.512),(Paired Two,0.511),(Suited Ten Seven,0.511),(Suited Queen Two,0.509),(Offsuited Queen Three,0.508),(Suited Jack Six,0.506),(Offsuited Queen Two,0.505),(Offsuited Ten Seven,0.505),(Suited Jack Five,0.504),(Suited Queen Four,0.501),(Offsuited Jack Six,0.498),(Offsuited Jack Five,0.497),(Offsuited Queen Four,0.494),(Suited Nine Seven,0.494),(Suited Eight Seven,0.492),(Offsuited Nine Seven,0.488),(Offsuited Eight Seven,0.483),(Suited Ten Five,0.483),(Suited Nine Six,0.481),(Suited Ten Six,0.481),(Offsuited Ten Five,0.47700000000000004),(Offsuited Ten Six,0.47400000000000003),(Offsuited Nine Six,0.47300000000000003),(Suited Jack Four,0.47000000000000003),(Suited Nine Five,0.46900000000000003),(Suited Seven Six,0.466),(Offsuited Jack Four,0.464),(Offsuited Nine Five,0.463),(Suited Jack Two,0.463),(Suited Jack Three,0.463),(Offsuited Jack Three,0.462),(Offsuited Jack Two,0.461),(Offsuited Seven Six,0.458),(Suited Eight Six,0.456),(Suited Seven Five,0.452),(Suited Ten Three,0.452),(Offsuited Seven Five,0.451),(Offsuited Ten Three,0.449),(Offsuited Eight Six,0.446),(Suited Eight Five,0.444),(Suited Ten Four,0.444),(Suited Six Five,0.44),(Suited Nine Three,0.44),(Offsuited Ten Two,0.439),(Offsuited Ten Four,0.439),(Offsuited Six Five,0.439),(Suited Ten Two,0.439),(Offsuited Eight Five,0.437),(Offsuited Nine Three,0.434),(Suited Seven Four,0.425),(Suited Nine Four,0.423),(Offsuited Nine Two,0.421),(Offsuited Seven Four,0.421),(Suited Nine Two,0.421),(Offsuited Nine Four,0.417),(Suited Eight Four,0.41400000000000003),(Suited Six Four,0.41200000000000003),(Offsuited Eight Four,0.41000000000000003),(Offsuited Six Four,0.40700000000000003),(Suited Seven Three,0.40700000000000003),(Suited Eight Three,0.406),(Offsuited Seven Three,0.402),(Offsuited Eight Three,0.402),(Suited Five Four,0.402),(Offsuited Five Four,0.398),(Suited Eight Two,0.391),(Offsuited Eight Two,0.388),(Suited Six Three,0.386),(Offsuited Six Three,0.384),(Suited Five Three,0.38),(Offsuited Five Three,0.378),(Suited Seven Two,0.375),(Offsuited Seven Two,0.372),(Suited Six Two,0.372),(Offsuited Six Two,0.37),(Suited Five Two,0.37),(Offsuited Five Two,0.368),(Suited Four Three,0.353),(Offsuited Four Three,0.34900000000000003),(Suited Three Two,0.337),(Offsuited Three Two,0.334),(Suited Four Two,0.333),(Offsuited Four Two,0.33)]
