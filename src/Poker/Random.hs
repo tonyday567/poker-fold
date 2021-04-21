@@ -5,29 +5,35 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE RebindableSyntax #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 
 -- | Card entropy
---
 module Poker.Random
   ( dealN,
+    dealNV,
     dealNWith,
-    dealBasis,
-    dealTableBasis,
+    dealHand,
+    dealTableHand,
     rvs52,
     shuffle,
-  ) where
+    vshuffle,
+    rvi,
+    rvis,
+    rviv,
+  )
+where
 
 import qualified Data.List as List
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as S
 import Lens.Micro
 import NumHask.Prelude
 import Poker.Types
@@ -47,7 +53,11 @@ rvi n = do
 
 -- | finite population n samples without replacement
 rvis :: (RandomGen g) => Int -> Int -> State g [Int]
-rvis n k = sequence (rvi . (n -) <$> [0 .. (k -1)])
+rvis n k = sequence (rvi . (n -) <$> [0 .. (k - 1)])
+
+-- | finite population n samples without replacement
+rviv :: (RandomGen g) => Int -> Int -> State g (S.Vector Int)
+rviv n k = S.mapM (rvi . (n -)) (S.generate k id)
 
 -- | a valid series of random index values to shuffle a population of 52 enums
 --
@@ -88,27 +98,40 @@ cutV v x =
 dealN :: (RandomGen g) => Int -> State g [Card]
 dealN n = fmap toEnum . ishuffle <$> rvis 52 n
 
+-- | isomorphic to shuffle, but keeps track of the sliced out bit.
+--
+-- > shuffle 52 (take 52 rvs52) == ishuffle rvs52
+vshuffle :: S.Vector Int -> S.Vector Int
+vshuffle as = go as S.empty
+  where
+    go :: S.Vector Int -> S.Vector Int -> S.Vector Int
+    go as dealt =
+      bool
+      (go (S.unsafeTail as) (S.snoc dealt x1))
+      dealt
+      (S.null as)
+      where
+        x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
+
+dealNV :: (RandomGen g) => Int -> State g (S.Vector Int)
+dealNV n = vshuffle <$> rviv 52 n
+
 -- | deal n cards conditional on a list of cards that has already been dealt.
 dealNWith :: (RandomGen g) => Int -> [Card] -> State g [Card]
 dealNWith n cs = fmap (cs List.!!) . ishuffle <$> rvis (length cs) n
 
--- | deal n cards given a Basis has been dealt.
+-- | deal n cards given a Hand has been dealt.
 --
--- >>> pretties $ flip evalState (mkStdGen 44) $ replicateM 5 (dealBasis (Paired Ace) 3)
--- A♢3♠K♠
--- 6♠9♢T♣
--- 7♡2♣Q♣
--- T♢K♠4♣
--- 9♣K♣7♢
-dealBasis :: (RandomGen g) => Basis -> Int -> State g [Card]
-dealBasis b n = dealNWith n (deck List.\\ (\(x, y) -> [x, y]) (toRepPair b))
+-- >>> pretty $ flip evalState (mkStdGen 44) $ (dealHand (Paired Ace) 3)
+-- 2♡Q♢2♢
+dealHand :: (RandomGen g) => Hand -> Int -> State g [Card]
+dealHand b n = dealNWith n (deck List.\\ (\(x, y) -> [x, y]) (toRepPair b))
 
 -- | deal a table given player i has been dealt a B
 --
--- >>> pretty $ flip evalState (mkStdGen 44) $ dealTableBasis defaultTableConfig 0 (Paired Ace)
--- A♡A♠ A♢3♠,K♠7♡9♠T♢7♢,hero: Just 0,o o,9.5 9,0.5 1,0,
---
-dealTableBasis :: (RandomGen g) => TableConfig -> Int -> Basis -> State g Table
-dealTableBasis cfg i b = do
-  cs <- dealBasis b (5 + (cfg ^. #numPlayers - 1) * 2)
+-- >>> pretty $ flip evalState (mkStdGen 44) $ dealTableHand defaultTableConfig 0 (Paired Ace)
+-- A♡A♠ 2♡Q♢,2♢9♣6♢5♠8♠,hero: Just 0,o o,9.5 9,0.5 1,0,
+dealTableHand :: (RandomGen g) => TableConfig -> Int -> Hand -> State g Table
+dealTableHand cfg i b = do
+  cs <- dealHand b (5 + (cfg ^. #numPlayers - 1) * 2)
   pure $ dealTable cfg (take (2 * i) cs <> (\(x, y) -> [x, y]) (toRepPair b) <> drop (2 * i) cs)

@@ -2,14 +2,16 @@ resolver: nightly-2021-02-12
 
 packages:
   - .
+  - ../poker-eval-0.3.1
 
 extra-deps:
+  - chart-svg-0.2.2
   - numhask-0.7.1.0
   - numhask-array-0.8.0
-  - numhask-free-0.0.3
-  - random-1.2.0
-  - chart-svg-0.2.2
   - numhask-space-0.7.1.0
   - perf-0.7.0
+  - random-1.2.0
+  - vector-mmap-0.0.3
+  - discrimination-0.4.1
 
 allow-newer: true

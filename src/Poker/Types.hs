@@ -1,7 +1,10 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -12,12 +15,11 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | Poker API.
-{-# LANGUAGE DeriveFoldable #-}
 module Poker.Types
   ( Short (..),
     Rank (..),
@@ -26,16 +28,15 @@ module Poker.Types
     deck,
     ranks,
     suits,
-    Basis (..),
+    Hand (..),
     fromPair,
     toPairs,
     toRepPair,
     Strat (..),
     stratText,
-    stratSym,
-    readStrat,
-    writeStrat,
-    fromMap,
+    enumBs,
+    handTypeCount,
+    any2,
     TableCards (..),
     deal,
     Seat (..),
@@ -57,7 +58,6 @@ module Poker.Types
     allin,
     bet,
     apply,
-    applys,
 
     -- * Shuffling
     enum2,
@@ -66,6 +66,7 @@ module Poker.Types
     -- * Hand Ranking
     HandRank (..),
     handRank,
+    handRank',
     straight,
     flush,
     kind,
@@ -74,22 +75,42 @@ module Poker.Types
     bestLiveHand,
     showdown,
 
-  )
+    -- * Left padding
+    lpad,
+
+    -- * Combinations
+    combinations,
+    binom,
+    lexiIndex,
+    toLexiPos,
+    fromLexi,
+    toLexi,
+    handValues,
+    hvWrite,
+    allHandRanks,
+    hvs7,
+    hvs5,
+  fromLexiPos)
 where
 
 import Data.Distributive (Distributive (..))
 import Data.FormatN
 import Data.Functor.Rep
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import GHC.Base (error)
+import GHC.Read
 import Lens.Micro
 import NumHask.Array.Fixed as A
 import NumHask.Prelude
-import GHC.Base (error)
-import qualified Data.Map.Strict as Map
 import qualified Prelude as P
+import qualified Data.Poker as Poker
+import qualified Data.Vector.Storable as S
+import Data.Vector.Storable.MMap
+import qualified Control.Foldl as L
 
 -- $setup
 --
@@ -105,7 +126,6 @@ import qualified Prelude as P
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
 --
 -- Hero raises and quick fold from the BB.
---
 
 -- | Unicode is used as a short text representation of most poker types
 --
@@ -200,6 +220,10 @@ instance Enum Card where
   fromEnum c = fromEnum (rank c) * 4 + fromEnum (suit c)
   toEnum x = let (d, m) = x `divMod` 4 in Card (toEnum d) (toEnum m)
 
+instance Bounded Card where
+  minBound = Card Two Hearts
+  maxBound = Card Ace Spades
+
 instance Ord Card where
   (<=) c c' = rank c <= rank c'
 
@@ -211,14 +235,17 @@ instance (Functor f, Foldable f) => Short (f Card) where
 
 -- | a standard 52 card deck
 --
+-- The list is in descending order, which is the most common starting point for enumeration algos.
+--
 -- >>> pretty deck
--- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
+-- A♠A♢A♣A♡K♠K♢K♣K♡Q♠Q♢Q♣Q♡J♠J♢J♣J♡T♠T♢T♣T♡9♠9♢9♣9♡8♠8♢8♣8♡7♠7♢7♣7♡6♠6♢6♣6♡5♠5♢5♣5♡4♠4♢4♣4♡3♠3♢3♣3♡2♠2♢2♣2♡
+--
 deck :: [Card]
-deck = Card <$> [Two .. Ace] <*> [Hearts .. Spades]
+deck = reverse $ Card <$> [Two .. Ace] <*> [Hearts .. Spades]
 
 -- | Set of ranks in a hand
 ranks :: [Card] -> Set.Set Rank
-ranks cs = Set.fromDescList $ rank <$> cs
+ranks cs = Set.fromList $ rank <$> cs
 
 -- | Set of suits in a hand
 suits :: [Card] -> Set.Set Suit
@@ -238,18 +265,33 @@ suits cs = Set.fromList $ suit <$> cs
 --
 -- ![count example](other/count.svg)
 --
--- The transformation from (Card, Card) to Basis reduces the strategy vector size from 52*51 to 169, and provides expansion back into the (Card, Card) domain when needed.
+-- The transformation from (Card, Card) to Hand reduces the strategy vector size from 52*51 to 169, and provides expansion back into the (Card, Card) domain when needed.
 --
-data Basis =
-  Paired Rank |
-  Suited Rank Rank |
-  Offsuited Rank Rank
+--
+-- >>> ((\x -> toEnum (fromEnum x)) <$> [Paired Two .. Paired Ace]) == [Paired Two .. Paired Ace]
+-- True
+--
+-- >>> toEnum @Hand 0
+-- Paired Two
+--
+-- >>> toEnum @Hand 1
+-- Offsuited Three Two
+--
+-- >>> toEnum @Hand 13
+-- Suited Three Two
+--
+-- >>> toEnum @Hand 168
+-- Paired Ace
+data Hand
+  = Offsuited Rank Rank
+  | Paired Rank
+  | Suited Rank Rank
   deriving (Eq, Show, Ord)
 
-instance Enum Basis where
+instance Enum Hand where
+  fromEnum (Offsuited r0 r1) = fromEnum r1 * 13 + fromEnum r0
   fromEnum (Paired p) = fromEnum p * 13 + fromEnum p
-  fromEnum (Offsuited r0 r1) = fromEnum r0 * 13 + fromEnum r1
-  fromEnum (Suited r0 r1) = fromEnum r0 + fromEnum r1 * 13
+  fromEnum (Suited r0 r1) = fromEnum r0 * 13 + fromEnum r1
 
   toEnum x = case compare d m of
     EQ -> Paired $ toEnum d
@@ -258,12 +300,12 @@ instance Enum Basis where
     where
       (d, m) = x `divMod` 13
 
-instance Short Basis where
+instance Short Hand where
   short (Paired p) = short p <> short p
   short (Suited r0 r1) = short r0 <> short r1 <> "s"
   short (Offsuited r0 r1) = short r0 <> short r1 <> "o"
 
--- | convert from a Card pair to a Basis
+-- | convert from a Card pair to a Hand
 --
 -- The base mechanism of this transformation is to forget suit details.
 --
@@ -274,17 +316,17 @@ instance Short Basis where
 --
 -- >>> fromPair (Card Two Hearts, Card Ace Spades)
 -- Offsuited Ace Two
-fromPair :: (Card, Card) -> Basis
+fromPair :: (Card, Card) -> Hand
 fromPair (Card r s, Card r' s')
   | r == r' = Paired r
   | s == s' = Suited (max r r') (min r r')
   | otherwise = Offsuited (max r r') (min r r')
 
--- | Enumeration of the (Card,Card)'s that Basis represents.
+-- | Enumeration of the (Card,Card)'s that Hand represents.
 --
 -- >>> putStrLn $ Text.intercalate "." $ (\(x,y) -> short x <> short y) <$> toPairs (Paired Ace)
 -- A♡A♣.A♡A♢.A♡A♠.A♣A♡.A♣A♢.A♣A♠.A♢A♡.A♢A♣.A♢A♠.A♠A♡.A♠A♣.A♠A♢
-toPairs :: Basis -> [(Card, Card)]
+toPairs :: Hand -> [(Card, Card)]
 toPairs (Paired r) = bimap (Card r) (Card r) <$> enum2 [Hearts .. Spades]
 toPairs (Suited r0 r1) =
   ((\s -> (Card r0 s, Card r1 s)) <$> [Hearts .. Spades])
@@ -300,7 +342,7 @@ toPairs (Offsuited r0 r1) =
 -- | a representative pair of cards for a B, choosing Hearts and Spades.
 --
 -- Always have a good think about this in the realm of raw card simulation.
-toRepPair :: Basis -> (Card, Card)
+toRepPair :: Hand -> (Card, Card)
 toRepPair (Paired r) = (Card r Hearts, Card r Spades)
 toRepPair (Suited r0 r1) = (Card r0 Hearts, Card r1 Hearts)
 toRepPair (Offsuited r0 r1) = (Card r0 Hearts, Card r1 Spades)
@@ -310,7 +352,7 @@ toRepPair (Offsuited r0 r1) = (Card r0 Hearts, Card r1 Spades)
 -- >>> enum2 [0..2]
 -- [(0,1),(0,2),(1,0),(1,2),(2,0),(2,1)]
 enum2 :: [a] -> [(a, a)]
-enum2 xs = fmap (p. fmap toEnum) . (\x y -> ishuffle [x, y]) <$> [0 .. (n -1)] <*> [0 .. (n -2)]
+enum2 xs = fmap (p . fmap toEnum) . (\x y -> ishuffle [x, y]) <$> [0 .. (n - 1)] <*> [0 .. (n - 2)]
   where
     n = length xs
     p (x : y : _) = (xs List.!! x, xs List.!! y)
@@ -327,20 +369,30 @@ ishuffle as = go as []
       where
         x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) x0 (sort dealt)
 
--- | A Strat represents an array of a's indexed by the Basis.
+-- | The spirit of Strat is to be a representable functor of a's indexed by Hand.
 --
--- Here is a chart of the chances of winning given a B, against another player with any 2.
+-- A Strat can be many things:
+--
+-- One example is as a statistic across the set of hands. Here is a chart of the chances of winning given a Hand, against another player with any2.
 --
 -- ![bwin example](other/bwin.svg)
 --
--- serialisation via Show, Read (in a pinch)
+-- Another example is as a strategy for a seat: what betting action should be taken, given what I might be holding in my Hand.
 --
--- > (Strat $ fromList ((\((xs,_):_) -> xs) $ reads ((show $ toList $ array $ w2) :: String) :: [Double])) == w2
+-- >>> :t always Call
+-- always Call :: Strat Action
 --
+-- Or the dual to this question: given the betting action that has occurred, what are my guesses about their Hand. (FIXME: NYI)
 newtype Strat a = Strat
   { array :: Array '[169] a
   }
-  deriving (Eq, Show, Foldable)
+  deriving (Eq, Foldable)
+
+instance (Show a) => Show (Strat a) where
+  show (Strat a) = show (toList a)
+
+instance (Read a) => Read (Strat a) where
+  readPrec = Strat . fromList <$> readPrec
 
 instance Functor Strat where
   fmap f (Strat a) = Strat (fmap f a)
@@ -349,7 +401,7 @@ instance Data.Distributive.Distributive Strat where
   distribute = distributeRep
 
 instance Representable Strat where
-  type Rep Strat = Basis
+  type Rep Strat = Hand
 
   tabulate f = Strat $ tabulate (f . toEnum . fromMaybe 0 . head)
 
@@ -357,23 +409,35 @@ instance Representable Strat where
 
 instance Short (Strat Text) where
   short s =
-    Text.intercalate "\n"
-    ((\x -> Text.intercalate " "
-     -- 
-       ((\y -> index s (toEnum $ 13 * (12 - x) + (12 - y))) <$>
-        [0..12])) <$>
-      [0..12])
+    Text.intercalate
+      "\n"
+      ( ( \x ->
+            Text.intercalate
+              " "
+              --
+              ( (\y -> index s (toEnum $ 13 * (12 - y) + (12 - x)))
+                  <$> [0 .. 12]
+              )
+        )
+          <$> [0 .. 12]
+      )
 
 instance Short (Strat Char) where
   short s =
-    Text.intercalate "\n"
-    ((\x -> Text.intercalate ""
-       ((\y -> Text.singleton $ index s (toEnum $ 13 * (12 - x) + (12 - y))) <$>
-        [0..12])) <$>
-      [0..12])
+    Text.intercalate
+      "\n"
+      ( ( \x ->
+            Text.intercalate
+              ""
+              ( (\y -> Text.singleton $ index s (toEnum $ 13 * (12 - x) + (12 - y)))
+                  <$> [0 .. 12]
+              )
+        )
+          <$> [0 .. 12]
+      )
 
 instance Short (Strat Action) where
-  short s = stratSym ("f","c","r","r") 10 s
+  short s = stratSym ("f", "c", "r", "r") 10 s
 
 -- | screen representation of a Strat
 --
@@ -392,40 +456,62 @@ instance Short (Strat Action) where
 -- A3s K3s Q3s J3s T3s 93s 83s 73s 63s 53s 43s 33 32o
 -- A2s K2s Q2s J2s T2s 92s 82s 72s 62s 52s 42s 32s 22
 stratText :: Strat Text
-stratText = short <$> (tabulate id :: Strat Basis)
+stratText = short <$> (tabulate id :: Strat Hand)
 
 stratSym :: (Text, Text, Text, Text) -> Double -> Strat Action -> Text
-stratSym (f,c,r,rr) b s =
-    Text.intercalate "\n"
-    ((\x -> Text.intercalate ""
-       ((\y -> toSym $ index s (toEnum $ 13 * x + y)) <$>
-        [0..12])) <$>
-      [0..12])
-    where
-      toSym Fold = f
-      toSym Call = c
-      toSym (Raise x) = bool r rr (x > b)
+stratSym (f, c, r, rr) b s =
+  Text.intercalate
+    "\n"
+    ( ( \x ->
+          Text.intercalate
+            ""
+            ( (\y -> toSym $ index s (toEnum $ 13 * x + y))
+                <$> [0 .. 12]
+            )
+      )
+        <$> [0 .. 12]
+    )
+  where
+    toSym Fold = f
+    toSym Call = c
+    toSym (Raise x) = bool r rr (x > b)
 
--- | read a Strat from a text file.
+-- | left pad some text
+lpad :: Int -> Text -> Text
+lpad n t = pack (replicate (n - Text.length t) ' ') <> t
+
+-- | enumerate (Card, Card) and count the Bs
+enumBs :: Strat Int
+enumBs = tabulate (\k -> fromMaybe zero $ Map.lookup k (Map.fromListWith (+) ((,1) . fromPair <$> enum2 deck)))
+
+-- | The theoretical combinatorial count.
 --
--- > (Just o2') <- readStrat "other/o2.str" :: IO (Maybe (Strat Double))
--- > o2 == o2'
+-- > fromIntegral <$> enumBs == handTypeCount
 -- True
 --
-readStrat :: Read a => FilePath -> IO (Maybe (Strat a))
-readStrat fp = fmap (Strat . fromList) . head . fmap fst . reads . unpack <$> readFile fp
+-- >>> pretty $ lpad 3 . fixed (Just 0) <$> handTypeCount
+--  12  24  24  24  24  24  24  24  24  24  24  24  24
+--   8  12  24  24  24  24  24  24  24  24  24  24  24
+--   8   8  12  24  24  24  24  24  24  24  24  24  24
+--   8   8   8  12  24  24  24  24  24  24  24  24  24
+--   8   8   8   8  12  24  24  24  24  24  24  24  24
+--   8   8   8   8   8  12  24  24  24  24  24  24  24
+--   8   8   8   8   8   8  12  24  24  24  24  24  24
+--   8   8   8   8   8   8   8  12  24  24  24  24  24
+--   8   8   8   8   8   8   8   8  12  24  24  24  24
+--   8   8   8   8   8   8   8   8   8  12  24  24  24
+--   8   8   8   8   8   8   8   8   8   8  12  24  24
+--   8   8   8   8   8   8   8   8   8   8   8  12  24
+--   8   8   8   8   8   8   8   8   8   8   8   8  12
+handTypeCount :: Strat Double
+handTypeCount = tabulate $ \case
+  (Paired _) -> 12
+  (Suited _ _) -> 8
+  (Offsuited _ _) -> 24
 
--- | write a Strat to a text file.
---
--- > o2 = winOdds 2 1000
--- > writeStrat "other/o2.str" o2
---
-writeStrat :: Show a => FilePath -> Strat a -> IO ()
-writeStrat fp s = writeFile fp $ show $ toList $ array s
-
--- | Convert a Basis Map to a Strat.
-fromMap :: Map.Map Basis a -> Strat (Maybe a)
-fromMap m = tabulate (`Map.lookup` m)
+-- | A Strat with no information about the Hand.
+any2 :: Strat Double
+any2 = (/ sum handTypeCount) <$> handTypeCount
 
 -- | A typical poker table setup for texas holdem.
 --
@@ -436,7 +522,6 @@ fromMap m = tabulate (`Map.lookup` m)
 -- >>> tcards = deal cs
 -- >>> pretty tcards
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠
---
 data TableCards = TableCards
   { players :: Seq.Seq (Card, Card),
     hole :: Seq.Seq Card
@@ -456,7 +541,7 @@ instance Short TableCards where
 -- | Deal table cards
 deal :: [Card] -> TableCards
 deal cs = do
-  TableCards (fromList ((\x -> (cs List.!! (2 * x), cs List.!! (2 * x + 1))) <$> [0 .. n -1])) (fromList $ drop (n * 2) cs)
+  TableCards (fromList ((\x -> (cs List.!! (2 * x), cs List.!! (2 * x + 1))) <$> [0 .. n - 1])) (fromList $ drop (n * 2) cs)
   where
     n = (length cs - 5) `div` 2
 
@@ -481,7 +566,6 @@ instance NFData Seat
 -- >>> t = dealTable defaultTableConfig cs
 -- >>> pretty t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
---
 data Table = Table
   { cards :: TableCards,
     hero :: Maybe Int,
@@ -512,18 +596,17 @@ instance Short Table where
         Text.intercalate " " $ comma (Just 2) <$> toList st,
         Text.intercalate " " $ comma (Just 2) <$> toList bs,
         comma (Just 2) p,
-        Text.intercalate ":" $ (\(a,p) -> short a <> show p) <$> toList h
+        Text.intercalate ":" $ (\(a, p) -> short a <> show p) <$> toList h
       ]
 
 -- | list of active player indexes
 --
 -- >>> liveSeats t
 -- [0,1]
---
 liveSeats :: Table -> [Int]
 liveSeats ts =
-  fst <$>
-    filter
+  fst
+    <$> filter
       ((/= Folded) . snd)
       (zip [0 ..] (toList $ ts ^. #seats))
 
@@ -535,10 +618,10 @@ openSeats :: Table -> [Int]
 openSeats ts = case ts ^. #hero of
   Nothing -> []
   Just h ->
-    fst <$>
-    filter
-    ((== BettingOpen) . snd)
-    (nexts $ zip [0 ..] (toList $ ts ^. #seats))
+    fst
+      <$> filter
+        ((== BettingOpen) . snd)
+        (nexts $ zip [0 ..] (toList $ ts ^. #seats))
     where
       nexts l = drop (h + 1) l <> take h l
 
@@ -555,11 +638,10 @@ nextHero ts = head (openSeats ts)
 -- False
 closed :: Table -> Bool
 closed ts =
-  notElem BettingOpen (ts ^. #seats) ||
-  length (filter (/= Folded) (toList $ ts ^. #seats)) <= 1
+  notElem BettingOpen (ts ^. #seats)
+    || length (filter (/= Folded) (toList $ ts ^. #seats)) <= 1
 
 -- | Index of seat and hands in the pot
---
 liveHands :: Table -> [(Int, [Card])]
 liveHands ts = (\i -> hands (ts ^. #cards) List.!! i) <$> liveSeats ts
 
@@ -584,7 +666,6 @@ defaultTableConfig :: TableConfig
 defaultTableConfig = TableConfig 2 0 (Seq.replicate 2 10)
 
 -- | Construct a Table with the supplied cards.
---
 dealTable :: TableConfig -> [Card] -> Table
 dealTable cfg cs = Table (deal cs) (Just 0) (Seq.replicate (cfg ^. #numPlayers) BettingOpen) (Seq.zipWith (-) (cfg ^. #stacks0) bs) bs 0 Seq.Empty
   where
@@ -592,7 +673,7 @@ dealTable cfg cs = Table (deal cs) (Just 0) (Seq.replicate (cfg ^. #numPlayers) 
 
 -- | standard blind and ante chip structure for n seats.
 bbs :: Int -> Double -> Seq.Seq Double
-bbs n ante = Seq.fromList $ reverse $ [1 + ante, 0.5 + ante] <> replicate (n -2) ante
+bbs n ante = Seq.fromList $ reverse $ [1 + ante, 0.5 + ante] <> replicate (n - 2) ante
 
 -- | There are three primitive actions that seats must perform when they are the hero:
 --
@@ -601,7 +682,6 @@ bbs n ante = Seq.fromList $ reverse $ [1 + ante, 0.5 + ante] <> replicate (n -2)
 -- Call. A seat can bet the difference between the maximum bet and their current bet, or the rest of their stack if this is less. This is called a Call and is the minimum allowed bet action. A check is when zero is the minimum.
 --
 -- Raise x. A seat bets x above the minimum allowed bet, where x <= stack - minimum allowed.
---
 data Action = Fold | Call | Raise Double deriving (Eq, Show, Generic)
 
 instance NFData Action
@@ -650,64 +730,69 @@ allin ts = tabulate (const (Raise x))
 -- >>> pretty $ actOn Call $ actOn Call t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,9 9,1 1,0,c1:c0
 --
--- Seat 0 wins a small pot without a showdown.
+-- Seat 0 wins a small pot.
 --
 --     - s1: Raise 10
 --
 -- >>> pretty $ actOn (Raise 10) $ actOn Call t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9 0,1 10,0,10.0r1:c0
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o c,9 0,1 10,0,9.0r1:c0
 --
 -- (s2) is the strategy for seat 0, given betting history of [s0:Call, s1:Raise 10]
 --       - s2: Fold
 --
 -- >>> pretty $ actOn Fold $ actOn (Raise 10) $ actOn Call t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 1,f o,9 0,0 10,1,f0:10.0r1:c0
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,f c,9 0,0 10,1,f0:9.0r1:c0
 --
 --       - s2: Call
 -- >>> pretty $ actOn Call $ actOn (Raise 10) $ actOn Call t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 1,c o,0 0,10 10,0,c0:10.0r1:c0
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,0 0,10 10,0,c0:9.0r1:c0
 --
--- Seat 0 wins a big pot with a pair of sevens
+-- Table is closed for betting (hero == Nothing), and the small blind wins a big pot with a pair of sevens after calling the big blinds allin.
 --
 -- - s0: Raise 10
 --
 -- >>> pretty $ actOn (Raise 10) t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 1,o o,0 9,10 1,0,10.0r0
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 1,c o,0 9,10 1,0,9.0r0
 --
 -- (s3) is the strategy for seat 1, given betting history of [s0:Raise 10]
 --
 --     - s3:Fold
 --
 -- >>> pretty $ actOn Fold $ actOn (Raise 10) t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o f,0 9,10 0,1,f1:10.0r0
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c f,0 9,10 0,1,f1:9.0r0
 --
 --     - s3:Call
 --
 -- >>> pretty $ actOn Call $ actOn (Raise 10) t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o c,0 0,10 10,0,c1:10.0r0
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,0 0,10 10,0,c1:9.0r0
+--
+-- One of the reasons actOn is separated from apply is that it can change the incoming Action from a strategy, given table conditions. This may be a design flaw that can be ironed out.
 actOn :: Action -> Table -> Table
 actOn Fold ts = case ts ^. #hero of
   Nothing -> ts
   Just p ->
+    -- order of execution matters
     ts
-    & #bets %~ Seq.update p 0
-    & #pot %~ (+ Seq.index (ts ^. #bets) p)
-    & #seats
-      %~ bool
-        (Seq.update p BettingClosed)
-        (Seq.update p Folded)
-        (length (liveSeats ts) > 1)
-    & #hero .~ nextHero ts
-    & #history %~ ((Fold,p) Seq.:<|)
+      & #bets %~ Seq.update p 0
+      & #pot %~ (+ Seq.index (ts ^. #bets) p)
+      & #seats
+        %~ bool
+          (Seq.update p BettingClosed)
+          (Seq.update p Folded)
+          -- last player cant fold
+          (length (liveSeats ts) > 1)
+      -- hero calculation needs to take into account updated seat status
+      & (\t -> t & #hero .~ nextHero t)
+      & #history %~ ((bool Call Fold (length (liveSeats ts) > 1), p) Seq.:<|)
 actOn Call ts = case ts ^. #hero of
   Nothing -> ts
   Just p ->
     ts
-    & #bets %~ Seq.adjust' (+ bet) p
-    & #stacks %~ Seq.adjust' (\x -> x - bet) p
-    & #seats %~ Seq.update p BettingClosed
-    & #hero .~ nextHero ts
-    & #history %~ ((Call,p) Seq.:<|)
+      & #bets %~ Seq.adjust' (+ bet) p
+      & #stacks %~ Seq.adjust' (\x -> x - bet) p
+      & #seats %~ Seq.update p BettingClosed
+      & (\t -> t & #hero .~ nextHero t)
+      & #history %~ ((Call, p) Seq.:<|)
     where
       gap = maximum (ts ^. #bets) - Seq.index (ts ^. #bets) p
       st = Seq.index (ts ^. #stacks) p
@@ -716,45 +801,48 @@ actOn (Raise r) ts = case ts ^. #hero of
   Nothing -> ts
   Just p ->
     ts
-    & #bets %~ Seq.adjust' (+ bet) p
-    & #stacks %~ Seq.adjust' (\x -> x - bet) p
-    & bool
-      (#seats %~ Seq.update p BettingClosed)
-      ( (#seats %~ Seq.update p BettingOpen)
-          . (#seats %~ fmap (\x -> bool x BettingOpen (x == BettingClosed)))
-      )
-      (st > gap)
-    & (\x -> x & #hero .~ nextHero x)
-    & #history %~ ((Raise r,p) Seq.:<|)
+      & #bets %~ Seq.adjust' (+ bet) p
+      & #stacks %~ Seq.adjust' (\x -> x - bet) p
+      & #seats %~ Seq.update p (bool BettingClosed BettingOpen (st' > 0))
+      & ( \t ->
+            t
+              & bool
+                id
+                ( #seats
+                    .~ Seq.zipWith
+                      ( \x st'' ->
+                          bool x BettingOpen (x == BettingClosed && st'' > 0)
+                      )
+                      (t ^. #seats)
+                      (t ^. #stacks)
+                )
+                (r' > 0)
+        )
+      & (\t -> t & #hero .~ nextHero t)
+      & #history %~ ((bool Call (Raise r') (r' > 0), p) Seq.:<|)
     where
       gap = maximum (ts ^. #bets) - Seq.index (ts ^. #bets) p
       st = Seq.index (ts ^. #stacks) p
       bet = min (gap + r) st
+      r' = bet - gap
+      st' = st - bet
 
--- | Follow a betting pattern according to a strategy function, until betting is closed.
+-- | Follow a betting pattern according to a strategy list, until betting is closed, or the list ends.
 --
-bet :: (Table -> Action) -> Table -> Table
-bet f t0 = bool (bet f t1) t1 (closed t1)
+-- >>> pretty $ bet (pureRep (Raise 10) : (replicate 3 (pureRep Call))) t
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,0 0,10 10,0,c1:9.0r0
+bet :: [Strat Action] -> Table -> Table
+bet ss t = go ss t
   where
-    t1 = actOn (f t0) t0
+    go [] t = t
+    go (s : ss') t =
+      bool (bet ss' (actOn (apply s t) t)) t (closed t)
 
 -- | Apply a strategy to a table, supplying the Action for the hero, if any.
-apply :: Strat Action -> Table -> Maybe Action
-apply s t = case t ^. #hero of
-  Nothing  -> Nothing
+apply :: Strat Action -> Table -> Action
+apply s t = fromMaybe Fold $ case t ^. #hero of
+  Nothing -> error "bad juju"
   Just i -> Just $ index s (fromPair (Seq.index (t ^. #cards . #players) i))
-
--- | betting for a Table given a list of strategies, until betting is closed, or we run out of strategies.
---
--- This is almost:
---
--- > foldl (.) id (bet . apply <$> ss)
-applys :: [Strat Action] -> Table -> Table
-applys ss t = go 0 t
-  where
-    go n t = case apply (ss List.!! n) t of
-      Nothing -> t
-      Just a -> go (n+1) (actOn a t)
 
 -- | 5 card standard poker rankings
 --
@@ -869,35 +957,53 @@ instance Short HandRank where
 -- A♡7♠T♡5♠6♣7♡6♠
 --
 -- >>> handRank cs
--- Just (TwoPair Seven Six Ace)
---
-handRank :: [Card] -> Maybe HandRank
+-- TwoPair Seven Six Ace
+handRank :: [Card] -> HandRank
 handRank cs =
-  flush cs'
-    <|> Straight <$> straight (toList $ ranks cs')
-    <|> kind (rank <$> cs')
+  fromMaybe
+  (kind (rank <$> cs'))
+  ( flush cs' <|>
+    straight cs')
   where
     cs' = sortOn Down cs
 
--- | maybe convert cards to a Straight (consecutive card runs)
+-- | using the poker-eval c library
+--
+-- Alternative might be to pre-allocate an uninitialized Data.Vector.Unboxed.Mutable.MVector of the required size, populate it using the ST monad, and freeze the result.
+--
+-- >>> ((toEnum . fromEnum) <$> ((toEnum . fromEnum) <$> cs :: [Poker.Card]) :: [Card]) == cs
+-- True
+--
+-- > (2.2e9 /) . P.fromIntegral . fst <$> tick (fmap (unNumericalHandValue . Poker.numericalHandValue_n 7)) (fmap (Poker.fromList . fmap (\(Poker.Types.Card x y) -> Poker.mkCard (toEnum . fromEnum $ x) (toEnum . fromEnum $ y))) cs)
+-- 2.9906047135132954
+--
+-- > (2.2e9 /) . P.fromIntegral . fst <$> tick (fmap handRank) cs
+-- 1.3818194065898157
+handRank' :: [Card] -> Poker.NumericalHandValue
+handRank' = Poker.numericalHandValue_n 7 . Poker.fromList . fmap (\(Card x y) -> Poker.mkCard (toEnum . fromEnum $ x) (toEnum . fromEnum $ y))
+
+-- | 5 consecutive card check
 --
 -- Special rules for an Ace, which can be counted as high or low.
 --
--- >>> straight [Ace, King, Queen, Jack, Ten, Nine, Eight]
+-- >>> run [Ace, King, Queen, Jack, Ten, Nine, Eight]
 -- Just Ace
 --
--- >>> straight [Ace, King, Queen, Jack, Ten, Eight, Seven]
+-- >>> run [Ace, King, Queen, Jack, Ten, Eight, Seven]
 -- Just Ace
 --
--- >>> straight [Ace, King, Queen, Five, Four, Three, Two]
+-- >>> run [Ace, King, Queen, Five, Four, Three, Two]
 -- Just Five
 --
--- >>> straight [Ace, King, Queen, Six, Four, Three, Two]
+-- >>> run [Ace, King, Queen, Six, Four, Three, Two]
 -- Nothing
-straight :: [Rank] -> Maybe Rank
-straight [] = Nothing
-straight rs@(Ace:rs') = maybe (bool Nothing (Just Five) (run4 rs' == Just Five)) Just (run5 rs)
-straight rs = run5 rs
+run :: [Rank] -> Maybe Rank
+run [] = Nothing
+run rs@(Ace : rs') = maybe (bool Nothing (Just Five) (run4 rs' == Just Five)) Just (run5 rs)
+run rs = run5 rs
+
+straight :: [Card] -> Maybe HandRank
+straight cs = Straight <$> run (Set.toDescList $ ranks cs)
 
 run5 :: [Rank] -> Maybe Rank
 run5 rs = head $ fst <$> filter ((>= 5) . snd) (runs rs)
@@ -908,16 +1014,16 @@ run4 rs = head $ fst <$> filter ((>= 4) . snd) (runs rs)
 runs :: [Rank] -> [(Rank, Int)]
 runs rs = done (foldl' step (Nothing, []) rs)
   where
-    step (Nothing, _) r = (Just (r,r), [])
-    step (Just (r1,r0), xs) r =
-       bool
-       -- if gapped then reset, remember old gap
-       (Just (r,r), (r0, fromEnum r0 - fromEnum r1 + 1):xs)
-       -- if one less then do nothing
-       (Just (r, r0), xs)
-       (fromEnum r + one == fromEnum r1)
+    step (Nothing, _) r = (Just (r, r), [])
+    step (Just (r1, r0), xs) r =
+      bool
+        -- if gapped then reset, remember old gap
+        (Just (r, r), (r0, fromEnum r0 - fromEnum r1 + 1) : xs)
+        -- if one less then do nothing
+        (Just (r, r0), xs)
+        (fromEnum r + one == fromEnum r1)
     done (Nothing, xs) = xs
-    done (Just (r1,r0), xs) = (r0, fromEnum r0 - fromEnum r1 + 1):xs
+    done (Just (r1, r0), xs) = (r0, fromEnum r0 - fromEnum r1 + 1) : xs
 
 -- | maybe convert cards to a Flush or StraightFlush
 --
@@ -932,7 +1038,7 @@ flush cs =
         maybe
           (Flush r0 r1 r2 r3 r4)
           StraightFlush
-          (straight rs)
+          (run rs)
     _ -> Nothing
 
 suitRanks :: [Card] -> [(Suit, [Rank])]
@@ -951,38 +1057,38 @@ rankCount rs =
 -- | When straights and flushes are ruled out, hand ranking falls back to counted then sorted rank groups, with larger groups (FourOfAKind) ranked higer than smaller ones.
 --
 -- >>> kind [Ace, Ace, Ace, Ace, Two]
--- Just (FourOfAKind Ace Two)
+-- FourOfAKind Ace Two
 --
 -- >>> kind [Ace, Ace, Ace, Two, Two]
--- Just (FullHouse Ace Two)
+-- FullHouse Ace Two
 --
 -- >>> kind [Ace, Ace, Ace, Five, Two]
--- Just (ThreeOfAKind Ace Five Two)
+-- ThreeOfAKind Ace Five Two
 --
 -- >>> kind [Ace, Ace, Five, Five, Two]
--- Just (TwoPair Ace Five Two)
+-- TwoPair Ace Five Two
 --
 -- >>> kind [Ace, Ace, Six, Five, Two]
--- Just (Pair Ace Six Five Two)
+-- Pair Ace Six Five Two
 --
 -- >>> kind [Ace, King, Six, Five, Two]
--- Just (HighCard Ace King Six Five Two)
---
-kind :: [Rank] -> Maybe HandRank
+-- HighCard Ace King Six Five Two
+kind :: [Rank] -> HandRank
 kind cs = case rankCount cs of
-  ((r0, 4):(r1, 1):_) -> Just $ FourOfAKind r0 r1
-  ((r0, 3):(r1, 2):_) -> Just $ FullHouse r0 r1
-  ((r0, 3):(r1, 1):(r2, 1):_) -> Just $ ThreeOfAKind r0 r1 r2
-  ((r0, 2):(r1, 2):(r2, 1):_) -> Just $ TwoPair r0 r1 r2
-  ((r0, 2):(r1, 1):(r2, 1):(r3, 1):_) -> Just $ Pair r0 r1 r2 r3
-  ((r0, 1):(r1, 1):(r2, 1):(r3, 1):(r4, 1):_) -> Just $ HighCard r0 r1 r2 r3 r4
-  _ -> Nothing
+  ((r0, 4) : (r1, _) : _) -> FourOfAKind r0 r1
+  ((r0, 3) : (r1, 3) : _) -> FullHouse r0 r1
+  ((r0, 3) : (r1, 2) : _) -> FullHouse r0 r1
+  ((r0, 3) : (r1, 1) : (r2, 1) : _) -> ThreeOfAKind r0 r1 r2
+  ((r0, 2) : (r1, 2) : (r2, 2) : _) -> TwoPair r0 r1 r2
+  ((r0, 2) : (r1, 2) : (r2, 1) : _) -> TwoPair r0 r1 r2
+  ((r0, 2) : (r1, 1) : (r2, 1) : (r3, 1) : _) -> Pair r0 r1 r2 r3
+  ((r0, 1) : (r1, 1) : (r2, 1) : (r3, 1) : (r4, 1) : _) -> HighCard r0 r1 r2 r3 r4
+  _ -> error ("bad Rank list: " <> show cs)
 
 -- $performance
 --
 -- > Perf.tick handRank cs
 -- (328006,Just (TwoPair Four Queen Five))
---
 
 -- | Ship the pot to the winning hands
 --
@@ -1004,9 +1110,125 @@ showdown ts =
 -- [0]
 bestLiveHand :: Table -> [Int]
 bestLiveHand ts =
-  mconcat $ maybeToList $
-    fmap (fmap fst) $
-      head $
-        List.groupBy
-          (\x y -> (snd x :: Maybe HandRank) == snd y)
-          (sortOn (Down . snd) (second handRank <$> liveHands ts))
+  mconcat $
+    maybeToList $
+      fmap (fmap fst) $
+        head $
+          List.groupBy
+            (\x y -> (snd x :: HandRank) == snd y)
+            (sortOn (Down . snd) (second handRank <$> liveHands ts))
+
+-- * combination
+
+-- | combinations k xs generates set of k-combinations from xs
+combinations :: Int -> [a] -> [[a]]
+combinations 0 _ = [[]]
+combinations m l = [x:ys | x:xs <- List.tails l, ys <- combinations (m - 1) xs]
+
+revCombo :: Int -> [a] -> [[a]]
+revCombo m l = fmap reverse $ combinations m (reverse l)
+
+-- | lexigraphic index of combinations
+--
+-- https://math.stackexchange.com/questions/1363239/fast-way-to-get-a-position-of-combination-without-repetitions
+--
+-- >>> lexiIndex 52 7 [0,1,2,3,4,5,51]
+-- 46
+-- >>> lexiIndex 52 7 [0,1,2,3,4,6,7]
+-- 47
+--
+-- >>> lexiIndex 52 7 [0,1,2,3,4,5,6]
+-- 0
+--
+-- >>> lexiIndex 52 7 [45,46,47,48,49,50,51]
+-- 133784559
+lexiIndex :: Int -> Int -> [Int] -> Int
+lexiIndex n k xs = -1 + binom n k - sum ((\m -> sum ((\j -> binom (n - j) m) <$> [xs List.!! (k - m - 1) + 2 .. n - m])) <$> [0..(k - 1)])
+
+toLexiPos :: [Int] -> Int
+toLexiPos xs = sum $ zipWith binom xs [1..]
+
+-- FIXME:
+fromLexiPos :: Int -> Int -> Int -> [Int]
+fromLexiPos n k p = go n k p []
+  where
+    go n' k' p' xs =
+      bool
+      (bool
+      (go (n' - 1) k' p' xs)
+      (go (n' - 1) (k' - 1) (p' - n') (n':xs))
+      (p'>= binom n' k'))
+      xs
+      (n' == 0)
+
+-- | binomial equation
+-- https://stackoverflow.com/questions/28896626/tail-recursive-binomial-coefficient-function-in-haskell
+binom :: Int -> Int -> Int
+binom _ 0 = 1
+binom 0 _ = 0
+binom n k = binom (n - 1) (k - 1) * n `div` k
+
+-- | vector of hand values indexed by lexigraphic order for n-card combinations.
+--
+handValues :: Int -> S.Vector Word16
+handValues n = S.fromList $ (Map.!) toLexi . handRank <$> (combinations n deck)
+
+-- | write handRank vector to an mmap'ped file
+hvWrite :: Int -> FilePath -> IO ()
+hvWrite n f = writeMMapVector f (handValues n)
+
+-- | HandRank to lexicographic Word16 index map
+toLexi :: Map.Map HandRank Word16
+toLexi = Map.fromList (zip allHandRanks [(0::Word16)..])
+
+-- | lexicographic Word16 index to HandRank map
+fromLexi :: Map.Map Word16 HandRank
+fromLexi = Map.fromList (zip [(0::Word16)..] allHandRanks)
+
+-- | enumeration of all possible HandRanks
+allHandRanks :: [HandRank]
+allHandRanks =
+  [ HighCard a b c d e
+  | a <- ranks, b <- ranksLT a, c <- ranksLT b, d <- ranksLT c, e <- ranksLT d
+  , not (a == succ b && b == succ c && c == succ d && d == s e)
+  , not (a == Ace && [b,c,d,e] == [Five, Four, Three, Two]) ] ++
+  [ Pair a b c d
+  | a <- ranks
+  , b <- ranks, c <- ranksLT b, d <- ranksLT c
+  , a /= b, a /= c, a /= d ] ++
+  [ TwoPair a b c
+  | a <- ranks, b <- ranksLT a
+  , c <- ranks, a /= c, b /= c ] ++
+  [ ThreeOfAKind a b c
+  | a <- ranks
+  , b <- ranks, c <- ranksLT b
+  , a /= b, a /= c ] ++
+  [ Straight f| f <- ranksGE Five ] ++
+  [ Flush a b c d e
+  | a <- ranks, b <- ranksLT a, c <- ranksLT b, d <- ranksLT c, e <- ranksLT d
+  , not (a == succ b && b == succ c && c == succ d && d == s e)
+  , not (a == Ace && [b,c,d,e] == [Five, Four, Three, Two]) ] ++
+  [ FullHouse a b | a <- ranks, b <- ranks, a /= b ] ++
+  [ FourOfAKind a b | a <- ranks, b <- ranks, a /= b ] ++
+  [ StraightFlush f| f <- ranksGE Five ]
+  where
+    s Ace = Two
+    s other = succ other
+    ranks        = [Two .. Ace]
+    ranksLT Two  = []
+    ranksLT rank = [Two .. pred rank ]
+    ranksGE rank = reverse [Ace, King .. rank ]
+
+-- | Vector of hand values for 7 card combinations in lexicographic order
+--
+-- >>> S.length <$> hrs7
+-- 133784560
+hvs7 :: IO (S.Vector Word16)
+hvs7 = unsafeMMapVector "other/shr7.vec" Nothing
+
+-- | Vector of hand values for 5 card combinations in lexicographic order
+--
+-- >>> S.length <$> shr5
+-- 133784560
+hvs5 :: IO (S.Vector Word16)
+hvs5 = unsafeMMapVector "other/shr5.vec" Nothing
