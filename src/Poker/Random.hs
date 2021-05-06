@@ -28,6 +28,7 @@ module Poker.Random
     rvi,
     rvis,
     rviv,
+    rvHandRank,
   )
 where
 
@@ -135,3 +136,11 @@ dealTableHand :: (RandomGen g) => TableConfig -> Int -> Hand -> State g Table
 dealTableHand cfg i b = do
   cs <- dealHand b (5 + (cfg ^. #numPlayers - 1) * 2)
   pure $ dealTable cfg (take (2 * i) cs <> (\(x, y) -> [x, y]) (toRepPair b) <> drop (2 * i) cs)
+
+-- | uniform random variate of HandRank
+rvHandRank :: (RandomGen g) => State g HandRank
+rvHandRank = do
+  g <- get
+  let (x, g') = uniformR (0, V.length allHandRanksV - 1) g
+  put g'
+  pure (allHandRanksV V.! x)

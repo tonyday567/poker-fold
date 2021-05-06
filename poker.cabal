@@ -30,6 +30,7 @@ library
     -fwrite-ide-info
     -hiedir=.hie
   build-depends:
+    MemoTrie,
     adjunctions >= 4.4 && < 4.5,
     base >=4.7 && <5,
     chart-svg >= 0.2 && < 0.3,
@@ -37,6 +38,7 @@ library
     distributive >= 0.6 && < 0.7,
     foldl >= 1.4 && < 1.5,
     microlens >= 0.4 && < 0.5,
+    mtl >= 2.2.2 && < 2.3,
     numhask >= 0.7 && < 0.8,
     numhask-array >= 0.8 && < 0.9,
     numhask-space >= 0.7.1 && < 0.7.2,
@@ -90,6 +92,7 @@ executable speed
     vector,
     vector-mmap,
     discrimination,
+    MemoTrie,
   default-language: Haskell2010
   default-extensions:
   ghc-options:

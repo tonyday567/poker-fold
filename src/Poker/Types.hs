@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -66,7 +67,6 @@ module Poker.Types
     -- * Hand Ranking
     HandRank (..),
     handRank,
-    handRank',
     straight,
     flush,
     kind,
@@ -80,18 +80,26 @@ module Poker.Types
 
     -- * Combinations
     combinations,
+    combinationsR,
     binom,
-    lexiIndex,
-    toLexiPos,
-    fromLexi,
-    toLexi,
+    binomR,
+    binomM,
+    toLexiPosR,
+    toLexiPosRS,
+    fromLexiPosR,
+    mapHRValue,
+    mapValueHR,
     handValues,
-    hvWrite,
-    allHandRanks,
-    hvs7,
+    hvsWrite,
+    hvs5Write,
+    hvs7Write,
     hvs5,
-  fromLexiPos)
-where
+    hvs7,
+    allHandRanks,
+    allHandRanksV,
+    lookupHRs,
+    lookupHR,
+  ) where
 
 import Data.Distributive (Distributive (..))
 import Data.FormatN
@@ -107,10 +115,10 @@ import Lens.Micro
 import NumHask.Array.Fixed as A
 import NumHask.Prelude
 import qualified Prelude as P
-import qualified Data.Poker as Poker
 import qualified Data.Vector.Storable as S
 import Data.Vector.Storable.MMap
-import qualified Control.Foldl as L
+import qualified Data.Vector as V
+import System.IO.Unsafe (unsafePerformIO)
 
 -- $setup
 --
@@ -235,13 +243,10 @@ instance (Functor f, Foldable f) => Short (f Card) where
 
 -- | a standard 52 card deck
 --
--- The list is in descending order, which is the most common starting point for enumeration algos.
---
 -- >>> pretty deck
--- A♠A♢A♣A♡K♠K♢K♣K♡Q♠Q♢Q♣Q♡J♠J♢J♣J♡T♠T♢T♣T♡9♠9♢9♣9♡8♠8♢8♣8♡7♠7♢7♣7♡6♠6♢6♣6♡5♠5♢5♣5♡4♠4♢4♣4♡3♠3♢3♣3♡2♠2♢2♣2♡
 --
 deck :: [Card]
-deck = reverse $ Card <$> [Two .. Ace] <*> [Hearts .. Spades]
+deck = Card <$> [Two .. Ace] <*> [Hearts .. Spades]
 
 -- | Set of ranks in a hand
 ranks :: [Card] -> Set.Set Rank
@@ -967,21 +972,6 @@ handRank cs =
   where
     cs' = sortOn Down cs
 
--- | using the poker-eval c library
---
--- Alternative might be to pre-allocate an uninitialized Data.Vector.Unboxed.Mutable.MVector of the required size, populate it using the ST monad, and freeze the result.
---
--- >>> ((toEnum . fromEnum) <$> ((toEnum . fromEnum) <$> cs :: [Poker.Card]) :: [Card]) == cs
--- True
---
--- > (2.2e9 /) . P.fromIntegral . fst <$> tick (fmap (unNumericalHandValue . Poker.numericalHandValue_n 7)) (fmap (Poker.fromList . fmap (\(Poker.Types.Card x y) -> Poker.mkCard (toEnum . fromEnum $ x) (toEnum . fromEnum $ y))) cs)
--- 2.9906047135132954
---
--- > (2.2e9 /) . P.fromIntegral . fst <$> tick (fmap handRank) cs
--- 1.3818194065898157
-handRank' :: [Card] -> Poker.NumericalHandValue
-handRank' = Poker.numericalHandValue_n 7 . Poker.fromList . fmap (\(Card x y) -> Poker.mkCard (toEnum . fromEnum $ x) (toEnum . fromEnum $ y))
-
 -- | 5 consecutive card check
 --
 -- Special rules for an Ace, which can be counted as high or low.
@@ -1085,11 +1075,6 @@ kind cs = case rankCount cs of
   ((r0, 1) : (r1, 1) : (r2, 1) : (r3, 1) : (r4, 1) : _) -> HighCard r0 r1 r2 r3 r4
   _ -> error ("bad Rank list: " <> show cs)
 
--- $performance
---
--- > Perf.tick handRank cs
--- (328006,Just (TwoPair Four Queen Five))
-
 -- | Ship the pot to the winning hands
 --
 -- >>> pretty $ showdown t
@@ -1115,75 +1100,144 @@ bestLiveHand ts =
       fmap (fmap fst) $
         head $
           List.groupBy
-            (\x y -> (snd x :: HandRank) == snd y)
-            (sortOn (Down . snd) (second handRank <$> liveHands ts))
+            (\x y -> snd x == snd y)
+            (sortOn (Down . snd)
+             (second (lookupHR (unsafePerformIO hvs7) . S.fromList . fmap fromEnum) <$> liveHands ts))
 
 -- * combination
 
 -- | combinations k xs generates set of k-combinations from xs
+--
+-- >>> combinations 2 [0..4]
+-- [[0,1],[0,2],[0,3],[0,4],[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]]
 combinations :: Int -> [a] -> [[a]]
 combinations 0 _ = [[]]
 combinations m l = [x:ys | x:xs <- List.tails l, ys <- combinations (m - 1) xs]
 
-revCombo :: Int -> [a] -> [[a]]
-revCombo m l = fmap reverse $ combinations m (reverse l)
+-- | k-element combinations in reverse lexicographic order.
+--
+-- >>> combinationsR 2 [0..4]
+-- [[3,4],[2,4],[1,4],[0,4],[2,3],[1,3],[0,3],[1,2],[0,2],[0,1]]
+combinationsR :: Int -> [a] -> [[a]]
+combinationsR 0 _ = [[]]
+combinationsR m l = fmap reverse $ combinations m (reverse l)
 
--- | lexigraphic index of combinations
+-- | Given a combination, what is its position in reverse lexicographic ordering of all combinations.
 --
--- https://math.stackexchange.com/questions/1363239/fast-way-to-get-a-position-of-combination-without-repetitions
---
--- >>> lexiIndex 52 7 [0,1,2,3,4,5,51]
--- 46
--- >>> lexiIndex 52 7 [0,1,2,3,4,6,7]
--- 47
---
--- >>> lexiIndex 52 7 [0,1,2,3,4,5,6]
+-- toLexiPosR [0,1]
 -- 0
 --
--- >>> lexiIndex 52 7 [45,46,47,48,49,50,51]
--- 133784559
-lexiIndex :: Int -> Int -> [Int] -> Int
-lexiIndex n k xs = -1 + binom n k - sum ((\m -> sum ((\j -> binom (n - j) m) <$> [xs List.!! (k - m - 1) + 2 .. n - m])) <$> [0..(k - 1)])
+-- >>> toLexiPosR [3,4]
+-- 9
+--
+-- >>> toLexiPosR <$> combinationsR 2 [0..4]
+-- [9,8,7,6,5,4,3,2,1,0]
+toLexiPosR :: Int -> Int -> [Int] -> Int
+toLexiPosR n k xs = binom n k - 1 - sum (zipWith binom xs [1..])
 
-toLexiPos :: [Int] -> Int
-toLexiPos xs = sum $ zipWith binom xs [1..]
+-- | reverse lexicographic position of a storable vector with enumerated binom function
+--
+-- > toLexiPosRS n k s = binom n k - 1 - S.sum (S.imap (\i a -> binom a (1+i)) s)
+-- > toLexiPosR == toLexiPosRS . S.fromList
+--
+toLexiPosRS :: Int -> Int -> S.Vector Int -> Int
+toLexiPosRS n k s = binom n k - 1 - S.sum (S.imap (\i a -> binom a (1+i)) s)
 
--- FIXME:
-fromLexiPos :: Int -> Int -> Int -> [Int]
-fromLexiPos n k p = go n k p []
+-- | Given a reverse lexicographic position, what was the combination?
+--
+-- >>> (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR) xs) (combinations 2 [0..4])
+-- True
+--
+-- > ((combinationsR 5 deck) List.!! 1000000) == (fmap toEnum (fromLexiPosR 52 5 1000000) :: [Card])
+-- True
+--
+fromLexiPosR :: Int -> Int -> Int -> [Int]
+fromLexiPosR n k p = go (n - 1) k ((binom n k - 1) - p) []
   where
     go n' k' p' xs =
       bool
       (bool
       (go (n' - 1) k' p' xs)
-      (go (n' - 1) (k' - 1) (p' - n') (n':xs))
-      (p'>= binom n' k'))
+      (go (n' - 1) (k' - 1) (p' - binom n' k') (n':xs))
+      (p' >= binom n' k'))
       xs
-      (n' == 0)
+      (length xs == k)
 
 -- | binomial equation
--- https://stackoverflow.com/questions/28896626/tail-recursive-binomial-coefficient-function-in-haskell
+--
+-- The number of 7-card combinations for a 52 card deck is:
+--
+-- >>> binom 52 7
+--
 binom :: Int -> Int -> Int
 binom _ 0 = 1
 binom 0 _ = 0
-binom n k = binom (n - 1) (k - 1) * n `div` k
+binom n k = product [(n - k +1) .. n] `div` product [1 .. k]
+
+-- | recursive version of binomial equation
+binomR :: Int -> Int -> Int
+binomR _ 0 = 1
+binomR 0 _ = 0
+binomR n k = binomR (n - 1) (k - 1) * n `div` k
+
+-- | memoized binom. Covers (0 to 52, 0 to 7) in the (n,k) domain and errors outside this.
+binomM :: Int -> Int -> Int
+binomM n k = (S.! (n + 53 * k)) (genBinoms 52 7)
+
+genBinoms :: Int -> Int -> S.Vector Int
+genBinoms n k = S.generate ((n+1)*(k+1)) (\p -> let (d,m) = p `divMod` (n + 1) in binom m d)
 
 -- | vector of hand values indexed by lexigraphic order for n-card combinations.
 --
+-- FIXME:
+-- >>> fmap ((Map.!) mapHRValue . handRank) (combinationsR 5 deck) List.!! 1000000
+-- 645
+-- >>> ((Map.!) mapHRValue) (handRank (toEnum <$> (fromLexiPosR 52 5 1000000) :: [Card]))
+-- 330
 handValues :: Int -> S.Vector Word16
-handValues n = S.fromList $ (Map.!) toLexi . handRank <$> (combinations n deck)
+handValues n = S.fromList $ fmap ((Map.!) mapHRValue . handRank) (combinationsR n deck)
 
 -- | write handRank vector to an mmap'ped file
-hvWrite :: Int -> FilePath -> IO ()
-hvWrite n f = writeMMapVector f (handValues n)
+hvsWrite :: Int -> FilePath -> IO ()
+hvsWrite n f = writeMMapVector f (handValues n)
 
--- | HandRank to lexicographic Word16 index map
-toLexi :: Map.Map HandRank Word16
-toLexi = Map.fromList (zip allHandRanks [(0::Word16)..])
+-- | write the hvs5 vector to a file
+hvs5Write :: IO ()
+hvs5Write = hvsWrite 5 "other/hvs5.vec"
 
--- | lexicographic Word16 index to HandRank map
-fromLexi :: Map.Map Word16 HandRank
-fromLexi = Map.fromList (zip [(0::Word16)..] allHandRanks)
+-- | write the hvs7 vector to a file
+hvs7Write :: IO ()
+hvs7Write = hvsWrite 7 "other/hvs7.vec"
+
+-- | Vector of hand values for 5 card combinations in lexicographic order
+--
+-- >>> S.length <$> shr5
+-- 133784560
+hvs5 :: IO (S.Vector Word16)
+hvs5 = unsafeMMapVector "other/hvs5.vec" Nothing
+
+-- | Vector of hand values for 7 card combinations in lexicographic order
+--
+-- >>> S.length <$> hrs7
+-- 133784560
+hvs7 :: IO (S.Vector Word16)
+hvs7 = unsafeMMapVector "other/hvs7.vec" Nothing
+
+-- | HandRank to reverse lexicographic Word16 index map
+--
+-- > ((Map.!) mapHRValue) . ((Map.!) mapValueHR) == id
+mapHRValue :: Map.Map HandRank Word16
+mapHRValue = Map.fromList (zip allHandRanks [(0::Word16)..])
+
+-- | lexicographic index to HandRank
+--
+-- ((Map.!) mapValueHR) (s S.! 133784559)
+-- FourOfAKind Ace King
+--
+-- >>> ((Map.!) mapValueHR) (s S.! 0)
+-- FourOfAKind Two Three
+mapValueHR :: Map.Map Word16 HandRank
+mapValueHR = Map.fromList (zip [(0::Word16)..] allHandRanks)
 
 -- | enumeration of all possible HandRanks
 allHandRanks :: [HandRank]
@@ -1219,16 +1273,41 @@ allHandRanks =
     ranksLT rank = [Two .. pred rank ]
     ranksGE rank = reverse [Ace, King .. rank ]
 
--- | Vector of hand values for 7 card combinations in lexicographic order
---
--- >>> S.length <$> hrs7
--- 133784560
-hvs7 :: IO (S.Vector Word16)
-hvs7 = unsafeMMapVector "other/shr7.vec" Nothing
+-- | enumeration of all possible HandRanks
+allHandRanksV :: V.Vector HandRank
+allHandRanksV = V.fromList allHandRanks
 
--- | Vector of hand values for 5 card combinations in lexicographic order
+-- | look up the HandRank of a bunch of cards.
 --
--- >>> S.length <$> shr5
--- 133784560
-hvs5 :: IO (S.Vector Word16)
-hvs5 = unsafeMMapVector "other/shr5.vec" Nothing
+lookupHRs :: S.Vector Word16 -> S.Vector Int -> S.Vector Word16
+lookupHRs s xs =
+  S.generate n (\x -> (s S.!) $ toLexiPosRS 52 7 (S.slice (x*7) 7 xs))
+  where
+    n = S.length xs `div` 7
+
+-- | look up the HandRank of some cards.
+--
+-- >>> let xs = [15,17,19,20,23,32,48]
+-- >>> pretty $ (toEnum <$> xs :: [Card])
+-- 5♠6♣6♠7♡7♠T♡A♡
+--
+-- >>> handRank (toEnum <$> cs :: [Card])
+-- TwoPair Seven Six Ace
+--
+-- >>> fromLexiPosR 52 7 $ toLexiPosR cs == cs
+-- True
+--
+-- >>> s <- hvs7
+-- >>> mapValueHR Map.! (s S.! 0)
+-- FourOfAKind Two Three
+--
+-- >>> mapValueHR Map.! (s S.! 133784559)
+-- FourOfAKind Ace King
+--
+-- >>> s <- hvs7
+-- >>> ((Map.!) mapValueHR) $ lookupHRs s (S.fromList xs)
+-- TwoPair Seven Six Ace
+--
+lookupHR :: S.Vector Word16 -> S.Vector Int -> Word16
+lookupHR s xs = s S.! toLexiPosRS 52 7 xs
+
