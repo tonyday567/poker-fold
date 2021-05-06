@@ -9,14 +9,11 @@ import NumHask.Prelude
 import Poker
 import Poker.Random
 import Perf
-import qualified Data.Poker as Poker
-import qualified Data.Poker.Deck as Deck
 import qualified Prelude as P
 import Chart (fixed)
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector as V
 import qualified Data.Map.Strict as Map
-import qualified Data.Discrimination as D
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 
@@ -107,16 +104,6 @@ handRankSpeeds :: Int -> Text -> IO ()
 handRankSpeeds n run = case run of
     -- 5.45
     "handRank" -> logTick "handRank" (fmap handRank) (card7s n)
-
-    -- 2.188
-    "poker-eval" ->
-      logTick "pokerEval"
-      (fmap (Deck.unNumericalHandValue . Poker.numericalHandValue_n 7))
-      (fmap
-       (Poker.fromList .
-        fmap (\(Card x y) ->
-               Poker.mkCard (toEnum . fromEnum $ x) (toEnum . fromEnum $ y)))
-       (card7s n))
 
     -- 0.455
     "lookupHRs" -> do
@@ -210,7 +197,6 @@ cardChecks n t = case t of
     "card7sS" -> logTick "card7sS" card7sS n
     "card7sSet" -> logTick "card7s set" card7s' n
     "sort" -> logTick "list sort" (fmap (sortOn Down)) (card7s n)
-    "sortd" -> logTick "discrimination sort" (fmap (D.sortWith id)) (fmap fromEnum <$> card7s n)
     "sortseq" -> logTick "sequence sort" (fmap (Seq.sortOn Down)) (Seq.fromList <$> card7s n)
     _ -> pure ()
 

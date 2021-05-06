@@ -2,7 +2,6 @@ resolver: nightly-2021-02-12
 
 packages:
   - .
-  - ../poker-eval-0.3.1
 
 extra-deps:
   - chart-svg-0.2.2
@@ -12,6 +11,5 @@ extra-deps:
   - perf-0.7.0
   - random-1.2.0
   - vector-mmap-0.0.3
-  - discrimination-0.4.1
 
 allow-newer: true

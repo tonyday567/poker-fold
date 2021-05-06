@@ -30,7 +30,6 @@ library
     -fwrite-ide-info
     -hiedir=.hie
   build-depends:
-    MemoTrie,
     adjunctions >= 4.4 && < 4.5,
     base >=4.7 && <5,
     chart-svg >= 0.2 && < 0.3,
@@ -42,12 +41,9 @@ library
     numhask >= 0.7 && < 0.8,
     numhask-array >= 0.8 && < 0.9,
     numhask-space >= 0.7.1 && < 0.7.2,
-    perf >= 0.7 && < 0.8,
-    poker-eval,
     text >= 1.2 && < 1.3,
     vector >= 0.12 && < 0.13,
     vector-mmap,
-    discrimination,
   exposed-modules:
     Poker
     Poker.Charts
@@ -86,13 +82,10 @@ executable speed
     numhask >= 0.7 && < 0.8,
     poker,
     perf,
-    poker-eval,
     containers,
     chart-svg,
     vector,
     vector-mmap,
-    discrimination,
-    MemoTrie,
   default-language: Haskell2010
   default-extensions:
   ghc-options:
