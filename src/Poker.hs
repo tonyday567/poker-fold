@@ -41,6 +41,8 @@ module Poker
     deck,
     ranks,
     suits,
+    applyFlat,
+    applyFlatS,
 
     -- * Hand & Strat
     Hand (..),
@@ -87,9 +89,15 @@ module Poker
     -- * Hand rankings
     HandRank (..),
     handRank,
+    handRankS,
     straight,
     flush,
     kind,
+    kindS,
+    oRankCount,
+    rankCount,
+    rankCountS,
+    suitRanks,
 
     -- * Showdown
     showdown,

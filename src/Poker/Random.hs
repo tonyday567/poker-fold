@@ -17,18 +17,21 @@
 
 -- | Card entropy
 module Poker.Random
-  ( dealN,
-    dealNV,
+  ( rvi,
+    rvis,
+    rviv,
+    shuffle,
+    vshuffle,
+    dealN,
+    dealNFlat,
     dealNWith,
     dealHand,
     dealTableHand,
     rvs52,
-    shuffle,
-    vshuffle,
-    rvi,
-    rvis,
-    rviv,
     rvHandRank,
+    card7s,
+    card7sFlat,
+    card7sFlatI,
   )
 where
 
@@ -114,8 +117,8 @@ vshuffle as = go as S.empty
       where
         x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
 
-dealNV :: (RandomGen g) => Int -> State g (S.Vector Int)
-dealNV n = vshuffle <$> rviv 52 n
+dealNFlat :: (RandomGen g) => Int -> State g (S.Vector Int)
+dealNFlat n = vshuffle <$> rviv 52 n
 
 -- | deal n cards conditional on a list of cards that has already been dealt.
 dealNWith :: (RandomGen g) => Int -> [Card] -> State g [Card]
@@ -144,3 +147,28 @@ rvHandRank = do
   let (x, g') = uniformR (0, V.length allHandRanksV - 1) g
   put g'
   pure (allHandRanksV V.! x)
+
+-- * random card generation
+
+-- | random 7-Card list of lists
+--
+card7s :: Int -> [[Card]]
+card7s n = evalState (replicateM n (fmap toEnum . ishuffle <$> rvis 52 7)) (mkStdGen 42)
+
+-- | flat storable vector of ints, representing n 7-card sets
+--
+-- >>> S.length $ card7sFlat 100
+card7sFlat :: Int -> S.Vector Int
+card7sFlat n = mconcat $
+  evalState
+  (replicateM n (vshuffle <$> rviv 52 7))
+  (mkStdGen 42)
+
+-- | flat storable vector of ints, representing n 7-card sets
+--
+-- uses ishuffle
+card7sFlatI :: Int -> S.Vector Int
+card7sFlatI n = S.fromList $ mconcat $
+  evalState
+  (replicateM n (ishuffle <$> rvis 52 7))
+  (mkStdGen 42)

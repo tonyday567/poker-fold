@@ -29,6 +29,8 @@ module Poker.Types
     deck,
     ranks,
     suits,
+    applyFlat,
+    applyFlatS,
     Hand (..),
     fromPair,
     toPairs,
@@ -67,9 +69,15 @@ module Poker.Types
     -- * Hand Ranking
     HandRank (..),
     handRank,
+    handRankS,
     straight,
     flush,
     kind,
+    kindS,
+    oRankCount,
+    rankCount,
+    rankCountS,
+    suitRanks,
 
     -- * Showdown
     bestLiveHand,
@@ -116,6 +124,7 @@ import NumHask.Array.Fixed as A
 import NumHask.Prelude
 import qualified Prelude as P
 import qualified Data.Vector.Storable as S
+import qualified Data.Vector.Storable.Mutable as SM
 import Data.Vector.Storable.MMap
 import qualified Data.Vector as V
 import System.IO.Unsafe (unsafePerformIO)
@@ -256,6 +265,22 @@ ranks cs = Set.fromList $ rank <$> cs
 suits :: [Card] -> Set.Set Suit
 suits cs = Set.fromList $ suit <$> cs
 
+
+-- | Apply a function that takes a vector by slicing the supplied main vector n times.
+applyFlat :: Int -> (S.Vector Int -> a) -> S.Vector Int -> V.Vector a
+applyFlat k f s = V.generate n (\i -> f (S.slice (k*i) k s))
+  where
+    n = S.length s `div` k
+
+-- | Performance testing suggests that [[Card]] structures are fastest as flat Storable Vectors.
+--
+-- Apply a function that takes a vector by slicing the supplied main vector n times.
+applyFlatS :: (Storable a) => Int -> (S.Vector Int -> a) -> S.Vector Int -> S.Vector a
+applyFlatS k f s = S.generate n (\i -> f (S.slice (k*i) k s))
+  where
+    n = S.length s `div` k
+
+
 -- | Card pairs dealt to a holdem player have identical probability structures to each other, when viewed through a stochastic future of betting action.
 --
 -- These groupings or iso-sets of card pairs map to a dense representation of what a hand should do, given an element of this iso-set is in their hands. This representation forms a basis for modelling player actions, in the presence of uncertainty about what other seats hold, and what they will do about it.
@@ -367,12 +392,12 @@ enum2 xs = fmap (p . fmap toEnum) . (\x y -> ishuffle [x, y]) <$> [0 .. (n - 1)]
 --
 -- > shuffle 52 (take 52 rvs52) == ishuffle rvs52
 ishuffle :: [Int] -> [Int]
-ishuffle as = go as []
+ishuffle as = Set.toAscList $ go as Set.empty
   where
-    go [] dealt = reverse dealt
-    go (x0 : xs) dealt = go xs (x1 : dealt)
+    go [] s = s
+    go (x0 : xs) s = go xs (Set.insert x1 s)
       where
-        x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) x0 (sort dealt)
+        x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) x0 s
 
 -- | The spirit of Strat is to be a representable functor of a's indexed by Hand.
 --
@@ -972,6 +997,10 @@ handRank cs =
   where
     cs' = sortOn Down cs
 
+-- | handRank in storable friendly wrapper
+handRankS :: S.Vector Int -> Int
+handRankS = fromEnum . handRank . fmap toEnum . S.toList
+
 -- | 5 consecutive card check
 --
 -- Special rules for an Ace, which can be counted as high or low.
@@ -1044,6 +1073,13 @@ rankCount rs =
       Map.fromDescListWith (+) $
         fmap (,1) rs
 
+-- size 5,7 in, size 13 out (count of all ranks)
+rankCountS :: S.Vector Int -> S.Vector Int
+rankCountS rs = S.create $ do
+  v <- SM.replicate 13 0
+  S.mapM_ (SM.modify v (+1) . (`div` 4)) rs
+  pure v
+
 -- | When straights and flushes are ruled out, hand ranking falls back to counted then sorted rank groups, with larger groups (FourOfAKind) ranked higer than smaller ones.
 --
 -- >>> kind [Ace, Ace, Ace, Ace, Two]
@@ -1074,6 +1110,24 @@ kind cs = case rankCount cs of
   ((r0, 2) : (r1, 1) : (r2, 1) : (r3, 1) : _) -> Pair r0 r1 r2 r3
   ((r0, 1) : (r1, 1) : (r2, 1) : (r3, 1) : (r4, 1) : _) -> HighCard r0 r1 r2 r3 r4
   _ -> error ("bad Rank list: " <> show cs)
+
+oRankCount :: S.Vector Int -> [(Rank,Int)]
+oRankCount cs =
+  fmap (first toEnum) $ sortOn (Down . swap) $ toList $ V.imapMaybe (\i a -> bool Nothing (Just (i,a)) (a/=0)) (S.convert $ rankCountS cs)
+
+kindS :: S.Vector Int -> HandRank
+kindS cs =
+  case oRankCount cs of
+  ((r0, 4) : (r1, _) : _) -> FourOfAKind r0 r1
+  ((r0, 3) : (r1, 3) : _) -> FullHouse r0 r1
+  ((r0, 3) : (r1, 2) : _) -> FullHouse r0 r1
+  ((r0, 3) : (r1, 1) : (r2, 1) : _) -> ThreeOfAKind r0 r1 r2
+  ((r0, 2) : (r1, 2) : (r2, 2) : _) -> TwoPair r0 r1 r2
+  ((r0, 2) : (r1, 2) : (r2, 1) : _) -> TwoPair r0 r1 r2
+  ((r0, 2) : (r1, 1) : (r2, 1) : (r3, 1) : _) -> Pair r0 r1 r2 r3
+  ((r0, 1) : (r1, 1) : (r2, 1) : (r3, 1) : (r4, 1) : _) -> HighCard r0 r1 r2 r3 r4
+  _ -> error ("bad Rank list: " <> show cs)
+
 
 -- | Ship the pot to the winning hands
 --
@@ -1123,6 +1177,9 @@ combinationsR 0 _ = [[]]
 combinationsR m l = fmap reverse $ combinations m (reverse l)
 
 -- | Given a combination, what is its position in reverse lexicographic ordering of all combinations.
+--
+-- https://math.stackexchange.com/questions/1363239/fast-way-to-get-a-position-of-combination-without-repetitions
+-- https://math.stackexchange.com/questions/1368526/fast-way-to-get-a-combination-given-its-position-in-reverse-lexicographic-or/1368570#1368570
 --
 -- toLexiPosR [0,1]
 -- 0
@@ -1280,10 +1337,7 @@ allHandRanksV = V.fromList allHandRanks
 -- | look up the HandRank of a bunch of cards.
 --
 lookupHRs :: S.Vector Word16 -> S.Vector Int -> S.Vector Word16
-lookupHRs s xs =
-  S.generate n (\x -> (s S.!) $ toLexiPosRS 52 7 (S.slice (x*7) 7 xs))
-  where
-    n = S.length xs `div` 7
+lookupHRs s = applyFlatS 7 (lookupHR s)
 
 -- | look up the HandRank of some cards.
 --
@@ -1310,4 +1364,3 @@ lookupHRs s xs =
 --
 lookupHR :: S.Vector Word16 -> S.Vector Int -> Word16
 lookupHR s xs = s S.! toLexiPosRS 52 7 xs
-
