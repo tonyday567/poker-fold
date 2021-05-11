@@ -11,5 +11,6 @@ extra-deps:
   - perf-0.7.0
   - random-1.2.0
   - vector-mmap-0.0.3
+  - vector-0.12.3.0
 
 allow-newer: true

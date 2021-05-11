@@ -25,6 +25,7 @@ module Poker.Random
     dealN,
     dealNFlat,
     dealNWith,
+    dealTable,
     dealHand,
     dealTableHand,
     rvs52,
@@ -32,6 +33,8 @@ module Poker.Random
     card7s,
     card7sFlat,
     card7sFlatI,
+    tables,
+    tablesB,
   )
 where
 
@@ -117,8 +120,8 @@ vshuffle as = go as S.empty
       where
         x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
 
-dealNFlat :: (RandomGen g) => Int -> State g (S.Vector Int)
-dealNFlat n = vshuffle <$> rviv 52 n
+dealNFlat :: (RandomGen g) => Int -> State g CardsS
+dealNFlat n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
 -- | deal n cards conditional on a list of cards that has already been dealt.
 dealNWith :: (RandomGen g) => Int -> [Card] -> State g [Card]
@@ -131,6 +134,12 @@ dealNWith n cs = fmap (cs List.!!) . ishuffle <$> rvis (length cs) n
 dealHand :: (RandomGen g) => Hand -> Int -> State g [Card]
 dealHand b n = dealNWith n (deck List.\\ (\(x, y) -> [x, y]) (toRepPair b))
 
+-- | deal a table
+dealTable :: (RandomGen g) => TableConfig -> State g Table
+dealTable cfg = do
+  cs <- dealNFlat (5 + cfg ^. #numPlayers * 2)
+  pure $ makeTable cfg (toCards cs)
+
 -- | deal a table given player i has been dealt a B
 --
 -- >>> pretty $ flip evalState (mkStdGen 44) $ dealTableHand defaultTableConfig 0 (Paired Ace)
@@ -138,7 +147,7 @@ dealHand b n = dealNWith n (deck List.\\ (\(x, y) -> [x, y]) (toRepPair b))
 dealTableHand :: (RandomGen g) => TableConfig -> Int -> Hand -> State g Table
 dealTableHand cfg i b = do
   cs <- dealHand b (5 + (cfg ^. #numPlayers - 1) * 2)
-  pure $ dealTable cfg (take (2 * i) cs <> (\(x, y) -> [x, y]) (toRepPair b) <> drop (2 * i) cs)
+  pure $ makeTable cfg (take (2 * i) cs <> (\(x, y) -> [x, y]) (toRepPair b) <> drop (2 * i) cs)
 
 -- | uniform random variate of HandRank
 rvHandRank :: (RandomGen g) => State g HandRank
@@ -155,11 +164,12 @@ rvHandRank = do
 card7s :: Int -> [[Card]]
 card7s n = evalState (replicateM n (fmap toEnum . ishuffle <$> rvis 52 7)) (mkStdGen 42)
 
--- | flat storable vector of ints, representing n 7-card sets
+-- | Flat storable vector of n 7-card sets.
 --
--- >>> S.length $ card7sFlat 100
-card7sFlat :: Int -> S.Vector Int
-card7sFlat n = mconcat $
+-- >>> S.length $ uncards2S $ card7sFlat 100
+--
+card7sFlat :: Int -> Cards2S
+card7sFlat n = Cards2S $ S.convert $ S.map fromIntegral $ mconcat $
   evalState
   (replicateM n (vshuffle <$> rviv 52 7))
   (mkStdGen 42)
@@ -167,8 +177,24 @@ card7sFlat n = mconcat $
 -- | flat storable vector of ints, representing n 7-card sets
 --
 -- uses ishuffle
-card7sFlatI :: Int -> S.Vector Int
-card7sFlatI n = S.fromList $ mconcat $
+card7sFlatI :: Int -> Cards2S
+card7sFlatI n = Cards2S $ S.fromList $ fmap fromIntegral $ mconcat $
   evalState
   (replicateM n (ishuffle <$> rvis 52 7))
+  (mkStdGen 42)
+
+-- | create a list of n dealt tables, with p players
+tables :: Int -> Int -> [Table]
+tables p n =
+  evalState
+  (replicateM n
+   (dealTable (defaultTableConfig & #numPlayers .~ p)))
+  (mkStdGen 42)
+
+-- | create a list of n dealt tables, with p players, where b is dealt to player k
+tablesB :: Int -> Hand -> Int -> Int -> [Table]
+tablesB p b k n =
+  evalState
+  (replicateM n
+   (dealTableHand (defaultTableConfig & #numPlayers .~ p) k b))
   (mkStdGen 42)

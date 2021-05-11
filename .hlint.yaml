@@ -1,3 +1,4 @@
 - ignore: {name: Use if}
 - ignore: {name: Eta reduce}
 - ignore: {name: Move guards forward}
+- ignore: {name: Use tuple-section}

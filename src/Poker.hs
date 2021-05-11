@@ -33,14 +33,36 @@ module Poker
     --
     -- $setup
 
-    -- * Cards
+    -- * IO
     Short (..),
+
+    -- * basic card types
     Rank (..),
+    RankS (..),
+    rankS,
+    RanksS (..),
     Suit (..),
+    SuitS (..),
+    suitS,
     Card (..),
     deck,
     ranks,
     suits,
+    CardS(..),
+    cardS,
+    ranksSet,
+    toCard,
+    fromCard,
+    toCards,
+    fromCards,
+    toRankS,
+    toSuitS,
+    toRanks,
+    CardsS(..),
+    cardsS,
+    Cards2S(..),
+    cardsS7V,
+    cardsS7L,
     applyFlat,
     applyFlatS,
 
@@ -65,7 +87,7 @@ module Poker
     numSeats,
     TableConfig (..),
     defaultTableConfig,
-    dealTable,
+    makeTable,
     liveSeats,
     openSeats,
     nextHero,
@@ -86,18 +108,20 @@ module Poker
     enum2,
     ishuffle,
 
-    -- * Hand rankings
+    -- * Hand Ranking
     HandRank (..),
     handRank,
-    handRankS,
     straight,
     flush,
     kind,
-    kindS,
     oRankCount,
     rankCount,
-    rankCountS,
     suitRanks,
+    handRankS,
+    straightS,
+    flushS,
+    kindS,
+    rankCountS,
 
     -- * Showdown
     showdown,
@@ -159,7 +183,7 @@ import Poker.Types
 -- >>> pretty cs
 -- A♡7♠T♡5♠6♣7♡6♠9♡4♠
 --
--- >>> t = dealTable defaultTableConfig cs
+-- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
 --
@@ -184,7 +208,7 @@ someStrats n = do
 --
 -- > writeSomeStrats 1000
 --
--- takes a few minutes, and could be a lot faster.
+-- n = 100000 is about 5 mins
 writeSomeStrats :: Int -> IO ()
 writeSomeStrats n = writeFile "other/some.str" (show $ someStrats n)
 
@@ -204,9 +228,7 @@ readSomeStrats = do
 -- 0.63
 winHand :: Hand -> Int -> Int -> Double
 winHand b p n =
-  (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHand <$> ts
-  where
-    ts = evalState (replicateM n (dealTableHand (defaultTableConfig & #numPlayers .~ p) 0 b)) (mkStdGen 42)
+  (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHand <$> tablesB p b 0 n
 
 -- | Win odds
 --
@@ -284,7 +306,7 @@ rcf s r x y =
 -- >>> :set -XOverloadedLabels
 -- >>> cards = evalState (replicateM 10 (dealN (5 + 2 * 2))) (mkStdGen 42)
 -- >>> acts = [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
--- >>> ts = dealTable (defaultTableConfig & #numPlayers .~ 2) <$> cards
+-- >>> ts = makeTable (defaultTableConfig & #numPlayers .~ 2) <$> cards
 -- >>> pretties ts
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
 -- 9♠A♠ 3♣5♠,K♡T♣9♢9♣2♢,hero: Just 0,o o,9.5 9,0.5 1,0,
@@ -319,7 +341,7 @@ evTables n sims acts =
   showdown . bet acts <$> tables
   where
     cards = evalState (replicateM sims (dealN (5 + 2 * n))) (mkStdGen 42)
-    tables = dealTable (defaultTableConfig & #numPlayers .~ n) <$> cards
+    tables = makeTable (defaultTableConfig & #numPlayers .~ n) <$> cards
 
 -- | Simulate the expected value of a 2 seat game, given the 5 decision point cuts of headsup described in 'actOn'.
 --
