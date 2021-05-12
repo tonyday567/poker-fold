@@ -82,14 +82,14 @@ handRankSpeeds n run = case run of
     -- unknown: 0.032
     "lookupHRs" -> do
       s <- hvs7
-      let !cs = card7sFlat n
+      let !cs = card7sS n
       logTick "lookupHRs"
         (lookupHRs s) cs
 
     -- 0.359
     "lookupHR" -> do
       s <- hvs7
-      let !cs = CardsS $ uncards2S (card7sFlat 1)
+      let !cs = CardsS $ uncards2S (card7sS 1)
       logTicks n "lookupHR"
         (lookupHR s)
         cs
@@ -112,13 +112,13 @@ lookupTech n run = case run of
     -- 0.264
     -- applyFlat adds 0.0xx
     "toLexiPosRS" -> do
-      let !cs = S.map fromEnum $ uncards2S $ card7sFlat n
+      let !cs = S.map fromEnum $ uncards2S $ card7sS n
       logTick "toLexiPosRS" (applyFlat 7 (toLexiPosRS 52 7)) cs
 
     -- 0.087
     "lookupHRsLookup" -> do
       s <- hvs7
-      let !cs = applyFlatS 7 (toLexiPosRS 52 7) $ S.map fromEnum $ uncards2S $ card7sFlat n
+      let !cs = applyFlatS 7 (toLexiPosRS 52 7) $ S.map fromEnum $ uncards2S $ card7sS n
       logTick "lookupHRs: Lookup Component"
         (S.map (s S.!))
         cs
@@ -169,9 +169,9 @@ cardChecks n t = case t of
     -- 1.873
     "card7s" -> logTick "card7s" card7s n
     -- 2.505
-    "card7sFlat" -> logTick "card7sFlat" (uncards2S . card7sFlat) n
+    "card7sS" -> logTick "card7sS" (uncards2S . card7sS) n
     -- 1.001
-    "card7sFlatI" -> logTick "card7sFlatI ishuffle" (uncards2S . card7sFlatI) n
+    "card7sSI" -> logTick "card7sSI ishuffle" (uncards2S . card7sSI) n
     -- 2.273
     "cardSort" -> logTick "card list sort" (fmap (sortOn Down)) (card7s n)
     -- 2.667
@@ -190,17 +190,17 @@ handRankComponents n run = case run of
     --  rankCountS: 0.303
     "handRankS" -> logTick "handRankS"
       (applyFlatS 7 (handRankS . CardsS))
-      (S.fromList $ fold $ applyFlat 7 (sortOn Down . S.toList) (uncards2S $ card7sFlat n))
+      (S.fromList $ fold $ applyFlat 7 (sortOn Down . S.toList) (uncards2S $ card7sS n))
 
     -- 0.284
     "rank" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "rank for a flat"
         (applyFlat 7 (S.map (fromEnum . rank . toEnum . toIntegral))) cs
 
     -- 1.532
     "royals" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "flush n straight check"
          (applyFlat 7
           (fmap (fromEnum) . (\x -> flush x <|> straight x) . fmap (toEnum . toIntegral) . S.toList))
@@ -208,7 +208,7 @@ handRankComponents n run = case run of
 
     -- 0.612
     "flush" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "flush"
          (applyFlat 7
           (fmap fromEnum . flush . fmap (toEnum . toIntegral) . S.toList))
@@ -216,14 +216,14 @@ handRankComponents n run = case run of
 
     -- 0.623
     "flushS" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "flushS"
          (applyFlat 7 (flushS . CardsS))
          cs
 
     -- 1.082
     "straight" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "straight"
          (applyFlat 7
           (straight . fmap (toEnum . toIntegral) . S.toList))
@@ -231,76 +231,76 @@ handRankComponents n run = case run of
 
     -- 0.977
     "straightS" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "straightS"
          (applyFlat 7 (straightS . RanksS))
          cs
 
     -- 1.507
     "kind" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "kind"
          (applyFlat 7 (kind . fmap rank . fmap (toEnum . toIntegral) . S.toList))
          cs
 
     -- 0.707
     "kindS" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "kindS"
          (applyFlat 7 (kindS . RanksS)) (S.map (`div` 4) cs)
 
     -- 0.707
     "oRankCount" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "oRankCount"
          (applyFlat 7 (oRankCount . RanksS))
          cs
 
     -- 1.887
     "rankCount" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "rankCount"
          (applyFlat 7 (rankCount . fmap (rank . toEnum . toIntegral) . S.toList))
          cs
 
     -- 0.307
     "rankCountS" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "rankCountS"
          (applyFlat 7 (rankCountS . RanksS))
          cs
 
     -- 1.432
     "suitRanks" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "suitRanks"
          (applyFlat 7 (suitRanks . fmap (toEnum . toIntegral) . S.toList))
          cs
 
     -- 0.873
     "handRankSort" -> do
-      let !cs = V.convert $ uncards2S $ card7sFlat n
+      let !cs = V.convert $ uncards2S $ card7sS n
       logTick "initial sort"
          (applyFlat 7 (sortOn Down . S.toList))
          cs
 
     -- 0.039
     "handRankSum" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "sum"
          (applyFlatS 7 S.sum)
          cs
 
     -- 0.470
     "handRankToList" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "toList"
          (applyFlat 7 S.toList)
          cs
 
     -- 0.206
     "wrapping" -> do
-      let !cs = uncards2S $ card7sFlat n
+      let !cs = uncards2S $ card7sS n
       logTick "wrapping"
          (applyFlat 7
           (sum . S.toList))

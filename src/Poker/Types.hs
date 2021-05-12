@@ -39,11 +39,10 @@ module Poker.Types
     suits,
     CardS(..),
     cardS,
+    deckS,
     ranksSet,
     toCard,
     fromCard,
-    toCards,
-    fromCards,
     toRankS,
     toSuitS,
     toRanks,
@@ -75,6 +74,7 @@ module Poker.Types
     TableConfig (..),
     defaultTableConfig,
     makeTable,
+    makeTableS,
     liveSeats,
     openSeats,
     nextHero,
@@ -266,6 +266,9 @@ instance Short Rank where
 --
 newtype RankS = RankS { unrankS :: Word8 } deriving (Eq, Show, Ord)
 
+instance Short RankS where
+  short = short . riso rankS
+
 newtype RanksS = RanksS { unranksS :: S.Vector Word8 } deriving (Eq, Show, Ord)
 
 rankS :: Iso Rank RankS
@@ -292,6 +295,9 @@ instance Short Suit where
 -- 3 is Spades
 --
 newtype SuitS = SuitS { unsuitS :: Word8 } deriving (Eq, Show, Ord)
+
+instance Short SuitS where
+  short = short . riso suitS
 
 suitS :: Iso Suit SuitS
 suitS = Iso (SuitS . fromIntegral . fromEnum) (toEnum . toIntegral . unsuitS)
@@ -348,7 +354,13 @@ suits cs = Set.fromList $ suit <$> cs
 --
 newtype CardS = CardS { uncardS :: Word8 } deriving (Eq, Show, Ord)
 
+instance Short CardS where
+  short = short . riso cardS
+
 newtype CardsS = CardsS { uncardsS :: S.Vector Word8 } deriving (Eq, Show, Ord)
+
+instance Short CardsS where
+  short cs = Text.intercalate "" (short <$> riso cardsS cs)
 
 cardS :: Iso Card CardS
 cardS = Iso (CardS . fromIntegral . fromEnum) (toEnum . toIntegral . uncardS)
@@ -359,6 +371,13 @@ toCard (CardS x) = (\(r,s) -> Card (unsafeCoerce r) (unsafeCoerce s)) (x `divMod
 fromCard :: Card -> CardS
 fromCard (Card r s) = CardS $ unsafeCoerce r * 4 + unsafeCoerce s
 
+-- | a standard 52 card deck
+--
+-- >>> pretty deckS
+--
+deckS :: CardsS
+deckS = CardsS $ S.fromList [0 .. 51]
+
 toRankS :: CardS -> RankS
 toRankS (CardS c) = RankS $ c `div` 4
 
@@ -366,13 +385,10 @@ toSuitS :: CardS -> SuitS
 toSuitS (CardS c) = SuitS $ c `mod` 4
 
 cardsS :: Iso [Card] CardsS
-cardsS = Iso (CardsS . S.fromList . fmap (fromIntegral . fromEnum)) (fmap (toEnum . toIntegral) . S.toList . uncardsS)
-
-toCards :: CardsS -> [Card]
-toCards (CardsS x) = toCard . CardS <$> S.toList x -- = riso cardsS
-
-fromCards :: [Card] -> CardsS
-fromCards xs = CardsS $ S.fromList (uncardS . fromCard <$> xs) -- = liso cardsS
+cardsS =
+  Iso
+  (CardsS . S.fromList . fmap (fromIntegral . fromEnum))
+  (fmap (toEnum . toIntegral) . S.toList . uncardsS)
 
 toRanks :: CardsS -> RanksS
 toRanks (CardsS cs) = RanksS $ S.map (unrankS . toRankS . CardS) cs
@@ -525,10 +541,10 @@ enum2 xs = fmap (p . fmap toEnum) . (\x y -> ishuffle [x, y]) <$> [0 .. (n - 1)]
 --
 -- > shuffle 52 (take 52 rvs52) == ishuffle rvs52
 ishuffle :: [Int] -> [Int]
-ishuffle as = Set.toAscList $ go as Set.empty
+ishuffle as = reverse $ go as []
   where
     go [] s = s
-    go (x0 : xs) s = go xs (Set.insert x1 s)
+    go (x0 : xs) s = go xs (x1:s)
       where
         x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) x0 s
 
@@ -831,6 +847,12 @@ defaultTableConfig = TableConfig 2 0 (Seq.replicate 2 10)
 -- | Construct a Table with the supplied cards.
 makeTable :: TableConfig -> [Card] -> Table
 makeTable cfg cs = Table (deal cs) (Just 0) (Seq.replicate (cfg ^. #numPlayers) BettingOpen) (Seq.zipWith (-) (cfg ^. #stacks0) bs) bs 0 Seq.Empty
+  where
+    bs = bbs (cfg ^. #numPlayers) (cfg ^. #ante)
+
+-- | Construct a Table with the supplied cards.
+makeTableS :: TableConfig -> CardsS -> Table
+makeTableS cfg cs = Table (deal (riso cardsS cs)) (Just 0) (Seq.replicate (cfg ^. #numPlayers) BettingOpen) (Seq.zipWith (-) (cfg ^. #stacks0) bs) bs 0 Seq.Empty
   where
     bs = bbs (cfg ^. #numPlayers) (cfg ^. #ante)
 
