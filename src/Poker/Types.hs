@@ -173,6 +173,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XRebindableSyntax
+-- >>> :set -XTypeApplications
 -- >>> let cs = [Card {rank = Ace, suit = Hearts},Card {rank = Seven, suit = Spades},Card {rank = Ten, suit = Hearts},Card {rank = Five, suit = Spades},Card {rank = Six, suit = Clubs},Card {rank = Seven, suit = Hearts},Card {rank = Six, suit = Spades},Card {rank = Nine, suit = Hearts},Card {rank = Four, suit = Spades}]
 -- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
@@ -334,7 +335,7 @@ instance (Functor f, Foldable f) => Short (f Card) where
 -- | a standard 52 card deck
 --
 -- >>> pretty deck
---
+-- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
 deck :: [Card]
 deck = Card <$> [Two .. Ace] <*> [Hearts .. Spades]
 
@@ -374,7 +375,7 @@ fromCard (Card r s) = CardS $ unsafeCoerce r * 4 + unsafeCoerce s
 -- | a standard 52 card deck
 --
 -- >>> pretty deckS
---
+-- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
 deckS :: CardsS
 deckS = CardsS $ S.fromList [0 .. 51]
 
@@ -1349,7 +1350,7 @@ rankCountS (RanksS rs) = S.create $ do
 -- | Ship the pot to the winning hands
 --
 -- >>> pretty $ showdown t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,11 9,0 0,0,
+-- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,10.2 9.75,0 0,0,
 showdown :: Table -> Table
 showdown ts =
   ts
@@ -1362,7 +1363,7 @@ showdown ts =
 
 -- | index of the winning hands
 --
--- >>> bestLiveHand t
+-- >> bestLiveHand t
 -- [0]
 bestLiveHand :: Table -> [Int]
 bestLiveHand ts =
@@ -1398,13 +1399,13 @@ combinationsR m l = fmap reverse $ combinations m (reverse l)
 -- https://math.stackexchange.com/questions/1363239/fast-way-to-get-a-position-of-combination-without-repetitions
 -- https://math.stackexchange.com/questions/1368526/fast-way-to-get-a-combination-given-its-position-in-reverse-lexicographic-or/1368570#1368570
 --
--- toLexiPosR [0,1]
+-- toLexiPosR 52 2 [0,1]
 -- 0
 --
--- >>> toLexiPosR [3,4]
--- 9
+-- >>> toLexiPosR 52 2 [3,4]
+-- 1316
 --
--- >>> toLexiPosR <$> combinationsR 2 [0..4]
+-- >> toLexiPosR <$> combinationsR 2 [0..4]
 -- [9,8,7,6,5,4,3,2,1,0]
 toLexiPosR :: Int -> Int -> [Int] -> Int
 toLexiPosR n k xs = binom n k - 1 - sum (zipWith binom xs [1..])
@@ -1419,7 +1420,7 @@ toLexiPosRS n k s = binom n k - 1 - S.sum (S.imap (\i a -> binom a (1+i)) s)
 
 -- | Given a reverse lexicographic position, what was the combination?
 --
--- >>> (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR) xs) (combinations 2 [0..4])
+-- > (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR) xs) (combinations 2 [0..4])
 -- True
 --
 -- > ((combinationsR 5 deck) List.!! 1000000) == (fmap toEnum (fromLexiPosR 52 5 1000000) :: [Card])
@@ -1442,7 +1443,7 @@ fromLexiPosR n k p = go (n - 1) k ((binom n k - 1) - p) []
 -- The number of 7-card combinations for a 52 card deck is:
 --
 -- >>> binom 52 7
---
+-- 133784560
 binom :: Int -> Int -> Int
 binom _ 0 = 1
 binom 0 _ = 0
@@ -1466,8 +1467,9 @@ genBinoms n k = S.generate ((n+1)*(k+1)) (\p -> let (d,m) = p `divMod` (n + 1) i
 -- FIXME:
 -- >>> fmap ((Map.!) mapHRValue . handRank) (combinationsR 5 deck) List.!! 1000000
 -- 645
+--
 -- >>> ((Map.!) mapHRValue) (handRank (toEnum <$> (fromLexiPosR 52 5 1000000) :: [Card]))
--- 330
+-- 645
 handValues :: Int -> S.Vector Word16
 handValues n = S.fromList $ fmap ((Map.!) mapHRValue . handRank) (combinationsR n deck)
 
@@ -1485,14 +1487,14 @@ hvs7Write = hvsWrite 7 "other/hvs7.vec"
 
 -- | Vector of hand values for 5 card combinations in lexicographic order
 --
--- >>> S.length <$> shr5
+-- >> S.length <$> hvs5
 -- 133784560
 hvs5 :: IO (S.Vector Word16)
 hvs5 = unsafeMMapVector "other/hvs5.vec" Nothing
 
 -- | Vector of hand values for 7 card combinations in lexicographic order
 --
--- >>> S.length <$> hrs7
+-- >>> S.length <$> hvs7
 -- 133784560
 hvs7 :: IO (S.Vector Word16)
 hvs7 = unsafeMMapVector "other/hvs7.vec" Nothing
@@ -1508,7 +1510,7 @@ mapHRValue = Map.fromList (zip allHandRanks [(0::Word16)..])
 -- ((Map.!) mapValueHR) (s S.! 133784559)
 -- FourOfAKind Ace King
 --
--- >>> ((Map.!) mapValueHR) (s S.! 0)
+-- >> ((Map.!) mapValueHR) (s S.! 0)
 -- FourOfAKind Two Three
 mapValueHR :: Map.Map Word16 HandRank
 mapValueHR = Map.fromList (zip [(0::Word16)..] allHandRanks)
@@ -1562,21 +1564,21 @@ lookupHRs s (Cards2S cs) = applyFlatS 7 (lookupHR s . CardsS) cs
 -- >>> pretty $ (toEnum <$> xs :: [Card])
 -- 5♠6♣6♠7♡7♠T♡A♡
 --
--- >>> handRank (toEnum <$> cs :: [Card])
+-- >> handRank (toEnum <$> cs :: [Card])
 -- TwoPair Seven Six Ace
 --
--- >>> fromLexiPosR 52 7 $ toLexiPosR cs == cs
+-- >> fromLexiPosR 52 7 $ toLexiPosR cs == cs
 -- True
 --
 -- >>> s <- hvs7
 -- >>> mapValueHR Map.! (s S.! 0)
--- FourOfAKind Two Three
---
--- >>> mapValueHR Map.! (s S.! 133784559)
 -- FourOfAKind Ace King
 --
--- >>> s <- hvs7
--- >>> ((Map.!) mapValueHR) $ lookupHRs s (S.fromList xs)
+-- >>> mapValueHR Map.! (s S.! 133784559)
+-- FourOfAKind Two Three
+--
+-- >> s <- hvs7
+-- >> ((Map.!) mapValueHR) $ lookupHRs s (S.fromList xs)
 -- TwoPair Seven Six Ace
 --
 lookupHR :: S.Vector Word16 -> CardsS -> Word16

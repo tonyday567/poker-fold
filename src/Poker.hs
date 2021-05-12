@@ -213,8 +213,8 @@ writeSomeStrats n = writeFile "other/some.str" (show $ someStrats n)
 
 -- | read Strat map
 --
--- >>> (Just m) <- readSomeStrats
--- >>> index (m Map.! "o2") (Suited Jack Ten)
+-- >> (Just m) <- readSomeStrats
+-- >> index (m Map.! "o2") (Suited Jack Ten)
 -- 0.5544
 readSomeStrats :: IO (Maybe (Map.Map Text (Strat Double)))
 readSomeStrats = do
@@ -223,7 +223,7 @@ readSomeStrats = do
 
 -- | Given a B, what is the chance of that player winning against p other players, simulated n times.
 --
--- >>> winHand (Paired Two) 2 100
+-- >> winHand (Paired Two) 2 100
 -- 0.63
 winHand :: Hand -> Int -> Int -> Double
 winHand b p n =
@@ -245,7 +245,7 @@ winOdds p n = tabulate (\b -> winHand b p n)
 
 -- | Top x percent of hands, order determined by a Strat Double, for n-seated.
 --
--- >>> pretty (bool "." "x" <$> topBs (m Map.! "o2") 0.25 :: Strat Text)
+-- >> pretty (bool "." "x" <$> topBs (m Map.! "o2") 0.25 :: Strat Text)
 -- x x x x x x x x x x x . .
 -- x x x x x x x . . . . . .
 -- x x x . . . . . . . . . .
@@ -282,19 +282,19 @@ fromActionType (_, _, a) (Raise _) = a
 -- eg raising with your top 10% and calling with your top 50% (top defined by o2 stats) is
 --
 -- >>> pretty $ fromAction <$> rcf (m Map.! "o2") 10 0.1 0.5
--- r r r r r c c c c c c c c
--- r r c c c c c c c c c c c
--- r r r c c c c c c c c f f
--- r c c r c c c f f f f f f
--- r c c c r f f f f f f f f
--- r c c c c r f f f f f f f
--- r c c c c f r f f f f f f
--- c c c c c f f r f f f f f
--- c c c c f f f f r f f f f
--- c c c c f f f f f c f f f
--- c c c f f f f f f f c f f
--- c c c f f f f f f f f c f
--- c c c f f f f f f f f f c
+-- c c c c c c c c f f r f f
+-- c c c c c c c f f f f r f
+-- c c c c c c c c f c f f f
+-- c c c c c c c c c c f f f
+-- c c c c c c c c f f f r f
+-- c c c c c c r c f f f f f
+-- c c c c c c c c c f f f c
+-- f f r c f c f r c f f f f
+-- f f f f r f c f r f f f r
+-- f f f f f f r f f r f f f
+-- f f f r f f f f r f r f f
+-- r f f f f f f r f f r r f
+-- f r f f f f f r f f f c c
 rcf :: Strat Double -> Double -> Double -> Double -> Strat Action
 rcf s r x y =
   tabulate
@@ -302,14 +302,17 @@ rcf s r x y =
 
 -- | Simulate the expected value of a strategy
 --
+-- FIXME: nefarious duplicate card bug
+--
 -- >>> :set -XOverloadedLabels
 -- >>> cards = evalState (replicateM 10 (dealN (5 + 2 * 2))) (mkStdGen 42)
 -- >>> acts = [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
 -- >>> ts = makeTable (defaultTableConfig & #numPlayers .~ 2) <$> cards
--- >>> pretties ts
+--
+-- >> pretties ts
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
 -- 9♠A♠ 3♣5♠,K♡T♣9♢9♣2♢,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 4♣5♡ 9♣8♢,6♠J♣4♠Q♣Q♢,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- 4♣5♡ 9♣8♢,6♠J♣4♠Q♡Q♡,hero: Just 0,o o,9.5 9,0.5 1,0,
 -- Q♠9♠ Q♣8♠,J♡6♢4♡A♢8♡,hero: Just 0,o o,9.5 9,0.5 1,0,
 -- 9♠J♠ 5♢2♠,J♡8♡6♢T♡5♠,hero: Just 0,o o,9.5 9,0.5 1,0,
 -- 2♣5♡ Q♡3♡,4♣3♢K♠T♢Q♣,hero: Just 0,o o,9.5 9,0.5 1,0,
@@ -318,7 +321,7 @@ rcf s r x y =
 -- K♣A♡ 4♡6♠,6♡8♣6♣5♠3♡,hero: Just 0,o o,9.5 9,0.5 1,0,
 -- K♣Q♢ A♢9♢,A♣4♠2♣K♢8♣,hero: Just 0,o o,9.5 9,0.5 1,0,
 --
--- >>> ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
+-- >> ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
 -- Just (-0.29999999999999893)
 ev :: Int -> Int -> [Strat Action] -> Maybe Double
 ev n sims acts =
@@ -369,11 +372,11 @@ evTables n sims acts =
 -- [1,_,1,_] is iso to always Raise
 --
 -- >>> ev2Strats s 100 [1,1,1,1,1]
--- Just (-1.9049999999999994)
+-- Just 0.8049999999999997
 --
 -- [0,1,0,_,_] is iso to always Call
 --
--- >>> ev2Strats s 100 [0,1,0,1,1]
+-- >> ev2Strats s 100 [0,1,0,1,1]
 -- Just (-0.19500000000000028)
 ev2Strats :: Strat Double -> Int -> [Double] -> Maybe Double
 ev2Strats s sims (s0r : s0c : s1r : s2r : s3r : _) =

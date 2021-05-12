@@ -10,7 +10,7 @@ import Test.DocTest
 main :: IO ()
 main =
   doctest
-  [ -- "src/Poker/Types.hs",
-    "src/Poker/Random.hs"
-    -- "src/Poker.hs"
+  [ "src/Poker/Types.hs",
+    "src/Poker/Random.hs",
+    "src/Poker.hs"
   ]
