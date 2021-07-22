@@ -12,9 +12,84 @@ import Perf
 import qualified Prelude as P
 import Chart (fixed)
 import qualified Data.Vector.Storable as S
+import qualified Data.Vector.Storable.Mutable as M
 import qualified Data.Vector as V
 import qualified Data.Map.Strict as Map
-import qualified Data.Sequence as Seq
+import qualified Data.Vector.Algorithms.Intro as Intro
+import qualified Control.Foldl as L
+import Data.Functor.Foldable
+
+-- http://kcats.org/csci/464/doc/knuth/fascicles/fasc3a.pdf
+-- https://www.daniweb.com/programming/computer-science/threads/41584/the-fastest-combination-generator
+-- file:///Users/tonyday/Downloads/Loopless_Functional_Algorithms.pdf
+-- https://hackage.haskell.org/package/combinat-0.2.10.0/docs/src/Math.Combinat.Numbers.Sequences.html
+-- https://hackage.haskell.org/package/recursion-schemes-5.2.2.1/docs/Data-Functor-Foldable.html#g:2
+
+
+
+{-
+revolvingDoorOdd :: Int -> Int -> (M.Vector Int -> b) -> f b
+revolvingDoorOdd n t f = do
+  v <- M.generate t id
+  go (n+1) 0 t
+  where
+    go u l j = do
+      b <- f v
+    r3 = do
+      c1 <- M.read v (t - 1)
+      c2 <- M.read v (t - 2)
+      (bool (go u l j) (c1 + 1 < c2))
+    c1 = M.read v (t - 1)
+    c2 = M.read v (t - 2)
+
+-}
+
+algoR :: Int -> Int -> [[a]]
+algoR n k = undefined
+
+unfold1 :: (a -> Maybe a) -> a -> [a]
+unfold1 f x = case f x of
+  Nothing -> [x]
+  Just y  -> x : unfold1 f y
+
+-- | Generates all permutations of a multiset 
+--   (based on \"algorithm L\" in Knuth; somewhat less efficient). 
+--   The order is lexicographic.  
+algoL :: (Ord a) => [a] -> [[a]] 
+algoL xs' = unfold1 nextp xs' where
+
+  -- next :: [a] -> Maybe [a]
+  nextp xs = case findj (reverse xs,[]) of 
+    Nothing -> Nothing
+    Just ( (l:ls) , rs) -> Just $ inc l ls (reverse rs,[]) 
+    Just ( [] , _ ) -> P.error "permute: should not happen"
+
+  -- we use simple list zippers: (left,right)
+  -- findj :: ([a],[a]) -> Maybe ([a],[a])   
+  findj ( xxs@(x:xs) , yys@(y:_) ) = if x >= y 
+    then findj ( xs , x : yys )
+    else Just ( xxs , yys )
+  findj ( x:xs , [] ) = findj ( xs , [x] )  
+  findj ( [] , _ ) = Nothing
+  
+  -- inc :: a -> [a] -> ([a],[a]) -> [a]
+  inc !u us ( (x:xs) , yys ) = if u >= x
+    then inc u us ( xs , x : yys ) 
+    else reverse (x:us)  ++ reverse (u:yys) ++ xs
+  inc _ _ ( [] , _ ) = P.error "permute: should not happen"
+
+sortS :: (Ord a, Storable a) => S.Vector a -> S.Vector a
+sortS xs = S.create $ do
+    xs' <- S.thaw xs
+    Intro.sort xs'
+    pure xs'
+
+sortSNoinline :: (Ord a, Storable a) => S.Vector a -> S.Vector a
+sortSNoinline xs = S.create $ do
+    xs' <- S.thaw xs
+    Intro.sort xs'
+    pure xs'
+{-# NOINLINE sortSNoinline #-}
 
 -- * performance helpers
 logTick :: (NFData b) => Text -> (a -> b) -> a -> IO ()
@@ -50,11 +125,55 @@ main = do
   winodds n run
   handRankComponents n run
   resolution 2 n run
+  writeSome n run
+  sortingChecks n run
+  lookupHR_Speeds n run
+  algorithms n run
 
--- FIXME: horrible perf
+  case run of
+    -- fromList [("flushS","0.566"),("kindS","0.546"),("ranksSet","0.978"),("straightS","0.222"),("toRanksS","0.102")]
+    "handRankS_" -> do
+      m <- handRankS_P n
+      let m' = Map.map (\x -> fixed (Just 3) (toSecs x)) m
+      print m'
+    -- fromList [("flushS",1000000),("kindS",923093),("ranksSet",969338),("straightS",969338),("toRanksS",923093)]
+    "handRankS_Count" -> do
+      c <- handRankS_CountP n
+      print c
+    "lookupHR_" -> do
+      s <- hvs7
+      h <- lookupHR_ s (card7sS n)
+      print (S.sum $ fst h)
+      print $ Map.map (\x -> fixed (Just 3) (toSecs x)) (snd h)
+    _ -> pure ()
+
+sortingChecks :: Int -> Text -> IO ()
+sortingChecks n t = do
+  let cs = card7sS n
+  case t of
+    -- 1.699
+    "listsort" -> logTick "listsort" (fmap sort) (liso cardsS7L cs)
+    -- 0.912
+    "listsortS" -> logTick "listsortS" (applyV (sort . S.toList . uncardsS)) cs
+    -- 0.797
+    -- sortS has deteriorated in performance, from 0.3, as I have used it.
+    "sortS" -> logTick "sortS" (applyV (sortS . uncardsS)) cs
+    -- 1.170
+    "sortSNoinline" -> logTick "sortSNoinline" (applyV (sortSNoinline . uncardsS)) cs
+    _ -> pure ()
+
+algorithms :: Int -> Text -> IO ()
+algorithms n t = do
+  case t of
+    --
+    "algoL" -> do
+      logTick "algorL" algoL [0 .. (n - 1)]
+    _ -> pure ()
+
+
 --
--- > stack exec speed winodds 10000
--- win odds: 7.387
+-- handRank evals are 169 * p * n
+-- win odds: 8.758 for n = 10000 about 2.59 secs per million evals
 winodds :: Int -> Text -> IO ()
 winodds n run = case run of
     "winodds" -> do
@@ -70,31 +189,126 @@ binoms n run = case run of
       logTicks n "binomM" (binomM 52) 7
     _ -> pure ()
 
+-- | handRankS version for performance testing.
+--
+handRankS_ :: CardsS -> IO (HandRank, Map.Map Text Cycle)
+handRankS_ cs = runPerfT $ do
+  fl <- perf "flushS" cycles $ pure (flushS cs)
+  case fl of
+    Just x -> pure x
+    Nothing -> do
+      rs <- perf "ranksSet" cycles $ pure (ranksSet cs)
+      st <- perf "straightS" cycles $ pure (straightS rs)
+      case st of
+        Just x -> pure x
+        Nothing -> do
+          rs2 <- perf "toRanksS" cycles $ pure (toRanksS cs)
+          k <- perf "kindS" cycles $ pure (kindS rs2) 
+          pure k
+
+handRankS_Count :: CardsS -> IO (HandRank, Map.Map Text Int)
+handRankS_Count cs = runPerfT $ do
+  fl <- perf "flushS" count $ pure (flushS cs)
+  case fl of
+    Just x -> pure x
+    Nothing -> do
+      rs <- perf "ranksSet" count $ pure (ranksSet cs)
+      st <- perf "straightS" count $ pure (straightS rs)
+      case st of
+        Just x -> pure x
+        Nothing -> do
+          rs2 <- perf "toRanksS" count $ pure (toRanksS cs)
+          k <- perf "kindS" count $ pure (kindS rs2) 
+          pure k
+
+
+handRankS_P :: Int -> IO (Map Text Cycle)
+handRankS_P n = do
+      let cs = card7sS n
+      rs <- V.sequence $ applyV handRankS_ cs
+      pure $ Map.unionsWith (+) $ V.toList $ V.map snd rs
+
+handRankS_CountP :: Int -> IO (Map Text Int)
+handRankS_CountP n = do
+      let cs = card7sS n
+      rs <- V.sequence $ applyV handRankS_Count cs
+      pure $ Map.unionsWith (+) $ V.toList $ V.map snd rs
+
 handRankSpeeds :: Int -> Text -> IO ()
 handRankSpeeds n run = case run of
     -- 5.45
     "handRank" -> logTick "handRank" (fmap handRank) (card7s n)
+
+    -- 2.162
+    "handRankS" -> logTick "handRankS" (applyV handRankS) (card7sS n)
+
+    -- 1.938
+    "handRankS2" -> logTick "handRankS Storable result" (applyS (fromEnum . handRankS)) (card7sS n)
 
     -- 0.396
     -- toLexiPosRS: 0.267
     -- applyFlat: 0.010
     -- lookup: 0.087
     -- unknown: 0.032
-    "lookupHRs" -> do
-      s <- hvs7
-      let !cs = card7sS n
-      logTick "lookupHRs"
-        (lookupHRs s) cs
+    "lookupHRUnsafe" ->
+      logTick "lookupHRUnsafe" (applyV lookupHRUnsafe)
+      (V.foldMap id $
+       applyV (Cards2S . S.fromList . sort . S.toList . uncardsS)
+       (card7sS n))
 
     -- 0.359
-    "lookupHR" -> do
+    "lookupHR2" -> do
       s <- hvs7
       let !cs = CardsS $ uncards2S (card7sS 1)
-      logTicks n "lookupHR"
+      logTicks n "lookupHR2"
         (lookupHR s)
         cs
 
     _ -> pure ()
+
+
+-- * lookupHR performance
+--
+lookupHR_ :: S.Vector Word16 -> Cards2S -> IO (S.Vector Word16, Map.Map Text Cycle)
+lookupHR_ s cs = runPerfT $ do
+  cs' <- perf "sortS" cycles $ pure (applyM (sortS . uncardsS) cs)
+  cs'' <- perf "fromEnum" cycles $ pure (S.map fromEnum cs')
+  cs''' <- perf "toLexiPosRS" cycles $ pure (applyFlatS 7 (toLexiPosRS 52 7) cs'')
+  cs'''' <- perf "S.!" cycles $ pure (S.map (s S.!) cs''')
+  pure cs''''
+
+-- * lookupHR component performance
+--
+lookupHR_Speeds :: Int -> Text -> IO ()
+lookupHR_Speeds n run =
+  case run of
+    --
+    "lookupHR_sortS" -> do
+      logTicks n "lookupHR_SortS"
+        (applyM (sortS . uncardsS))
+        (card7sS n)
+    --
+    "lookupHR_fromEnum" -> do
+      logTicks n "lookupHR_fromEnum"
+        (S.map fromEnum)
+        (applyM (sortS . uncardsS) (card7sS n))
+
+    --
+    "lookupHR_toLexiPosRS" -> do
+      logTicks n "lookupHR_toLexiPosRS"
+        (applyFlatS 7 (toLexiPosRS 52 7))
+        (S.map fromEnum . applyM (sortS . uncardsS) $ (card7sS n))
+
+    --
+    "lookupHR_lookup" -> do
+      s <- hvs7
+      let !cs = (applyFlatS 7 (toLexiPosRS 52 7)) . S.map fromEnum . applyM (sortS . uncardsS) $ (card7sS n)
+      logTicks n "lookupHR_lookup"
+        (S.map (s S.!))
+        cs
+
+    _ -> pure ()
+
 
 -- | storable lookup components
 lookupTech :: Int -> Text -> IO ()
@@ -172,10 +386,6 @@ cardChecks n t = case t of
     "card7sS" -> logTick "card7sS" (uncards2S . card7sS) n
     -- 1.001
     "card7sSI" -> logTick "card7sSI ishuffle" (uncards2S . card7sSI) n
-    -- 2.273
-    "cardSort" -> logTick "card list sort" (fmap (sortOn Down)) (card7s n)
-    -- 2.667
-    "cardSortSeq" -> logTick "sequence sort" (fmap (Seq.sortOn Down)) (Seq.fromList <$> card7s n)
     _ -> pure ()
 
 handRankComponents :: Int -> Text -> IO ()
@@ -189,8 +399,8 @@ handRankComponents n run = case run of
     -- kind: 0.707
     --  rankCountS: 0.303
     "handRankS" -> logTick "handRankS"
-      (applyFlatS 7 (handRankS . CardsS))
-      (S.fromList $ fold $ applyFlat 7 (sortOn Down . S.toList) (uncards2S $ card7sS n))
+      (applyS (fromEnum . handRankS))
+      (Cards2S $ applyM (sortS . uncardsS) (card7sS n))
 
     -- 0.284
     "rank" -> do
@@ -277,13 +487,6 @@ handRankComponents n run = case run of
          (applyFlat 7 (suitRanks . fmap (toEnum . toIntegral) . S.toList))
          cs
 
-    -- 0.873
-    "handRankSort" -> do
-      let !cs = V.convert $ uncards2S $ card7sS n
-      logTick "initial sort"
-         (applyFlat 7 (sortOn Down . S.toList))
-         cs
-
     -- 0.039
     "handRankSum" -> do
       let !cs = uncards2S $ card7sS n
@@ -325,6 +528,11 @@ resolution p n run = case run of
     -- 3.769
     "winOdds" ->
       logTick "winOdds" (sum . winOdds 2) (n `div` 169)
+    _ -> pure ()
+
+writeSome :: Int -> Text -> IO ()
+writeSome n run = case run of
     "writeSomeStrats" ->
       logTickIO "writeSomeStrats" (writeSomeStrats n)
     _ -> pure ()
+

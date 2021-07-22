@@ -16,7 +16,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
-
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 -- | A poker library.
 --
 -- TODO:
@@ -33,9 +33,6 @@ module Poker
     --
     -- $setup
 
-    -- * IO
-    Short (..),
-
     -- * basic card types
     Rank (..),
     RankS (..),
@@ -50,19 +47,21 @@ module Poker
     suits,
     CardS(..),
     cardS,
-    ranksSet,
-    toCard,
-    fromCard,
     toRankS,
     toSuitS,
-    toRanks,
     CardsS(..),
     cardsS,
+    ranksSet,
+    toRanksS,
     Cards2S(..),
     cardsS7V,
     cardsS7L,
     applyFlat,
     applyFlatS,
+    applyFlatM,
+    applyV,
+    applyS,
+    applyM,
 
     -- * Hand & Strat
     Hand (..),
@@ -138,15 +137,18 @@ module Poker
     mapHRValue,
     mapValueHR,
     handValues,
-    hvsWrite,
-    hvs5Write,
     hvs7Write,
-    hvs5,
     hvs7,
     allHandRanks,
     allHandRanksV,
     lookupHR,
+    lookupHRUnsafe,
     lookupHRs,
+    lookupHRsUnsafe,
+
+    -- * infrastructure
+    Iso(..),
+    Short (..),
 
     -- * Strategy
     topBs,
@@ -223,8 +225,8 @@ readSomeStrats = do
 
 -- | Given a B, what is the chance of that player winning against p other players, simulated n times.
 --
--- >> winHand (Paired Two) 2 100
--- 0.63
+-- >>> winHand (Paired Two) 2 1000
+-- 0.47650000000000003
 winHand :: Hand -> Int -> Int -> Double
 winHand b p n =
   (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHand <$> tablesB p b 0 n
@@ -281,20 +283,22 @@ fromActionType (_, _, a) (Raise _) = a
 --
 -- eg raising with your top 10% and calling with your top 50% (top defined by o2 stats) is
 --
+-- FIXME: wrong eg Jacks favaoured over Queens.
+--
 -- >>> pretty $ fromAction <$> rcf (m Map.! "o2") 10 0.1 0.5
--- c c c c c c c c f f r f f
--- c c c c c c c f f f f r f
--- c c c c c c c c f c f f f
--- c c c c c c c c c c f f f
--- c c c c c c c c f f f r f
--- c c c c c c r c f f f f f
--- c c c c c c c c c f f f c
--- f f r c f c f r c f f f f
--- f f f f r f c f r f f f r
--- f f f f f f r f f r f f f
--- f f f r f f f f r f r f f
--- r f f f f f f r f f r r f
--- f r f f f f f r f f f c c
+-- r r r r r c c c c c c c f
+-- r r r r r c c c c f f f f
+-- c c c c r c c c c c f f f
+-- r r r r c c c c c c f f f
+-- c c c c c c c c c f f f f
+-- c c c c c c c c c f f f f
+-- c c c c c c c c c f f f f
+-- c c c c c c f c c f f f f
+-- c c f f f f f f f f f f f
+-- f f f f f f f f f f f f f
+-- c f f f f f f f f f f f f
+-- f f f f f f f f f f f f f
+-- f f f f f f f f f f f f f
 rcf :: Strat Double -> Double -> Double -> Double -> Strat Action
 rcf s r x y =
   tabulate
@@ -372,7 +376,7 @@ evTables n sims acts =
 -- [1,_,1,_] is iso to always Raise
 --
 -- >>> ev2Strats s 100 [1,1,1,1,1]
--- Just 0.8049999999999997
+-- Just 0.7100000000000009
 --
 -- [0,1,0,_,_] is iso to always Call
 --
