@@ -12,12 +12,20 @@ import Perf
 import qualified Prelude as P
 import Chart (fixed)
 import qualified Data.Vector.Storable as S
-import qualified Data.Vector.Storable.Mutable as M
 import qualified Data.Vector as V
 import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import qualified Data.Vector.Algorithms.Intro as Intro
-import qualified Control.Foldl as L
-import Data.Functor.Foldable
+import Data.Vector.Storable (Storable)
+import Data.Text (Text, pack, unpack)
+import Data.Word
+import Data.List (sort)
+import Text.Read (readMaybe)
+import System.Environment
+import Control.Monad
+import Control.Monad.State.Lazy
+import System.Random
+import Control.Applicative
 
 -- http://kcats.org/csci/464/doc/knuth/fascicles/fasc3a.pdf
 -- https://www.daniweb.com/programming/computer-science/threads/41584/the-fastest-combination-generator
@@ -44,8 +52,11 @@ revolvingDoorOdd n t f = do
 
 -}
 
+{-
 algoR :: Int -> Int -> [[a]]
 algoR n k = undefined
+
+-}
 
 unfold1 :: (a -> Maybe a) -> a -> [a]
 unfold1 f x = case f x of
@@ -92,20 +103,20 @@ sortSNoinline xs = S.create $ do
 {-# NOINLINE sortSNoinline #-}
 
 -- * performance helpers
-logTick :: (NFData b) => Text -> (a -> b) -> a -> IO ()
+logTick :: Text -> (a -> b) -> a -> IO ()
 logTick l x y = do
   (t, _) <- tick x y
-  putStrLn (l <> ": " <> fixed (Just 3) (toSecs t))
+  (putStrLn . unpack) (l <> ": " <> fixed (Just 3) (toSecs t))
 
-logTickIO :: (NFData a) => Text -> IO a -> IO ()
+logTickIO :: Text -> IO a -> IO ()
 logTickIO l x = do
   (t, _) <- tickIO x
-  putStrLn (l <> ": " <> fixed (Just 3) (toSecs t))
+  (putStrLn . unpack) (l <> ": " <> fixed (Just 3) (toSecs t))
 
-logTicks :: (NFData b) => Int -> Text -> (a -> b) -> a -> IO ()
+logTicks :: Int -> Text -> (a -> b) -> a -> IO ()
 logTicks n l x y = do
   (t, _) <- ticks n x y
-  putStrLn (l <> ": " <> fixed (Just 3) (toSecs $ sum t))
+  (putStrLn . unpack) (l <> ": " <> fixed (Just 3) (toSecs $ sum t))
 
 toSecs :: Cycle -> Double
 toSecs = (/ 2.2e9) . P.fromIntegral
@@ -315,13 +326,13 @@ lookupTech :: Int -> Text -> IO ()
 lookupTech n run = case run of
     "read" -> do
       (t, _) <- tickIO hvs7
-      putStrLn ("instantiate hvs7: " <> show n <> " " <> fixed (Just 3) (toSecs t))
+      putStrLn ("instantiate hvs7: " <> show n <> " " <> unpack (fixed (Just 3) (toSecs t)))
     "hvs7Write" -> do
       hvs7Write
     "combinations752" -> logTick "combinations 7 [0..51]: " (length . combinations 7) [0..51::Int]
     "allhandranks" -> do
       (t, _) <- tickIO $ pure allHandRanks
-      putStrLn ("allHandRank instantiation: " <> fixed (Just 3) (toSecs t))
+      putStrLn ("allHandRank instantiation: " <> unpack (fixed (Just 3) (toSecs t)))
 
     -- 0.264
     -- applyFlat adds 0.0xx

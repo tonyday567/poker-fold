@@ -32,17 +32,19 @@ library
   build-depends:
     adjunctions >= 4.4 && < 4.5,
     base >=4.7 && <5,
-    chart-svg >= 0.2 && < 0.3,
+    bifunctors ^>= 5.5,
+    chart-svg ^>= 0.2.3,
     containers >= 0.6 && < 0.7,
     distributive >= 0.6 && < 0.7,
     foldl >= 1.4 && < 1.5,
     microlens >= 0.4 && < 0.5,
     mtl >= 2.2.2 && < 2.3,
-    numhask >= 0.7 && < 0.8,
-    numhask-array >= 0.8 && < 0.9,
-    numhask-space >= 0.8.0 && < 0.9,
-    text >= 1.2 && < 1.3,
-    vector >= 0.12.3.0 && < 0.13,
+    numhask ^>= 0.8.1,
+    numhask-array ^>= 0.9,
+    numhask-space ^>= 0.8.1,
+    random ^>=1.2,
+    text ^>= 1.2,
+    vector ^>= 0.12.3,
     vector-algorithms,
     vector-mmap,
   exposed-modules:
@@ -53,27 +55,6 @@ library
   other-modules:
   default-language: Haskell2010
 
-test-suite test
-  type: exitcode-stdio-1.0
-  main-is: test.hs
-  hs-source-dirs:
-    test
-  build-depends:
-    base >=4.7 && <5,
-    doctest >= 0.16 && < 0.18,
-    numhask >= 0.7 && < 0.8,
-    poker
-  default-language: Haskell2010
-  default-extensions:
-  ghc-options:
-    -Wall
-    -Wcompat
-    -Wincomplete-record-updates
-    -Wincomplete-uni-patterns
-    -Wredundant-constraints
-    -fwrite-ide-info
-    -hiedir=.hie
-
 executable speed
   main-is: speed.hs
   hs-source-dirs:
@@ -82,11 +63,14 @@ executable speed
     base >=4.7 && <5,
     foldl,
     recursion-schemes,
-    numhask >= 0.7 && < 0.8,
+    numhask >= 0.8,
     poker,
     perf,
     containers,
     chart-svg,
+    mtl ^>= 2.2.2,
+    random ^>= 1.2,
+    text ^>= 1.2,
     vector,
     vector-algorithms,
     vector-mmap,

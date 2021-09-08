@@ -43,6 +43,11 @@ import qualified Data.Vector.Storable as S
 import Lens.Micro
 import NumHask.Prelude
 import Poker.Types
+import System.Random
+import Control.Monad.State.Lazy
+import GHC.OverloadedLabels
+import Data.List (sort)
+import Data.Bifunctor
 
 -- $setup
 --

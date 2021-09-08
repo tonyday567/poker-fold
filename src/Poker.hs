@@ -167,6 +167,14 @@ import Lens.Micro
 import NumHask.Prelude
 import Poker.Random
 import Poker.Types
+import Control.Monad.State.Lazy
+import GHC.OverloadedLabels
+import Data.Bifunctor
+import Data.Text (Text, unpack, pack)
+import Data.List (sort, sortOn)
+import Data.Ord
+import System.Random
+import Text.Read (readMaybe)
 
 -- $setup
 --
@@ -221,7 +229,7 @@ writeSomeStrats n = writeFile "other/some.str" (show $ someStrats n)
 readSomeStrats :: IO (Maybe (Map.Map Text (Strat Double)))
 readSomeStrats = do
   t <- readFile "other/some.str"
-  pure $ readMaybe (unpack t)
+  pure $ readMaybe t
 
 -- | Given a B, what is the chance of that player winning against p other players, simulated n times.
 --
@@ -329,7 +337,7 @@ rcf s r x y =
 -- Just (-0.29999999999999893)
 ev :: Int -> Int -> [Strat Action] -> Maybe Double
 ev n sims acts =
-  head $
+  head_ $
     fmap ((+ negate 10) . (/ fromIntegral sims) . sum) $
       List.transpose $
         evs n sims acts

@@ -138,6 +138,7 @@ module Poker.Types
     -- * infrastructure
     Iso(..),
     Short (..),
+    head_,
   ) where
 
 import Data.Distributive (Distributive (..))
@@ -148,10 +149,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import GHC.Base (error)
 import GHC.Read
 import Lens.Micro
-import NumHask.Array.Fixed as A
+import NumHask.Array.Fixed as A hiding (apply)
 import NumHask.Prelude
 import qualified Prelude as P
 import qualified Data.Vector.Storable as S
@@ -159,6 +159,14 @@ import qualified Data.Vector.Storable.Mutable as SM
 import Data.Vector.Storable.MMap
 import qualified Data.Vector as V
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Word
+import Data.Text (Text, pack, unpack)
+import Data.Vector.Storable (Storable)
+import Data.Bifunctor
+import Control.Applicative
+import Data.List (sortOn)
+import Data.Tuple
+import Data.Ord
 
 -- $setup
 --
@@ -197,10 +205,14 @@ class Short a where
   short :: a -> Text
 
   pretty :: a -> IO ()
-  pretty = putStrLn . short
+  pretty = putStrLn . unpack . short
 
   pretties :: (Foldable f) => f a -> IO ()
-  pretties xs = putStrLn $ Text.intercalate "\n" $ short <$> toList xs
+  pretties xs = putStrLn $ unpack $ Text.intercalate "\n" $ short <$> toList xs
+
+head_ :: [a] -> Maybe a
+head_ [] = Nothing
+head_ (x:_) = Just x
 
 -- | iso's for main type class structure
 --
@@ -239,8 +251,6 @@ data Rank
   | Ace
   deriving (Eq, Ord, Show, Enum, Generic)
 
-instance NFData Rank
-
 instance Short Rank where
   short Two = "2"
   short Three = "3"
@@ -278,8 +288,6 @@ rankS = Iso (RankS . fromIntegral . fromEnum) (toEnum . toIntegral . unrankS)
 -- ♡♣♢♠
 data Suit = Hearts | Clubs | Diamonds | Spades deriving (Eq, Show, Ord, Enum, Generic)
 
-instance NFData Suit
-
 -- | see https://decodeunicode.org/en/u+1F0A2
 instance Short Suit where
   short Hearts = "\9825"
@@ -311,8 +319,6 @@ data Card = Card
     suit :: Suit
   }
   deriving (Eq, Show, Generic)
-
-instance NFData Card
 
 instance Enum Card where
   fromEnum c = fromEnum (rank c) * 4 + fromEnum (suit c)
@@ -640,7 +646,7 @@ instance Data.Distributive.Distributive Strat where
 instance Representable Strat where
   type Rep Strat = Hand
 
-  tabulate f = Strat $ tabulate (f . toEnum . fromMaybe 0 . head)
+  tabulate f = Strat $ tabulate (f . toEnum . fromMaybe 0 . head_)
 
   index (Strat a) = index a . (: []) . fromEnum
 
@@ -765,8 +771,6 @@ data TableCards = TableCards
   }
   deriving (Eq, Show, Generic)
 
-instance NFData TableCards
-
 instance Short TableCards where
   short (TableCards ps h) =
     Text.intercalate
@@ -791,8 +795,6 @@ instance Short Seat where
   short BettingOpen = "o"
   short BettingClosed = "c"
   short Folded = "f"
-
-instance NFData Seat
 
 -- | Table state.
 --
@@ -821,19 +823,17 @@ data Table = Table
 numSeats :: Table -> Int
 numSeats ts = length (ts ^. #seats)
 
-instance NFData Table
-
 instance Short Table where
   short (Table cs n s st bs p h) =
     Text.intercalate
       ","
       [ short cs,
-        "hero: " <> show n,
+        "hero: " <> (pack . show) n,
         Text.intercalate " " $ short <$> toList s,
         Text.intercalate " " $ comma (Just 2) <$> toList st,
         Text.intercalate " " $ comma (Just 2) <$> toList bs,
         comma (Just 2) p,
-        Text.intercalate ":" $ (\(a, p) -> short a <> show p) <$> toList h
+        Text.intercalate ":" $ (\(a, p) -> short a <> (pack . show) p) <$> toList h
       ]
 
 -- | list of active player indexes
@@ -867,7 +867,7 @@ openSeats ts = case ts ^. #hero of
 -- >>> nextHero t
 -- Just 1
 nextHero :: Table -> Maybe Int
-nextHero ts = head (openSeats ts)
+nextHero ts = head_ (openSeats ts)
 
 -- | The table is closed when no seat is open, or all but 1 seat has folded.
 --
@@ -926,8 +926,6 @@ bbs n ante = Seq.fromList $ reverse $ [1 + ante, 0.5 + ante] <> replicate (n - 2
 --
 -- Raise x. A seat bets x above the minimum allowed bet, where x <= stack - minimum allowed.
 data Action = Fold | Call | Raise Double deriving (Eq, Show, Generic)
-
-instance NFData Action
 
 instance Short Action where
   short Fold = "f"
@@ -1104,8 +1102,6 @@ data HandRank
   | StraightFlush Rank
   deriving (Eq, Ord, Show, Generic)
 
-instance NFData HandRank
-
 instance Enum HandRank where
   fromEnum (HighCard r0 r1 r2 r3 r4) = sum $ zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r4, r3, r2, r1, r0]) [0 .. 4]
   fromEnum (Pair r0 r1 r2 r3) = (13 P.^ 5) + sum (zipWith (\r i -> r * 13 P.^ i) (fromEnum <$> [r3, r2, r1, r0]) [0 .. 3 :: Int])
@@ -1234,10 +1230,10 @@ straight :: [Card] -> Maybe HandRank
 straight cs = Straight <$> run (Set.toDescList $ ranks cs)
 
 run5 :: [Rank] -> Maybe Rank
-run5 rs = head $ fst <$> filter ((>= 5) . snd) (runs rs)
+run5 rs = head_ $ fst <$> filter ((>= 5) . snd) (runs rs)
 
 run4 :: [Rank] -> Maybe Rank
-run4 rs = head $ fst <$> filter ((>= 4) . snd) (runs rs)
+run4 rs = head_ $ fst <$> filter ((>= 4) . snd) (runs rs)
 
 runs :: [Rank] -> [(Rank, Int)]
 runs rs = done (foldl' step (Nothing, []) rs)
@@ -1344,10 +1340,10 @@ runsS (RanksS rs) = done (foldl' step (Nothing, []) (toEnum . fromEnum <$> S.toL
     done (Just (r1, r0), xs) = (r0, fromEnum r0 - fromEnum r1 + 1) : xs
 
 run5S :: RanksS -> Maybe Rank
-run5S rs = head $ fst <$> filter ((>= 5) . snd) (runsS rs)
+run5S rs = head_ $ fst <$> filter ((>= 5) . snd) (runsS rs)
 
 run4S :: RanksS -> Maybe Rank
-run4S rs = head $ fst <$> filter ((>= 4) . snd) (runsS rs)
+run4S rs = head_ $ fst <$> filter ((>= 4) . snd) (runsS rs)
 
 flushS :: CardsS -> Maybe HandRank
 flushS cs =

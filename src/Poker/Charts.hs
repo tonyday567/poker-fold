@@ -36,6 +36,10 @@ import qualified Data.Map.Strict as Map
 import Lens.Micro
 import NumHask.Prelude
 import Poker
+import GHC.OverloadedLabels
+import Data.Text (Text, pack)
+import Data.Bifunctor
+
 
 -- >>> import Poker
 -- >>> import Lens.Micro
