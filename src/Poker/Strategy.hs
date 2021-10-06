@@ -17,6 +17,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+
 -- | A poker library.
 --
 -- TODO:
@@ -27,136 +28,21 @@
 -- 
 -- - https://www.codingthewheel.com/archives/poker-hand-evaluator-roundup/#2p2
 --
-module Poker
-  ( -- * Usage
-
-    --
-    -- $setup
-
-    -- * basic card types
-    Rank (..),
-    RankS (..),
-    rankS,
-    RanksS (..),
-    Suit (..),
-    SuitS (..),
-    suitS,
-    Card (..),
-    deck,
-    ranks,
-    suits,
-    CardS(..),
-    cardS,
-    toRankS,
-    toSuitS,
-    CardsS(..),
-    cardsS,
-    ranksSet,
-    toRanksS,
-    Cards2S(..),
-    cardsS7V,
-    cardsS7L,
-    applyFlat,
-    applyFlatS,
-    applyFlatM,
-    applyV,
-    applyS,
-    applyM,
-
-    -- * Hand & Strat
-    Hand (..),
-    fromPair,
-    toPairs,
-    toRepPair,
-    Strat (..),
-    stratText,
-    someStrats,
-    readSomeStrats,
-    writeSomeStrats,
-    enumBs,
-    handTypeCount,
-
-    -- * Tables
-    TableCards (..),
-    deal,
-    Seat (..),
-    Table (..),
-    numSeats,
-    TableConfig (..),
-    defaultTableConfig,
-    makeTable,
-    makeTableS,
-    liveSeats,
-    openSeats,
-    nextHero,
-    closed,
-    liveHands,
-
-    -- * Bets
-    Action (..),
-    fromAction,
-    fromActionType,
-    actOn,
-    always,
-    allin,
-    bet,
-    apply,
-
-    -- * Shuffling
-    enum2,
-    ishuffle,
-
-    -- * Hand Ranking
-    HandRank (..),
-    handRank,
-    straight,
-    flush,
-    kind,
-    oRankCount,
-    rankCount,
-    suitRanks,
-    handRankS,
-    straightS,
-    flushS,
-    kindS,
-    rankCountS,
-
-    -- * Showdown
-    showdown,
-    bestLiveHand,
-
-    -- * Combinations
-    combinations,
-    combinationsR,
-    binom,
-    binomR,
-    binomM,
-    toLexiPosR,
-    toLexiPosRS,
-    fromLexiPosR,
-    mapHRValue,
-    mapValueHR,
-    handValues,
-    hvs7Write,
-    hvs7,
-    allHandRanks,
-    allHandRanksV,
-    lookupHR,
-    lookupHRUnsafe,
-    lookupHRs,
-    lookupHRsUnsafe,
-
-    -- * infrastructure
-    Iso(..),
-    Short (..),
-
-    -- * Strategy
+module Poker.Strategy
+  ( -- * Strategy
     topBs,
     ev,
     ev2Strats,
     winHand,
     winOdds,
     rcf,
+
+    fromAction,
+    fromActionType,
+    someStrats,
+    writeSomeStrats,
+    readSomeStrats,
+
   )
 where
 
@@ -178,23 +64,28 @@ import Text.Read (readMaybe)
 
 -- $setup
 --
--- >>> import Poker
--- >>> import Lens.Micro
--- >>> import NumHask.Prelude
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
--- >>> :set -XNoImplicitPrelude
 -- >>> :set -XTypeApplications
+-- >>> import Poker
+-- >>> import Poker.Types
+-- >>> import Poker.Strategy
+-- >>> import Poker.Random
 -- >>> import Lens.Micro
--- >>> import NumHask.Prelude
+-- >>> import Prelude
+-- >>> import Control.Monad.State.Lazy
+-- >>> import System.Random
+-- >>> import Prettyprinter
+-- >>> import Lens.Micro
+-- >>> import Prelude
 -- >>> import qualified Data.Text as Text
 -- >>> cs = evalState (dealN 9) (mkStdGen 42)
 -- >>> pretty cs
--- A♡7♠T♡5♠6♣7♡6♠9♡4♠
+-- [Ac, 7s, Tc, 5s, 6d, 7c, 6s, 9c, 4s]
 --
 -- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- Ac7s Tc5s,6d7c6s9c4s,hero: 0,o o,9.5 9,0.5 1,0,
 --
 -- >>> (Just m) <- readSomeStrats
 -- >>> Map.keys m
@@ -222,6 +113,7 @@ writeSomeStrats :: Int -> IO ()
 writeSomeStrats n = writeFile "other/some.str" (show $ someStrats n)
 
 -- | read Strat map
+-- FIXME:
 --
 -- >> (Just m) <- readSomeStrats
 -- >> index (m Map.! "o2") (Suited Jack Ten)
@@ -337,7 +229,7 @@ rcf s r x y =
 -- Just (-0.29999999999999893)
 ev :: Int -> Int -> [Strat Action] -> Maybe Double
 ev n sims acts =
-  head_ $
+  listToMaybe $
     fmap ((+ negate 10) . (/ fromIntegral sims) . sum) $
       List.transpose $
         evs n sims acts

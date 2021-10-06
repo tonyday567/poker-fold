@@ -1,4 +1,7 @@
-packages: poker.cabal
+packages:
+  poker-fold.cabal
+  ../poker-histories/poker-histories.cabal
+  ../poker-base/poker-base.cabal
 
 -- if doctests seem broken, uncomment:
 -- See https://github.com/haskell/cabal/issues/6087

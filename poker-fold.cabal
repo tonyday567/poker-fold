@@ -1,5 +1,5 @@
 cabal-version: 2.4
-name:          poker
+name:          poker-fold
 version:       0.0.1
 synopsis: A poker library
 description: A poker library exploring holdem strategy.
@@ -8,14 +8,14 @@ author: Tony Day
 maintainer: tonyday567@gmail.com
 copyright: Tony Day (c) AfterTimes
 license: BSD-3-Clause
-homepage: https://github.com/tonyday567/poker#readme
-bug-reports: https://github.com/tonyday567/poker/issues
+homepage: https://github.com/tonyday567/poker-fold#readme
+bug-reports: https://github.com/tonyday567/poker-fold/issues
 build-type: Simple
 extra-doc-files:
   other/*.svg
 source-repository head
   type: git
-  location: https://github.com/tonyday567/poker
+  location: https://github.com/tonyday567/poker-fold
 
 library
   hs-source-dirs:
@@ -47,15 +47,17 @@ library
     vector ^>= 0.12.3,
     vector-algorithms,
     vector-mmap,
+    poker-base,
+    prettyprinter,
   exposed-modules:
-    Poker
+    Poker.Strategy
     Poker.Charts
     Poker.Random
     Poker.Types
   other-modules:
   default-language: Haskell2010
 
-executable speed
+executable poker-speed
   main-is: speed.hs
   hs-source-dirs:
     app
@@ -64,7 +66,7 @@ executable speed
     foldl,
     recursion-schemes,
     numhask >= 0.8,
-    poker,
+    poker-fold,
     perf,
     containers,
     chart-svg,
@@ -74,6 +76,8 @@ executable speed
     vector,
     vector-algorithms,
     vector-mmap,
+    poker-base,
+    optparse-applicative,
   default-language: Haskell2010
   default-extensions:
   ghc-options:
@@ -85,3 +89,39 @@ executable speed
     -funbox-strict-fields
     -fwrite-ide-info
     -hiedir=.hie
+
+executable poker-hvs7
+  main-is: hvs7.hs
+  hs-source-dirs:
+    app
+  build-depends:
+    base >=4.7 && <5,
+    foldl,
+    recursion-schemes,
+    numhask >= 0.8,
+    poker-fold,
+    perf,
+    containers,
+    chart-svg,
+    mtl ^>= 2.2.2,
+    random ^>= 1.2,
+    text ^>= 1.2,
+    vector,
+    vector-algorithms,
+    vector-mmap,
+    poker-base,
+    optparse-applicative,
+  default-language: Haskell2010
+  default-extensions:
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
+    -funbox-strict-fields
+    -fwrite-ide-info
+    -hiedir=.hie
+    -threaded
+    -rtsopts
+    -O2

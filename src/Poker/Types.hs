@@ -23,14 +23,11 @@
 -- | Poker API.
 module Poker.Types
   ( -- * basic card types
-    Rank (..),
     RankS (..),
     rankS,
     RanksS (..),
-    Suit (..),
     SuitS (..),
     suitS,
-    Card (..),
     deck,
     ranks,
     suits,
@@ -137,10 +134,10 @@ module Poker.Types
 
     -- * infrastructure
     Iso(..),
-    Short (..),
-    head_,
   ) where
 
+import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
+import qualified Poker
 import Data.Distributive (Distributive (..))
 import Data.FormatN
 import Data.Functor.Rep
@@ -160,13 +157,15 @@ import Data.Vector.Storable.MMap
 import qualified Data.Vector as V
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Word
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, pack)
 import Data.Vector.Storable (Storable)
 import Data.Bifunctor
 import Control.Applicative
 import Data.List (sortOn)
 import Data.Tuple
 import Data.Ord
+import Prettyprinter hiding (comma)
+import Prettyprinter.Render.Text (renderStrict)
 
 -- $setup
 --
@@ -178,41 +177,13 @@ import Data.Ord
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XRebindableSyntax
 -- >>> :set -XTypeApplications
--- >>> let cs = [Card {rank = Ace, suit = Hearts},Card {rank = Seven, suit = Spades},Card {rank = Ten, suit = Hearts},Card {rank = Five, suit = Spades},Card {rank = Six, suit = Clubs},Card {rank = Seven, suit = Hearts},Card {rank = Six, suit = Spades},Card {rank = Nine, suit = Hearts},Card {rank = Four, suit = Spades}]
+-- >>> let cs = [Card {rank = Ace, suit = Heart},Card {rank = Seven, suit = Spade},Card {rank = Ten, suit = Heart},Card {rank = Five, suit = Spade},Card {rank = Six, suit = Clubs},Card {rank = Seven, suit = Heart},Card {rank = Six, suit = Spade},Card {rank = Nine, suit = Heart},Card {rank = Four, suit = Spade}]
 -- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
 --
 -- Hero raises and quick fold from the BB.
 
--- | Unicode is used as a short text representation of most poker types
---
--- >>> short Hearts
--- "\9825"
---
--- >>> putStrLn $ short Hearts
--- ♡
---
--- >>> pretty (Card Ace Spades)
--- A♠
---
--- >>> pretties $ (Card King) <$> [Hearts .. Spades]
--- K♡
--- K♣
--- K♢
--- K♠
-class Short a where
-  short :: a -> Text
-
-  pretty :: a -> IO ()
-  pretty = putStrLn . unpack . short
-
-  pretties :: (Foldable f) => f a -> IO ()
-  pretties xs = putStrLn $ unpack $ Text.intercalate "\n" $ short <$> toList xs
-
-head_ :: [a] -> Maybe a
-head_ [] = Nothing
-head_ (x:_) = Just x
 
 -- | iso's for main type class structure
 --
@@ -231,41 +202,6 @@ head_ (x:_) = Just x
 --
 data Iso a b = Iso { liso :: a -> b, riso :: b -> a }
 
--- | Rank of a Card
---
--- >>> mconcat $ fmap short (sortOn Down [Two .. Ace])
--- "AKQJT98765432"
-data Rank
-  = Two
-  | Three
-  | Four
-  | Five
-  | Six
-  | Seven
-  | Eight
-  | Nine
-  | Ten
-  | Jack
-  | Queen
-  | King
-  | Ace
-  deriving (Eq, Ord, Show, Enum, Generic)
-
-instance Short Rank where
-  short Two = "2"
-  short Three = "3"
-  short Four = "4"
-  short Five = "5"
-  short Six = "6"
-  short Seven = "7"
-  short Eight = "8"
-  short Nine = "9"
-  short Ten = "T"
-  short Jack = "J"
-  short Queen = "Q"
-  short King = "K"
-  short Ace = "A"
-
 -- | wrapped Word8 representation of Rank
 --
 -- >>> riso rankS $ RankS 0
@@ -274,75 +210,48 @@ instance Short Rank where
 -- Ace
 newtype RankS = RankS { unrankS :: Word8 } deriving (Eq, Show, Ord)
 
-instance Short RankS where
-  short = short . riso rankS
-
-newtype RanksS = RanksS { unranksS :: S.Vector Word8 } deriving (Eq, Show, Ord)
-
 rankS :: Iso Rank RankS
 rankS = Iso (RankS . fromIntegral . fromEnum) (toEnum . toIntegral . unrankS)
 
--- | Suit of a Card
---
--- >>> putStrLn $ mconcat $ fmap short [Hearts .. Spades]
--- ♡♣♢♠
-data Suit = Hearts | Clubs | Diamonds | Spades deriving (Eq, Show, Ord, Enum, Generic)
+instance Pretty RankS
+  where
+    pretty = pretty . riso rankS
 
--- | see https://decodeunicode.org/en/u+1F0A2
-instance Short Suit where
-  short Hearts = "\9825"
-  short Clubs = "\9827"
-  short Diamonds = "\9826"
-  short Spades = "\9824"
+newtype RanksS = RanksS { unranksS :: S.Vector Word8 } deriving (Eq, Show, Ord)
 
 -- | wrapped Word8 representation of Suit
 --
 -- >>> riso suitS $ SuitS 0
--- Hearts
+-- Heart
 -- >>> riso suitS $ SuitS 3
--- Spades
+-- Spade
 --
 newtype SuitS = SuitS { unsuitS :: Word8 } deriving (Eq, Show, Ord)
-
-instance Short SuitS where
-  short = short . riso suitS
 
 suitS :: Iso Suit SuitS
 suitS = Iso (SuitS . fromIntegral . fromEnum) (toEnum . toIntegral . unsuitS)
 
--- | Card from a standard 52 card pack.
---
--- >>> pretty $ Card Ten Hearts
--- T♡
-data Card = Card
-  { rank :: Rank,
-    suit :: Suit
-  }
-  deriving (Eq, Show, Generic)
-
+{-
 instance Enum Card where
   fromEnum c = fromEnum (rank c) * 4 + fromEnum (suit c)
   toEnum x = let (d, m) = x `divMod` 4 in Card (toEnum d) (toEnum m)
 
 instance Bounded Card where
-  minBound = Card Two Hearts
-  maxBound = Card Ace Spades
+  minBound = Card Two Heart
+  maxBound = Card Ace Spade
 
 instance Ord Card where
   (<=) c c' = rank c <= rank c'
 
-instance Short Card where
-  short (Card r s) = short r <> short s
+-}
 
-instance (Functor f, Foldable f) => Short (f Card) where
-  short cs = Text.intercalate "" (toList $ short <$> cs)
 
 -- | a standard 52 card deck
 --
 -- >>> pretty deck
 -- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
 deck :: [Card]
-deck = Card <$> [Two .. Ace] <*> [Hearts .. Spades]
+deck = Card <$> [Two .. Ace] <*> [Club .. Spade]
 
 -- | Set of ranks in a hand
 --
@@ -354,27 +263,18 @@ ranks cs = Set.fromList $ rank <$> cs
 -- | Set of suits in a hand
 --
 -- >>> suits cs
--- fromList [Hearts,Clubs,Spades]
+-- fromList [Heart,Clubs,Spade]
 suits :: [Card] -> Set.Set Suit
 suits cs = Set.fromList $ suit <$> cs
 
 -- | wrapped Word8 representation of a Card
 --
 -- >>> riso cardS $ CardS 0
--- Card {rank = Two, suit = Hearts}
+-- Card {rank = Two, suit = Heart}
 -- >>> riso cardS $ CardS 51
--- Card {rank = Ace, suit = Spades}
+-- Card {rank = Ace, suit = Spade}
 --
 newtype CardS = CardS { uncardS :: Word8 } deriving (Eq, Show, Ord)
-
-instance Short CardS where
-  short = short . riso cardS
-
-newtype CardsS = CardsS { uncardsS :: S.Vector Word8 } deriving (Eq, Show, Ord)
-
-instance Short CardsS where
-  short cs = Text.intercalate "" (short <$> riso cardsS cs)
-
 
 -- | card type conversion
 -- TODO:
@@ -385,10 +285,19 @@ instance Short CardsS where
 cardS :: Iso Card CardS
 cardS = Iso (CardS . fromIntegral . fromEnum) (toEnum . toIntegral . uncardS)
 
+instance Pretty CardS
+  where
+    pretty = pretty . riso cardS
+
+newtype CardsS = CardsS { uncardsS :: S.Vector Word8 } deriving (Eq, Show, Ord)
+
+instance Pretty CardsS
+  where
+    pretty = pretty . riso cardsS
+
+
 -- | a standard 52 card deck
 --
--- >>> pretty deckS
--- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
 deckS :: CardsS
 deckS = CardsS $ S.fromList [0 .. 51]
 
@@ -543,21 +452,21 @@ instance Enum Hand where
     where
       (d, m) = x `divMod` 13
 
-instance Short Hand where
-  short (Paired p) = short p <> short p
-  short (Suited r0 r1) = short r0 <> short r1 <> "s"
-  short (Offsuited r0 r1) = short r0 <> short r1 <> "o"
+instance Pretty Hand where
+  pretty (Paired p) = pretty p <> pretty p
+  pretty (Suited r0 r1) = pretty r0 <> pretty r1 <> "s"
+  pretty (Offsuited r0 r1) = pretty r0 <> pretty r1 <> "o"
 
 -- | convert from a Card pair to a Hand
 --
 -- The base mechanism of this transformation is to forget suit details.
 --
--- >>> fromPair (Card Ace Hearts, Card Ace Spades)
+-- >>> fromPair (Card Ace Heart, Card Ace Spade)
 -- Paired Ace
 --
 -- Unpaired cards are forced to high low order.
 --
--- >>> fromPair (Card Two Hearts, Card Ace Spades)
+-- >>> fromPair (Card Two Heart, Card Ace Spade)
 -- Offsuited Ace Two
 fromPair :: (Card, Card) -> Hand
 fromPair (Card r s, Card r' s')
@@ -570,25 +479,25 @@ fromPair (Card r s, Card r' s')
 -- >>> putStrLn $ Text.intercalate "." $ (\(x,y) -> short x <> short y) <$> toPairs (Paired Ace)
 -- A♡A♣.A♡A♢.A♡A♠.A♣A♡.A♣A♢.A♣A♠.A♢A♡.A♢A♣.A♢A♠.A♠A♡.A♠A♣.A♠A♢
 toPairs :: Hand -> [(Card, Card)]
-toPairs (Paired r) = bimap (Card r) (Card r) <$> enum2 [Hearts .. Spades]
+toPairs (Paired r) = bimap (Card r) (Card r) <$> enum2 [Heart .. Spade]
 toPairs (Suited r0 r1) =
-  ((\s -> (Card r0 s, Card r1 s)) <$> [Hearts .. Spades])
-    <> ((\s -> (Card r1 s, Card r0 s)) <$> [Hearts .. Spades])
+  ((\s -> (Card r0 s, Card r1 s)) <$> [Heart .. Spade])
+    <> ((\s -> (Card r1 s, Card r0 s)) <$> [Heart .. Spade])
 toPairs (Offsuited r0 r1) =
   ( bimap (Card r0) (Card r1)
-      <$> enum2 [Hearts .. Spades]
+      <$> enum2 [Heart .. Spade]
   )
     <> ( bimap (Card r1) (Card r0)
-           <$> enum2 [Hearts .. Spades]
+           <$> enum2 [Heart .. Spade]
        )
 
--- | a representative pair of cards for a B, choosing Hearts and Spades.
+-- | a representative pair of cards for a B, choosing Heart and Spade.
 --
 -- Always have a good think about this in the realm of raw card simulation.
 toRepPair :: Hand -> (Card, Card)
-toRepPair (Paired r) = (Card r Hearts, Card r Spades)
-toRepPair (Suited r0 r1) = (Card r0 Hearts, Card r1 Hearts)
-toRepPair (Offsuited r0 r1) = (Card r0 Hearts, Card r1 Spades)
+toRepPair (Paired r) = (Card r Heart, Card r Spade)
+toRepPair (Suited r0 r1) = (Card r0 Heart, Card r1 Heart)
+toRepPair (Offsuited r0 r1) = (Card r0 Heart, Card r1 Spade)
 
 -- | An enumeration of 2 samples from a list without replacement
 --
@@ -646,12 +555,13 @@ instance Data.Distributive.Distributive Strat where
 instance Representable Strat where
   type Rep Strat = Hand
 
-  tabulate f = Strat $ tabulate (f . toEnum . fromMaybe 0 . head_)
+  tabulate f = Strat $ tabulate (f . toEnum . fromMaybe 0 . listToMaybe)
 
   index (Strat a) = index a . (: []) . fromEnum
 
-instance Short (Strat Text) where
-  short s =
+instance Pretty (Strat Text) where
+  pretty s =
+    pretty $
     Text.intercalate
       "\n"
       ( ( \x ->
@@ -665,8 +575,9 @@ instance Short (Strat Text) where
           <$> [0 .. 12]
       )
 
-instance Short (Strat Char) where
-  short s =
+instance Pretty (Strat Char) where
+  pretty s =
+    pretty $
     Text.intercalate
       "\n"
       ( ( \x ->
@@ -679,8 +590,8 @@ instance Short (Strat Char) where
           <$> [0 .. 12]
       )
 
-instance Short (Strat Action) where
-  short s = stratSym ("f", "c", "r", "r") 10 s
+instance Pretty (Strat Action) where
+  pretty s = pretty $ stratSym ("f", "c", "r", "r") 10 s
 
 -- | screen representation of a Strat
 --
@@ -699,7 +610,7 @@ instance Short (Strat Action) where
 -- A3s K3s Q3s J3s T3s 93s 83s 73s 63s 53s 43s 33 32o
 -- A2s K2s Q2s J2s T2s 92s 82s 72s 62s 52s 42s 32s 22
 stratText :: Strat Text
-stratText = short <$> (tabulate id :: Strat Hand)
+stratText = renderStrict . layoutCompact . pretty <$> (tabulate id :: Strat Hand)
 
 stratSym :: (Text, Text, Text, Text) -> Double -> Strat Action -> Text
 stratSym (f, c, r, rr) b s =
@@ -771,12 +682,11 @@ data TableCards = TableCards
   }
   deriving (Eq, Show, Generic)
 
-instance Short TableCards where
-  short (TableCards ps h) =
-    Text.intercalate
-      ","
-      [ Text.intercalate " " $ (\(x, y) -> short x <> short y) <$> toList ps,
-        mconcat $ short <$> toList h
+instance Pretty TableCards where
+  pretty (TableCards ps h) =
+    concatWith (surround ",")
+      [ hsep $ (\(x, y) -> pretty x <> pretty y) <$> toList ps,
+        mconcat $ pretty <$> toList h
       ]
 
 -- | Deal table cards
@@ -791,10 +701,10 @@ deal cs = do
 -- SittingOut would be an extra sum type of you would need in live poker.
 data Seat = BettingOpen | BettingClosed | Folded deriving (Eq, Show, Generic)
 
-instance Short Seat where
-  short BettingOpen = "o"
-  short BettingClosed = "c"
-  short Folded = "f"
+instance Pretty Seat where
+  pretty BettingOpen = "o"
+  pretty BettingClosed = "c"
+  pretty Folded = "f"
 
 -- | Table state.
 --
@@ -823,17 +733,16 @@ data Table = Table
 numSeats :: Table -> Int
 numSeats ts = length (ts ^. #seats)
 
-instance Short Table where
-  short (Table cs n s st bs p h) =
-    Text.intercalate
-      ","
-      [ short cs,
-        "hero: " <> (pack . show) n,
-        Text.intercalate " " $ short <$> toList s,
-        Text.intercalate " " $ comma (Just 2) <$> toList st,
-        Text.intercalate " " $ comma (Just 2) <$> toList bs,
-        comma (Just 2) p,
-        Text.intercalate ":" $ (\(a, p) -> short a <> (pack . show) p) <$> toList h
+instance Pretty Table where
+  pretty (Table cs n s st bs p h) =
+    concatWith (surround ",")
+      [ pretty cs,
+        "hero: " <> pretty n,
+        hsep $ pretty <$> toList s,
+        hsep $ pretty . comma (Just 2) <$> toList st,
+        hsep $ pretty . comma (Just 2) <$> toList bs,
+        pretty (comma (Just 2) p),
+        concatWith (surround ":") $ (\(a, p) -> pretty a <> pretty p) <$> toList h
       ]
 
 -- | list of active player indexes
@@ -867,7 +776,7 @@ openSeats ts = case ts ^. #hero of
 -- >>> nextHero t
 -- Just 1
 nextHero :: Table -> Maybe Int
-nextHero ts = head_ (openSeats ts)
+nextHero ts = listToMaybe (openSeats ts)
 
 -- | The table is closed when no seat is open, or all but 1 seat has folded.
 --
@@ -927,10 +836,10 @@ bbs n ante = Seq.fromList $ reverse $ [1 + ante, 0.5 + ante] <> replicate (n - 2
 -- Raise x. A seat bets x above the minimum allowed bet, where x <= stack - minimum allowed.
 data Action = Fold | Call | Raise Double deriving (Eq, Show, Generic)
 
-instance Short Action where
-  short Fold = "f"
-  short Call = "c"
-  short (Raise x) = fixed (Just 1) x <> "r"
+instance Pretty Action where
+  pretty Fold = "f"
+  pretty Call = "c"
+  pretty (Raise x) = pretty $ fixed (Just 1) x <> "r"
 
 -- | Always perform an action
 always :: Action -> Strat Action
@@ -1141,57 +1050,57 @@ base13 x = go x []
     go 0 l = l
     go acc l = let (d, m) = acc `divMod` 13 in go d (m : l)
 
-instance Short HandRank where
-  short (HighCard r0 r1 r2 r3 r4) =
+instance Pretty HandRank where
+  pretty (HighCard r0 r1 r2 r3 r4) =
     " H:"
-      <> short r0
-      <> short r1
-      <> short r2
-      <> short r3
-      <> short r4
-  short (Pair r0 r1 r2 r3) =
+      <> pretty r0
+      <> pretty r1
+      <> pretty r2
+      <> pretty r3
+      <> pretty r4
+  pretty (Pair r0 r1 r2 r3) =
     " P:"
-      <> short r0
-      <> short r1
-      <> short r2
-      <> short r3
-  short (TwoPair r0 r1 r2) =
+      <> pretty r0
+      <> pretty r1
+      <> pretty r2
+      <> pretty r3
+  pretty (TwoPair r0 r1 r2) =
     "2P:"
-      <> short r0
-      <> short r1
-      <> short r2
-  short (ThreeOfAKind r0 r1 r2) =
+      <> pretty r0
+      <> pretty r1
+      <> pretty r2
+  pretty (ThreeOfAKind r0 r1 r2) =
     " 3:"
-      <> short r0
-      <> short r1
-      <> short r2
-  short (FourOfAKind r0 r1) =
+      <> pretty r0
+      <> pretty r1
+      <> pretty r2
+  pretty (FourOfAKind r0 r1) =
     " 4:"
-      <> short r0
-      <> short r1
-  short (FullHouse r0 r1) =
+      <> pretty r0
+      <> pretty r1
+  pretty (FullHouse r0 r1) =
     "32:"
-      <> short r0
-      <> short r1
-  short (Straight r0) =
+      <> pretty r0
+      <> pretty r1
+  pretty (Straight r0) =
     " S:"
-      <> short r0
-  short (Flush r0 r1 r2 r3 r4) =
+      <> pretty r0
+  pretty (Flush r0 r1 r2 r3 r4) =
     " F:"
-      <> short r0
-      <> short r1
-      <> short r2
-      <> short r3
-      <> short r4
-  short (StraightFlush r0) =
+      <> pretty r0
+      <> pretty r1
+      <> pretty r2
+      <> pretty r3
+      <> pretty r4
+  pretty (StraightFlush r0) =
     "SF:"
-      <> short r0
+      <> pretty r0
 
 -- | compute a HandRank from a list of Cards.
 --
 -- Should work for 5 and 7 hand variants.
 --
--- >>> let cs = [Card {rank = Ace, suit = Hearts},Card {rank = Seven, suit = Spades},Card {rank = Ten, suit = Hearts},Card {rank = Five, suit = Spades},Card {rank = Six, suit = Clubs},Card {rank = Seven, suit = Hearts},Card {rank = Six, suit = Spades}]
+-- >>> let cs = [Card {rank = Ace, suit = Heart},Card {rank = Seven, suit = Spade},Card {rank = Ten, suit = Heart},Card {rank = Five, suit = Spade},Card {rank = Six, suit = Clubs},Card {rank = Seven, suit = Heart},Card {rank = Six, suit = Spade}]
 -- >>> pretty cs
 -- A♡7♠T♡5♠6♣7♡6♠
 --
@@ -1230,10 +1139,10 @@ straight :: [Card] -> Maybe HandRank
 straight cs = Straight <$> run (Set.toDescList $ ranks cs)
 
 run5 :: [Rank] -> Maybe Rank
-run5 rs = head_ $ fst <$> filter ((>= 5) . snd) (runs rs)
+run5 rs = listToMaybe $ fst <$> filter ((>= 5) . snd) (runs rs)
 
 run4 :: [Rank] -> Maybe Rank
-run4 rs = head_ $ fst <$> filter ((>= 4) . snd) (runs rs)
+run4 rs = listToMaybe $ fst <$> filter ((>= 4) . snd) (runs rs)
 
 runs :: [Rank] -> [(Rank, Int)]
 runs rs = done (foldl' step (Nothing, []) rs)
@@ -1251,7 +1160,7 @@ runs rs = done (foldl' step (Nothing, []) rs)
 
 -- | maybe convert cards to a Flush or StraightFlush
 --
--- >>> flush [Card Ace Hearts, Card Seven Clubs, Card Seven Spades, Card Five Hearts, Card Four Hearts, Card Three Hearts, Card Two Hearts]
+-- >>> flush [Card Ace Heart, Card Seven Clubs, Card Seven Spade, Card Five Heart, Card Four Heart, Card Three Heart, Card Two Heart]
 -- Just (StraightFlush Five)
 flush :: [Card] -> Maybe HandRank
 flush cs =
@@ -1340,14 +1249,14 @@ runsS (RanksS rs) = done (foldl' step (Nothing, []) (toEnum . fromEnum <$> S.toL
     done (Just (r1, r0), xs) = (r0, fromEnum r0 - fromEnum r1 + 1) : xs
 
 run5S :: RanksS -> Maybe Rank
-run5S rs = head_ $ fst <$> filter ((>= 5) . snd) (runsS rs)
+run5S rs = listToMaybe $ fst <$> filter ((>= 5) . snd) (runsS rs)
 
 run4S :: RanksS -> Maybe Rank
-run4S rs = head_ $ fst <$> filter ((>= 4) . snd) (runsS rs)
+run4S rs = listToMaybe $ fst <$> filter ((>= 4) . snd) (runsS rs)
 
 flushS :: CardsS -> Maybe HandRank
 flushS cs =
-  case second (sortOn Down) <$> (filter ((>= 5) . length . snd) (suitRanksS cs)) of
+  case second (sortOn Down) <$> filter ((>= 5) . length . snd) (suitRanksS cs) of
     [] -> Nothing
     ((_, rs@(r0 : r1 : r2 : r3 : r4 : _)) : _) ->
       Just $
@@ -1426,6 +1335,18 @@ bests ((i,x):xs) x' res =
 --
 -- >> bestLiveHand t
 -- [0]
+--
+-- > sep $ (\x -> (pretty (bestLiveHand x) <+> pretty x)) <$> tablesB 2 (Poker.Types.Suited Ace King) 0 10
+-- [1] AhKh Ad7s,Tc5s6d7c6s,hero: 0,o o,9.5 9,0.5 1,0,
+-- [0] AhKh 7s4s,Td3d6cKsTs,hero: 0,o o,9.5 9,0.5 1,0,
+-- [0] AhKh 9c8s,Ac2h4h5dTc,hero: 0,o o,9.5 9,0.5 1,0,
+-- [0] AhKh 8c6d,Th4hJhJsAs,hero: 0,o o,9.5 9,0.5 1,0,
+-- [1] AhKh 9sQd,8sJc6h4cAs,hero: 0,o o,9.5 9,0.5 1,0,
+-- [1, 0] AhKh Ad7h,TcQc5h2sJd,hero: 0,o o,9.5 9,0.5 1,0,
+-- [0] AhKh 7h6c,9d5d2d5cKc,hero: 0,o o,9.5 9,0.5 1,0,
+-- [0] AhKh 2s4c,3dKcTcAsJh,hero: 0,o o,9.5 9,0.5 1,0,
+-- [0] AhKh 5dKd,9s9d9c6s2c,hero: 0,o o,9.5 9,0.5 1,0,
+-- [0] AhKh 2s4d,Ks9hJdKd3h,hero: 0,o o,9.5 9,0.5 1,0,
 bestLiveHand :: Table -> [Int]
 bestLiveHand ts =
   fmap (\xs -> bests xs 0 [])
@@ -1446,6 +1367,9 @@ combinations m l = [x:ys | x:xs <- List.tails l, ys <- combinations (m - 1) xs]
 --
 -- >>> combinationsR 2 [0..4]
 -- [[3,4],[2,4],[1,4],[0,4],[2,3],[1,3],[0,3],[1,2],[0,2],[0,1]]
+--
+-- > List.length (combinationsR 5 [0..51]) == binom 52 5
+-- 2598960
 combinationsR :: Int -> [a] -> [[a]]
 combinationsR 0 _ = [[]]
 combinationsR m l = fmap reverse $ combinations m (reverse l)
@@ -1612,7 +1536,7 @@ allHandRanksV = V.fromList allHandRanks
 --
 -- >>> let xs = [15,17,19,20,23,32,48]
 -- >>> pretty $ (toEnum <$> xs :: [Card])
--- 5♠6♣6♠7♡7♠T♡A♡
+-- [5s, 6d, 6s, 7c, 7s, Tc, Ac]
 --
 -- >>> handRank (toEnum <$> xs :: [Card])
 -- TwoPair Seven Six Ace

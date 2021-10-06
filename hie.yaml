@@ -1,8 +1,6 @@
 cradle:
-  stack:
-    - path: "./app/poker.hs"
-      component: "poker:exe:poker"
+  cabal:
+    - path: "./app/speed.hs"
+      component: "poker-fold:exe:speed"
     - path: "./src"
-      component: "poker:lib"
-    - path: "./test/poker.hs"
-      component: "poker:test:poker"
+      component: "poker-fold:lib:poker-fold"

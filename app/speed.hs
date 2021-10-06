@@ -5,8 +5,10 @@
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -Wall #-}
 
+import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
 import NumHask.Prelude
-import Poker
+import Poker.Strategy
+import Poker.Types
 import Poker.Random
 import Perf
 import qualified Prelude as P

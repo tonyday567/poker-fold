@@ -35,11 +35,14 @@ import Data.Functor.Rep
 import qualified Data.Map.Strict as Map
 import Lens.Micro
 import NumHask.Prelude
-import Poker
+import Poker.Strategy
+import Poker.Types
 import GHC.OverloadedLabels
 import Data.Text (Text, pack)
 import Data.Bifunctor
-
+import Prettyprinter
+import Prettyprinter.Render.Text
+import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
 
 -- >>> import Poker
 -- >>> import Lens.Micro
@@ -54,6 +57,9 @@ import Data.Bifunctor
 -- >>> (Just m) <- readSomeStrats
 -- >>> s = m Map.! "o2"
 --
+
+toText_ :: (Pretty a) => a -> Text
+toText_ = renderStrict . layoutCompact . pretty
 
 -- | A grid of points on the XY plane representing translation of the basis from B ~> 13x13 XY
 sGrid :: Strat (Point Double)
@@ -163,7 +169,7 @@ scatterChart :: Strat (Point Double) -> ChartSvg
 scatterChart ps = mempty & #hudOptions .~ (defaultHudOptions & #hudCanvas .~ Nothing) & #chartList .~ [c]
   where
     c = Chart (TextA (defaultTextStyle & #size .~ 0.04 & #color %~ setOpac 0.4) ls) (toList $ fmap PointXY ps)
-    ls = short <$> (toEnum <$> [0 .. 168] :: [Hand])
+    ls = renderStrict . layoutCompact . pretty <$> (toEnum <$> [0 .. 168] :: [Hand])
 
 rectExample :: Strat Double -> ChartSvg
 rectExample s =
@@ -172,10 +178,10 @@ rectExample s =
     & #hudOptions .~ (mempty & #hudAxes .~ [rankXAxis, rankYAxis])
 
 rankXAxis :: AxisOptions
-rankXAxis = defaultAxisOptions & #axisBar .~ Nothing & #place .~ PlaceTop & #axisTick . #tstyle .~ TickLabels (short <$> reverse [Two .. Ace]) & #axisTick . #gtick .~ Nothing & #axisTick . #ltick .~ Nothing & #axisTick . #ttick %~ fmap (first (\x -> x & #size .~ 0.04 & #color .~ Colour 0 0 0 0.3))
+rankXAxis = defaultAxisOptions & #axisBar .~ Nothing & #place .~ PlaceTop & #axisTick . #tstyle .~ TickLabels (toText_ <$> reverse [Two .. Ace]) & #axisTick . #gtick .~ Nothing & #axisTick . #ltick .~ Nothing & #axisTick . #ttick %~ fmap (first (\x -> x & #size .~ 0.04 & #color .~ Colour 0 0 0 0.3))
 
 rankYAxis :: AxisOptions
-rankYAxis = defaultAxisOptions & #axisBar .~ Nothing & #place .~ PlaceLeft & #axisTick . #tstyle .~ TickLabels (short <$> [Two .. Ace]) & #axisTick . #gtick .~ Nothing & #axisTick . #ltick .~ Nothing & #axisTick . #ttick %~ fmap (first (\x -> x & #size .~ 0.04 & #color .~ Colour 0 0 0 0.3))
+rankYAxis = defaultAxisOptions & #axisBar .~ Nothing & #place .~ PlaceLeft & #axisTick . #tstyle .~ TickLabels (toText_ <$> [Two .. Ace]) & #axisTick . #gtick .~ Nothing & #axisTick . #ltick .~ Nothing & #axisTick . #ttick %~ fmap (first (\x -> x & #size .~ 0.04 & #color .~ Colour 0 0 0 0.3))
 
 -- | Make all the document charts.
 writeAllCharts :: IO ()

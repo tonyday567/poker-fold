@@ -48,16 +48,29 @@ import Control.Monad.State.Lazy
 import GHC.OverloadedLabels
 import Data.List (sort)
 import Data.Bifunctor
+import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
 
 -- $setup
---
+-- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
+-- >>> :set -XTypeApplications
+-- >>> import Poker
+-- >>> import Poker.Types
+-- >>> import Poker.Strategy
+-- >>> import Poker.Random
+-- >>> import Lens.Micro
+-- >>> import Prelude
+-- >>> import Control.Monad.State.Lazy
+-- >>> import System.Random
+-- >>> import Prettyprinter
+-- >>> import Lens.Micro
+-- >>> import Prelude
 -- >>> import qualified Data.Text as Text
 
 -- | uniform random variate of an Enum-style Int
 --
 -- >>> pretty (toEnum $ evalState (rvi 52) (mkStdGen 42) :: Card)
--- A♡
+-- Ac
 rvi :: (RandomGen g) => Int -> State g Int
 rvi n = do
   g <- get
@@ -117,7 +130,7 @@ cutV v x =
 -- | deal n cards from a fresh, shuffled, standard pack.
 --
 -- >>> pretty $ evalState (dealN 7) (mkStdGen 42)
--- A♡7♠T♡5♠6♣7♡6♠
+-- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealN :: (RandomGen g) => Int -> State g [Card]
 dealN n = fmap toEnum . ishuffle <$> rvis 52 n
 
@@ -138,8 +151,8 @@ vshuffle as = go as S.empty
 
 -- | deal n cards as a CardsS
 --
--- >>> pretty $ evalState (dealNS 7) (mkStdGen 42)
--- A♡7♠T♡5♠6♣7♡6♠
+-- >>> pretty $ riso cardsS $ evalState (dealNS 7) (mkStdGen 42)
+--
 dealNS :: (RandomGen g) => Int -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
