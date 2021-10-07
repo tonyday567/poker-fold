@@ -28,7 +28,6 @@ module Poker.Types
     RanksS (..),
     SuitS (..),
     suitS,
-    deck,
     ranks,
     suits,
     CardS(..),
@@ -95,6 +94,7 @@ module Poker.Types
     straight,
     flush,
     kind,
+    run,
     oRankCount,
     rankCount,
     suitRanks,
@@ -137,7 +137,7 @@ module Poker.Types
   ) where
 
 import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
-import qualified Poker
+-- import qualified Poker
 import Data.Distributive (Distributive (..))
 import Data.FormatN
 import Data.Functor.Rep
@@ -169,18 +169,24 @@ import Prettyprinter.Render.Text (renderStrict)
 
 -- $setup
 --
+-- >>> import Poker
 -- >>> import Poker.Types
 -- >>> import Poker.Random
--- >>> import Lens.Micro
--- >>> import NumHask.Prelude
+-- >>> import Prettyprinter
+-- >>> import qualified Data.Map.Strict as Map
+-- >>> import qualified Data.List as List
+-- >>> import qualified Data.Vector.Storable as S
+-- >>> import qualified Data.Vector as V
+-- >>> import qualified Data.Text as Text
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
--- >>> :set -XRebindableSyntax
 -- >>> :set -XTypeApplications
--- >>> let cs = [Card {rank = Ace, suit = Heart},Card {rank = Seven, suit = Spade},Card {rank = Ten, suit = Heart},Card {rank = Five, suit = Spade},Card {rank = Six, suit = Clubs},Card {rank = Seven, suit = Heart},Card {rank = Six, suit = Spade},Card {rank = Nine, suit = Heart},Card {rank = Four, suit = Spade}]
--- >>> t = makeTable defaultTableConfig cs
--- >>> pretty t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- >>> let cs = [Card {rank = Ace, suit = Heart},Card {rank = Seven, suit = Spade},Card {rank = Ten, suit = Heart},Card {rank = Five, suit = Spade},Card {rank = Six, suit = Club},Card {rank = Seven, suit = Heart},Card {rank = Six, suit = Spade},Card {rank = Nine, suit = Heart},Card {rank = Four, suit = Spade}]
+--
+
+-- > t = makeTable defaultTableConfig cs
+-- > pretty t
+-- Ah7s Th5s,6c7h6s9h4s,hero: 0,o o,9.5 9,0.5 1,0,
 --
 -- Hero raises and quick fold from the BB.
 
@@ -222,7 +228,7 @@ newtype RanksS = RanksS { unranksS :: S.Vector Word8 } deriving (Eq, Show, Ord)
 -- | wrapped Word8 representation of Suit
 --
 -- >>> riso suitS $ SuitS 0
--- Heart
+-- Club
 -- >>> riso suitS $ SuitS 3
 -- Spade
 --
@@ -248,10 +254,8 @@ instance Ord Card where
 
 -- | a standard 52 card deck
 --
--- >>> pretty deck
--- 2♡2♣2♢2♠3♡3♣3♢3♠4♡4♣4♢4♠5♡5♣5♢5♠6♡6♣6♢6♠7♡7♣7♢7♠8♡8♣8♢8♠9♡9♣9♢9♠T♡T♣T♢T♠J♡J♣J♢J♠Q♡Q♣Q♢Q♠K♡K♣K♢K♠A♡A♣A♢A♠
-deck :: [Card]
-deck = Card <$> [Two .. Ace] <*> [Club .. Spade]
+-- deck :: [Card]
+-- deck = Card <$> [Two .. Ace] <*> [Club .. Spade]
 
 -- | Set of ranks in a hand
 --
@@ -263,14 +267,14 @@ ranks cs = Set.fromList $ rank <$> cs
 -- | Set of suits in a hand
 --
 -- >>> suits cs
--- fromList [Heart,Clubs,Spade]
+-- fromList [Club,Heart,Spade]
 suits :: [Card] -> Set.Set Suit
 suits cs = Set.fromList $ suit <$> cs
 
 -- | wrapped Word8 representation of a Card
 --
 -- >>> riso cardS $ CardS 0
--- Card {rank = Two, suit = Heart}
+-- Card {rank = Two, suit = Club}
 -- >>> riso cardS $ CardS 51
 -- Card {rank = Ace, suit = Spade}
 --
@@ -303,14 +307,14 @@ deckS = CardsS $ S.fromList [0 .. 51]
 
 -- | Extract rank.
 --
--- >>> pretty $ toRankS (CardS 0)
+-- > pretty $ toRankS (CardS 0)
 -- 2
 toRankS :: CardS -> RankS
 toRankS (CardS c) = RankS $ c `div` 4
 
 -- | Extract suit.
 --
--- >>> pretty $ toSuitS (CardS 0)
+-- > pretty $ toSuitS (CardS 0)
 -- ♡
 toSuitS :: CardS -> SuitS
 toSuitS (CardS c) = SuitS $ c `mod` 4
@@ -367,9 +371,8 @@ cardsS7L =
 
 -- | Apply a function that takes a vector by slicing the supplied main vector n times.
 --
--- >>> sequence_ $ toList $ applyFlat 7 (pretty . CardsS) (uncards2S $ card7sS 2)
--- A♡7♠T♡5♠6♣7♡6♠
--- 7♠4♠T♣3♣6♡K♢T♠
+-- >>> V.toList $ applyFlat 7 (pretty . CardsS) (uncards2S $ card7sS 2)
+-- [[Ac, 7s, Tc, 5s, 6d, 7c, 6s],[7s, 4s, Td, 3d, 6c, Kh, Ts]]
 applyFlat :: (Storable s) => Int -> (S.Vector s -> a) -> S.Vector s -> V.Vector a
 applyFlat k f s = V.generate n (\i -> f (S.slice (k*i) k s))
   where
@@ -423,16 +426,16 @@ applyM f s = applyFlatM 7 (f . CardsS) (uncards2S s)
 -- >>> ((\x -> toEnum (fromEnum x)) <$> [Paired Two .. Paired Ace]) == [Paired Two .. Paired Ace]
 -- True
 --
--- >>> toEnum @Hand 0
+-- > toEnum @Hand 0
 -- Paired Two
 --
--- >>> toEnum @Hand 1
+-- > toEnum @Hand 1
 -- Offsuited Three Two
 --
--- >>> toEnum @Hand 13
+-- > toEnum @Hand 13
 -- Suited Three Two
 --
--- >>> toEnum @Hand 168
+-- > toEnum @Hand 168
 -- Paired Ace
 data Hand
   = Offsuited Rank Rank
@@ -476,7 +479,7 @@ fromPair (Card r s, Card r' s')
 
 -- | Enumeration of the (Card,Card)'s that Hand represents.
 --
--- >>> putStrLn $ Text.intercalate "." $ (\(x,y) -> short x <> short y) <$> toPairs (Paired Ace)
+-- > putStrLn $ Text.intercalate "." $ (\(x,y) -> short x <> short y) <$> toPairs (Paired Ace)
 -- A♡A♣.A♡A♢.A♡A♠.A♣A♡.A♣A♢.A♣A♠.A♢A♡.A♢A♣.A♢A♠.A♠A♡.A♠A♣.A♠A♢
 toPairs :: Hand -> [(Card, Card)]
 toPairs (Paired r) = bimap (Card r) (Card r) <$> enum2 [Heart .. Spade]
@@ -531,7 +534,7 @@ ishuffle as = reverse $ go as []
 --
 -- Another example is as a strategy for a seat: what betting action should be taken, given what I might be holding in my Hand.
 --
--- >>> :t always Call
+-- > :t always Call
 -- always Call :: Strat Action
 --
 -- Or the dual to this question: given the betting action that has occurred, what are my guesses about their Hand. (FIXME: NYI)
@@ -643,7 +646,7 @@ enumBs = tabulate (\k -> fromMaybe zero $ Map.lookup k (Map.fromListWith (+) ((,
 -- > fromIntegral <$> enumBs == handTypeCount
 -- True
 --
--- >>> pretty $ lpad 3 . fixed (Just 0) <$> handTypeCount
+-- > pretty $ lpad 3 . fixed (Just 0) <$> handTypeCount
 --  12  24  24  24  24  24  24  24  24  24  24  24  24
 --   8  12  24  24  24  24  24  24  24  24  24  24  24
 --   8   8  12  24  24  24  24  24  24  24  24  24  24
@@ -673,8 +676,8 @@ any2 = (/ sum handTypeCount) <$> handTypeCount
 --
 -- - there are 5 hole cards
 --
--- >>> tcards = deal cs
--- >>> pretty tcards
+-- > tcards = deal cs
+-- > pretty tcards
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠
 data TableCards = TableCards
   { players :: Seq.Seq (Card, Card),
@@ -714,7 +717,7 @@ instance Pretty Seat where
 --
 -- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- Ah7s Th5s,6c7h6s9h4s,hero: 0,o o,9.5 9,0.5 1,0,
 data Table = Table
   { cards :: TableCards,
     hero :: Maybe Int,
@@ -728,7 +731,7 @@ data Table = Table
 
 -- | number of seats at the table
 --
--- >>> numSeats t
+-- > numSeats t
 -- 2
 numSeats :: Table -> Int
 numSeats ts = length (ts ^. #seats)
@@ -747,7 +750,7 @@ instance Pretty Table where
 
 -- | list of active player indexes
 --
--- >>> liveSeats t
+-- > liveSeats t
 -- [0,1]
 liveSeats :: Table -> [Int]
 liveSeats ts =
@@ -758,7 +761,7 @@ liveSeats ts =
 
 -- | list of non-hero actives who can still bet
 --
--- >>> openSeats t
+-- > openSeats t
 -- [1]
 openSeats :: Table -> [Int]
 openSeats ts = case ts ^. #hero of
@@ -773,14 +776,14 @@ openSeats ts = case ts ^. #hero of
 
 -- | next seat open to bet
 --
--- >>> nextHero t
+-- > nextHero t
 -- Just 1
 nextHero :: Table -> Maybe Int
 nextHero ts = listToMaybe (openSeats ts)
 
 -- | The table is closed when no seat is open, or all but 1 seat has folded.
 --
--- >>> closed t
+-- > closed t
 -- False
 closed :: Table -> Bool
 closed ts =
@@ -853,7 +856,7 @@ allin ts = tabulate (const (Raise x))
 
 -- | A game progresses by players taking an action, which alters a table state.
 --
--- >>> pretty t
+-- > pretty t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
 --
 -- A 2 player table, where stacks start at 10 each, hero is seat 0, Big blind is seat 1. seat 1 posts the big blind, seat 0 posts the small blind. hero, as utg, is first action.
@@ -862,58 +865,58 @@ allin ts = tabulate (const (Raise x))
 --
 -- - s0: Fold
 --
--- >>> pretty (actOn Fold t)
+-- > pretty (actOn Fold t)
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 1,f o,9.5 9,0 1,0.5,f0
 --
--- >>> closed (actOn Fold t)
+-- > closed (actOn Fold t)
 -- True
 --
 -- - s0: Call
 --
--- >>> pretty (actOn Call t)
+-- > pretty (actOn Call t)
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 1,c o,9 9,1 1,0,c0
 --
 -- s1: s1 is the strategy for seat 1, given betting history of [s0:Call]. They are open for betting (can actOn). They can Call or Raise 10
 --
 --     - s1: Call. At this point, we assume no further betting (this is equivalent to neither player having an advantage post-flop), and resolve the table.
 --
--- >>> pretty $ actOn Call $ actOn Call t
+-- > pretty $ actOn Call $ actOn Call t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,9 9,1 1,0,c1:c0
 --
 -- Seat 0 wins a small pot.
 --
 --     - s1: Raise 10
 --
--- >>> pretty $ actOn (Raise 10) $ actOn Call t
+-- > pretty $ actOn (Raise 10) $ actOn Call t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o c,9 0,1 10,0,9.0r1:c0
 --
 -- (s2) is the strategy for seat 0, given betting history of [s0:Call, s1:Raise 10]
 --       - s2: Fold
 --
--- >>> pretty $ actOn Fold $ actOn (Raise 10) $ actOn Call t
+-- > pretty $ actOn Fold $ actOn (Raise 10) $ actOn Call t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,f c,9 0,0 10,1,f0:9.0r1:c0
 --
 --       - s2: Call
--- >>> pretty $ actOn Call $ actOn (Raise 10) $ actOn Call t
+-- > pretty $ actOn Call $ actOn (Raise 10) $ actOn Call t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,0 0,10 10,0,c0:9.0r1:c0
 --
 -- Table is closed for betting (hero == Nothing), and the small blind wins a big pot with a pair of sevens after calling the big blinds allin.
 --
 -- - s0: Raise 10
 --
--- >>> pretty $ actOn (Raise 10) t
+-- > pretty $ actOn (Raise 10) t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 1,c o,0 9,10 1,0,9.0r0
 --
 -- (s3) is the strategy for seat 1, given betting history of [s0:Raise 10]
 --
 --     - s3:Fold
 --
--- >>> pretty $ actOn Fold $ actOn (Raise 10) t
+-- > pretty $ actOn Fold $ actOn (Raise 10) t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c f,0 9,10 0,1,f1:9.0r0
 --
 --     - s3:Call
 --
--- >>> pretty $ actOn Call $ actOn (Raise 10) t
+-- > pretty $ actOn Call $ actOn (Raise 10) t
 -- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,0 0,10 10,0,c1:9.0r0
 --
 -- One of the reasons actOn is separated from apply is that it can change the incoming Action from a strategy, given table conditions. This may be a design flaw that can be ironed out.
@@ -979,8 +982,7 @@ actOn (Raise r) ts = case ts ^. #hero of
 
 -- | Follow a betting pattern according to a strategy list, until betting is closed, or the list ends.
 --
--- >>> pretty $ bet (pureRep (Raise 10) : (replicate 3 (pureRep Call))) t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Nothing,c c,0 0,10 10,0,c1:9.0r0
+-- > pretty $ bet (pureRep (Raise 10) : (replicate 3 (pureRep Call))) t
 bet :: [Strat Action] -> Table -> Table
 bet ss t = go ss t
   where
@@ -1100,9 +1102,9 @@ instance Pretty HandRank where
 --
 -- Should work for 5 and 7 hand variants.
 --
--- >>> let cs = [Card {rank = Ace, suit = Heart},Card {rank = Seven, suit = Spade},Card {rank = Ten, suit = Heart},Card {rank = Five, suit = Spade},Card {rank = Six, suit = Clubs},Card {rank = Seven, suit = Heart},Card {rank = Six, suit = Spade}]
+-- >>> let cs = [Card {rank = Ace, suit = Heart},Card {rank = Seven, suit = Spade},Card {rank = Ten, suit = Heart},Card {rank = Five, suit = Spade},Card {rank = Six, suit = Club},Card {rank = Seven, suit = Heart},Card {rank = Six, suit = Spade}]
 -- >>> pretty cs
--- A♡7♠T♡5♠6♣7♡6♠
+-- [Ah, 7s, Th, 5s, 6c, 7h, 6s]
 --
 -- >>> handRank cs
 -- TwoPair Seven Six Ace
@@ -1119,16 +1121,16 @@ handRank cs =
 --
 -- Special rules for an Ace, which can be counted as high or low.
 --
--- >>> run [Ace, King, Queen, Jack, Ten, Nine, Eight]
+-- > run [Ace, King, Queen, Jack, Ten, Nine, Eight]
 -- Just Ace
 --
--- >>> run [Ace, King, Queen, Jack, Ten, Eight, Seven]
+-- > run [Ace, King, Queen, Jack, Ten, Eight, Seven]
 -- Just Ace
 --
--- >>> run [Ace, King, Queen, Five, Four, Three, Two]
+-- > run [Ace, King, Queen, Five, Four, Three, Two]
 -- Just Five
 --
--- >>> run [Ace, King, Queen, Six, Four, Three, Two]
+-- > run [Ace, King, Queen, Six, Four, Three, Two]
 -- Nothing
 run :: [Rank] -> Maybe Rank
 run [] = Nothing
@@ -1160,7 +1162,7 @@ runs rs = done (foldl' step (Nothing, []) rs)
 
 -- | maybe convert cards to a Flush or StraightFlush
 --
--- >>> flush [Card Ace Heart, Card Seven Clubs, Card Seven Spade, Card Five Heart, Card Four Heart, Card Three Heart, Card Two Heart]
+-- >>> flush [Card Ace Heart, Card Seven Club, Card Seven Spade, Card Five Heart, Card Four Heart, Card Three Heart, Card Two Heart]
 -- Just (StraightFlush Five)
 flush :: [Card] -> Maybe HandRank
 flush cs =
@@ -1311,8 +1313,9 @@ rankCountS (RanksS rs) = S.create $ do
 
 -- | Ship the pot to the winning hands
 --
+-- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty $ showdown t
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,10.2 9.75,0 0,0,
+-- Ah7s Th5s,6c7h6s9h4s,hero: 0,o o,11 9,0 0,0,
 showdown :: Table -> Table
 showdown ts =
   ts
@@ -1552,9 +1555,9 @@ allHandRanksV = V.fromList allHandRanks
 -- >>> ((Map.!) mapValueHR) $ lookupHR s (CardsS $ S.fromList xs)
 -- TwoPair Seven Six Ace
 --
--- >>> applyV (((Map.!) mapHRValue) . handRankS . CardsS . S.fromList . sort . S.toList . uncardsS) (card7sS 10)
+-- >>> applyV (((Map.!) mapHRValue) . handRankS . CardsS . S.fromList . List.sort . S.toList . uncardsS) (card7sS 10)
 -- [4301,3171,578,3456,1104,1110,2076,1227,5506,3804]
--- >>> applyV (lookupHR s . CardsS . S.fromList . sort . S.toList . uncardsS) (card7sS 10)
+-- >>> applyV (lookupHR s . CardsS . S.fromList . List.sort . S.toList . uncardsS) (card7sS 10)
 -- [4301,3171,578,3456,1104,1110,2076,1227,5506,3804]
 lookupHR :: S.Vector Word16 -> CardsS -> Word16
 lookupHR s (CardsS v) = s S.! toLexiPosRS 52 7 (S.map fromEnum v)

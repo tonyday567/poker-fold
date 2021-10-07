@@ -1,6 +1,0 @@
-cradle:
-  cabal:
-    - path: "./app/speed.hs"
-      component: "poker-fold:exe:speed"
-    - path: "./src"
-      component: "poker-fold:lib:poker-fold"

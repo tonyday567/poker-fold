@@ -71,6 +71,7 @@ import Text.Read (readMaybe)
 -- >>> import Poker.Types
 -- >>> import Poker.Strategy
 -- >>> import Poker.Random
+-- >>> import qualified Data.Map.Strict as Map
 -- >>> import Lens.Micro
 -- >>> import Prelude
 -- >>> import Control.Monad.State.Lazy
@@ -126,7 +127,7 @@ readSomeStrats = do
 -- | Given a B, what is the chance of that player winning against p other players, simulated n times.
 --
 -- >>> winHand (Paired Two) 2 1000
--- 0.47650000000000003
+-- 0.481
 winHand :: Hand -> Int -> Int -> Double
 winHand b p n =
   (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHand <$> tablesB p b 0 n
@@ -186,17 +187,17 @@ fromActionType (_, _, a) (Raise _) = a
 -- FIXME: wrong eg Jacks favaoured over Queens.
 --
 -- >>> pretty $ fromAction <$> rcf (m Map.! "o2") 10 0.1 0.5
--- r r r r r c c c c c c c f
--- r r r r r c c c c f f f f
--- c c c c r c c c c c f f f
--- r r r r c c c c c c f f f
+-- r r r r r c c c c c f f f
+-- r r r c c c c c c c f f c
+-- r r r c r c c c c f f f f
+-- c c c c c r c c c c f f f
+-- r r r c c c c c c f f f f
 -- c c c c c c c c c f f f f
--- c c c c c c c c c f f f f
--- c c c c c c c c c f f f f
--- c c c c c c f c c f f f f
--- c c f f f f f f f f f f f
+-- c c c c c c c c f f f f f
+-- c c c c c f f c c f f f f
+-- c c c c c f f c f f f f f
+-- f f c c f f f f f c f f f
 -- f f f f f f f f f f f f f
--- c f f f f f f f f f f f f
 -- f f f f f f f f f f f f f
 -- f f f f f f f f f f f f f
 rcf :: Strat Double -> Double -> Double -> Double -> Strat Action
@@ -276,7 +277,7 @@ evTables n sims acts =
 -- [1,_,1,_] is iso to always Raise
 --
 -- >>> ev2Strats s 100 [1,1,1,1,1]
--- Just 0.7100000000000009
+-- Just 0.9199999999999999
 --
 -- [0,1,0,_,_] is iso to always Call
 --

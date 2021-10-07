@@ -27,8 +27,6 @@ library
     -Wincomplete-record-updates
     -Wincomplete-uni-patterns
     -Wredundant-constraints
-    -fwrite-ide-info
-    -hiedir=.hie
   build-depends:
     adjunctions >= 4.4 && < 4.5,
     base >=4.7 && <5,
@@ -87,8 +85,6 @@ executable poker-speed
     -Wincomplete-uni-patterns
     -Wredundant-constraints
     -funbox-strict-fields
-    -fwrite-ide-info
-    -hiedir=.hie
 
 executable poker-hvs7
   main-is: hvs7.hs
@@ -120,8 +116,6 @@ executable poker-hvs7
     -Wincomplete-uni-patterns
     -Wredundant-constraints
     -funbox-strict-fields
-    -fwrite-ide-info
-    -hiedir=.hie
     -threaded
     -rtsopts
     -O2

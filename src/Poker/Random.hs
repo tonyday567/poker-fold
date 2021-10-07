@@ -58,6 +58,7 @@ import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
 -- >>> import Poker.Types
 -- >>> import Poker.Strategy
 -- >>> import Poker.Random
+-- >>> import qualified Data.Vector.Storable as S
 -- >>> import Lens.Micro
 -- >>> import Prelude
 -- >>> import Control.Monad.State.Lazy
@@ -152,19 +153,19 @@ vshuffle as = go as S.empty
 -- | deal n cards as a CardsS
 --
 -- >>> pretty $ riso cardsS $ evalState (dealNS 7) (mkStdGen 42)
---
+-- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealNS :: (RandomGen g) => Int -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
 -- >>> pretty $ evalState (dealNSWith 7 deckS) (mkStdGen 42)
--- A♡7♠T♡5♠6♣7♡6♠
+-- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealNWith :: (RandomGen g) => Int -> CardsS -> State g CardsS
 dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.length cs) n)
 
 -- | deal n cards given a Hand has been dealt.
 --
 -- >>> pretty $ evalState (dealHand (Paired Ace) 7) (mkStdGen 42)
--- A♣7♠T♡5♠6♣7♡6♠
+-- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealHand :: (RandomGen g) => Hand -> Int -> State g CardsS
 dealHand b n =
   dealNWith n .
@@ -182,7 +183,7 @@ dealHand b n =
 -- | deal a table
 --
 -- >>> pretty $ evalState (dealTable defaultTableConfig) (mkStdGen 42)
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- Ac7s Tc5s,6d7c6s9c4s,hero: 0,o o,9.5 9,0.5 1,0,
 dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
   cs <- dealNS (5 + cfg ^. #numPlayers * 2)
@@ -191,7 +192,7 @@ dealTable cfg = do
 -- | deal a table given player i has been dealt a B
 --
 -- >>> pretty $ evalState (dealTableHand defaultTableConfig 0 (Paired Ace)) (mkStdGen 42)
--- A♡A♠ A♣7♠,T♡5♠6♣7♡6♠,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- AhAs Ac7s,Tc5s6d7c6s,hero: 0,o o,9.5 9,0.5 1,0,
 dealTableHand :: (RandomGen g) => TableConfig -> Int -> Hand -> State g Table
 dealTableHand cfg i b = do
   (CardsS xs) <- dealHand b (5 + (cfg ^. #numPlayers - 1) * 2)
@@ -216,9 +217,8 @@ rvHandRank = do
 
 -- | random 7-Card list of lists
 --
--- >>> sequence_ $ pretty <$> card7s 2
--- A♡7♠T♡5♠6♣7♡6♠
--- 7♠4♠T♣3♣6♡K♢T♢
+-- >>> :t pretty <$> card7s 2
+-- pretty <$> card7s 2 :: [Doc ann]
 card7s :: Int -> [[Card]]
 card7s n = evalState (replicateM n (fmap toEnum . ishuffle <$> rvis 52 7)) (mkStdGen 42)
 
@@ -243,9 +243,7 @@ card7sSI n = Cards2S $ S.fromList $ fmap fromIntegral $ mconcat $
 
 -- | create a list of n dealt tables, with p players
 --
--- sequence_ $ pretty <$> tables 2 2
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 9♠A♠ 3♣5♠,K♡T♣9♢9♣2♢,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- > pretty <$> tables 2 2
 tables :: Int -> Int -> [Table]
 tables p n =
   evalState
@@ -255,10 +253,7 @@ tables p n =
 
 -- | create a list of n dealt tables, with p players, where b is dealt to player k
 --
--- >>> sequence_ $ pretty <$> tablesB 2 (Paired Ace) 1 3
--- A♣7♠ A♡A♠,T♡5♠6♣7♡6♠,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 7♠4♠ A♡A♠,T♣3♣6♡K♢T♠,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 9♡8♠ A♡A♠,K♠2♢4♢5♣T♡,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- > :t pretty <$> tablesB 2 (Paired Ace) 1 3
 --
 tablesB :: Int -> Hand -> Int -> Int -> [Table]
 tablesB p b k n =
