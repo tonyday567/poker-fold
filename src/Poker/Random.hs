@@ -158,7 +158,9 @@ vshuffle as = go as S.empty
 dealNS :: (RandomGen g) => Int -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
--- >>> pretty $ evalState (dealNSWith 7 allCardsS) (mkStdGen 42)
+
+-- | deal n cards from a given deck
+-- >>> pretty $ evalState (dealNWith 7 allCardsS) (mkStdGen 42)
 -- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealNWith :: (RandomGen g) => Int -> CardsS -> State g CardsS
 dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.length cs) n)

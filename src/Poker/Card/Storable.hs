@@ -151,6 +151,7 @@ newtype RanksS = RanksS {unranksS :: S.Vector Word8} deriving (Eq, Show, Ord)
 -- Spade
 newtype SuitS = SuitS {unsuitS :: Word8} deriving (Eq, Show, Ord)
 
+-- | isomorphism between Suit and SuitS
 suitS :: Iso Suit SuitS
 suitS = Iso fromSuit toSuit
 

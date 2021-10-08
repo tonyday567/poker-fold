@@ -283,12 +283,14 @@ flush cs =
           (run rs)
     _ -> Nothing
 
+-- | Group Ranks by Suit
 suitRanks :: [Card] -> [(Suit, [Rank])]
 suitRanks cs =
   Map.toList $
     Map.fromListWith (flip (<>)) $
       fmap (\(Card r s) -> (s, [r])) cs
 
+-- | count of Ranks from list
 rankCount :: [Rank] -> [(Rank, Int)]
 rankCount rs =
   sortOn (Down . swap) $
@@ -378,12 +380,14 @@ flushS cs =
           (run rs)
     _ -> Nothing
 
+-- | Group Ranks by Suit
 suitRanksS :: CardsS -> [(Suit, [Rank])]
 suitRanksS (CardsS cs) =
   Map.toList $
     Map.fromListWith (flip (<>)) $
       fmap (\(Card r s) -> (s, [r])) (toEnum . fromEnum <$> S.toList cs)
 
+-- | ordered rank count
 oRankCount :: RanksS -> [(Rank, Word8)]
 oRankCount rs =
   fmap (first toEnum) $ sortOn (Down . swap) $ toList $ V.imapMaybe (\i a -> bool Nothing (Just (i, a)) (a /= 0)) (S.convert $ rankCountS rs)
@@ -402,8 +406,8 @@ kindS rs =
     ((r0, 1) : (r1, 1) : (r2, 1) : (r3, 1) : (r4, 1) : _) -> HighCard r0 r1 r2 r3 r4
     _ -> error ("bad Rank list: " <> show rs)
 
+-- | count of all Ranks
 -- size 5,7 in, size 13 out (count of all ranks)
--- size 5,7 vector of ranks coming in, vector of counts (size 13) out.
 rankCountS :: RanksS -> S.Vector Word8
 rankCountS (RanksS rs) = S.create $ do
   v <- SM.replicate 13 (0 :: Word8)
@@ -425,6 +429,7 @@ showdown ts =
     pot' = sum (ts ^. #bets) + ts ^. #pot
     winners = bestLiveHand ts
 
+-- | Find the (maybe multiple) best a's
 bests :: (Ord a) => [(Int, a)] -> a -> [Int] -> [Int]
 bests [] _ res = res
 bests ((i, x) : xs) x' res =

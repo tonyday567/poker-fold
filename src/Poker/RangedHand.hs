@@ -16,7 +16,6 @@ module Poker.RangedHand
   ( -- * Storable version of ShapedHand
     ShapedHandS (..),
     shapedHandS,
-    fromShapedHand,
     fromHand,
     toHands,
     toRepHand,
@@ -63,17 +62,16 @@ import Data.Distributive
 import Data.Foldable
 import Data.Function ((&))
 import Data.Functor.Rep
-import Data.List (sort, sortOn)
+import Data.List (sortOn)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Maybe
 import Data.Ord
 import qualified Data.Sequence as Seq
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, pack)
 import qualified Data.Text as Text
 import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
-import GHC.OverloadedLabels
 import GHC.Read
 import GHC.Word
 import NumHask.Array (Array)
@@ -138,6 +136,7 @@ import Prelude
 -- The transformation from (Card, Card) to Hand reduces the strategy vector size from 52*51 to 169, and provides expansion back into the (Card, Card) domain when needed.
 newtype ShapedHandS = ShapedHandS {unShapedHandS :: Word8} deriving (Eq, Show, Ord)
 
+-- | isomorphism between shapedHand and shapedHandS
 shapedHandS :: Iso ShapedHand ShapedHandS
 shapedHandS =
   Iso fromShapedHand toShapedHand
