@@ -1,26 +1,17 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NegativeLiterals #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- | RangedHand computations
---
---
 module Poker.RangedHand
   ( -- * Storable version of ShapedHand
     ShapedHandS (..),
@@ -65,59 +56,57 @@ module Poker.RangedHand
   )
 where
 
+import Control.Monad.State.Lazy
+import Data.Bifunctor
+import Data.Bool
+import Data.Distributive
+import Data.Foldable
+import Data.Function ((&))
+import Data.Functor.Rep
+import Data.List (sort, sortOn)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Prelude
+import Data.Maybe
+import Data.Ord
+import qualified Data.Sequence as Seq
+import Data.Text (Text, pack, unpack)
+import qualified Data.Text as Text
+import qualified Data.Vector.Storable as S
+import GHC.Exts hiding (toList)
+import GHC.OverloadedLabels
+import GHC.Read
+import GHC.Word
+import NumHask.Array (Array)
+import Poker hiding (fromList)
 import Poker.Card.Storable
+import Poker.Evaluate
 import Poker.Random
 import Poker.Table
-import Poker.Evaluate
-import Control.Monad.State.Lazy
-import GHC.OverloadedLabels
-import Data.Bifunctor
-import Data.Text (Text, unpack, pack)
-import Data.List (sort, sortOn)
-import Data.Ord
+import Prettyprinter
+import Prettyprinter.Render.Text (renderStrict)
 import System.Random
 import Text.Read (readMaybe)
-import Data.Bool
-import Data.Foldable
-import Data.Maybe
-import Poker hiding (fromList)
-import qualified Data.Vector.Storable as S
-import Data.Functor.Rep
-import GHC.Word
-import Prettyprinter
-import qualified Data.Text as Text
-import qualified Data.Sequence as Seq
-import NumHask.Array (Array)
-import Data.Distributive
-import GHC.Exts hiding (toList)
-import GHC.Read
-import Prettyprinter.Render.Text (renderStrict)
-import Data.Function ((&))
+import Prelude
 
 -- $setup
 --
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XTypeApplications
+-- >>> import Control.Monad.State.Lazy
+-- >>> import Data.Bool
+-- >>> import Data.Functor.Rep
+-- >>> import Lens.Micro
 -- >>> import Poker
 -- >>> import Poker.Card.Storable
--- >>> import Poker.Table
--- >>> import Poker.RangedHand
 -- >>> import Poker.Random
--- >>> import qualified Data.Map.Strict as Map
--- >>> import Lens.Micro
+-- >>> import Poker.RangedHand
+-- >>> import Poker.Table
 -- >>> import Prelude
--- >>> import Control.Monad.State.Lazy
--- >>> import System.Random
 -- >>> import Prettyprinter
--- >>> import Lens.Micro
--- >>> import Prelude
+-- >>> import System.Random
+-- >>> import qualified Data.Map.Strict as Map
 -- >>> import qualified Data.Text as Text
--- >>> import Data.Functor.Rep
--- >>> import Data.Bool
 -- >>> cs = evalState (dealN 9) (mkStdGen 42)
 -- >>> pretty cs
 -- [Ac, 7s, Tc, 5s, 6d, 7c, 6s, 9c, 4s]
@@ -131,7 +120,6 @@ import Data.Function ((&))
 -- ["count","freq","o2","o9"]
 --
 -- >>> s = m Map.! "o2"
---
 
 -- | Card pairs dealt to a holdem player have identical probability structures to each other, when viewed through a stochastic future of betting action.
 --
@@ -148,9 +136,7 @@ import Data.Function ((&))
 -- ![count example](other/count.svg)
 --
 -- The transformation from (Card, Card) to Hand reduces the strategy vector size from 52*51 to 169, and provides expansion back into the (Card, Card) domain when needed.
---
---
-newtype ShapedHandS = ShapedHandS { unShapedHandS :: Word8} deriving (Eq, Show, Ord)
+newtype ShapedHandS = ShapedHandS {unShapedHandS :: Word8} deriving (Eq, Show, Ord)
 
 shapedHandS :: Iso ShapedHand ShapedHandS
 shapedHandS =
@@ -158,19 +144,19 @@ shapedHandS =
 
 fromShapedHand :: ShapedHand -> ShapedHandS
 fromShapedHand (MkOffsuit r0 r1) =
-  ShapedHandS $ unrankS (liso rankS r1) * 13 + unrankS (liso rankS r0)
+  ShapedHandS $ unrankS (from rankS r1) * 13 + unrankS (from rankS r0)
 fromShapedHand (MkPair p) =
-  ShapedHandS $ let p' = unrankS (liso rankS p) in p' * 13 + p'
+  ShapedHandS $ let p' = unrankS (from rankS p) in p' * 13 + p'
 fromShapedHand (MkSuited r0 r1) =
-  ShapedHandS $ unrankS (liso rankS r0) * 13 + unrankS (liso rankS r1)
+  ShapedHandS $ unrankS (from rankS r0) * 13 + unrankS (from rankS r1)
 
 toShapedHand :: ShapedHandS -> ShapedHand
 toShapedHand (ShapedHandS x) = case compare d m of
-    EQ -> MkPair $ riso rankS . RankS $ d
-    LT -> MkOffsuit (riso rankS . RankS $ m) (riso rankS . RankS $ d)
-    GT -> MkSuited (riso rankS . RankS $ d) (riso rankS . RankS $ m)
-    where
-      (d, m) = x `divMod` 13
+  EQ -> MkPair $ to rankS . RankS $ d
+  LT -> MkOffsuit (to rankS . RankS $ m) (to rankS . RankS $ d)
+  GT -> MkSuited (to rankS . RankS $ d) (to rankS . RankS $ m)
+  where
+    (d, m) = x `divMod` 13
 
 -- | convert from a Card pair to a Hand
 --
@@ -194,13 +180,13 @@ fromHand (Hand (Card r s) (Card r' s'))
 -- >>> pretty $ toHands (MkPair Ace)
 -- [AcAd, AcAh, AcAs, AdAc, AdAh, AdAs, AhAc, AhAd, AhAs, AsAc, AsAd, AsAh]
 toHands :: ShapedHand -> [Hand]
-toHands (MkPair r) = (\(x,y) -> MkHand (Card r x) (Card r y)) <$> enum2 allSuits
+toHands (MkPair r) = (\(x, y) -> MkHand (Card r x) (Card r y)) <$> enum2 allSuits
 toHands (MkSuited r0 r1) =
-  ((\x -> MkHand (Card r0 x) (Card r1 x)) <$> allSuits) <>
-  ((\x -> MkHand (Card r1 x ) (Card r0 x)) <$> allSuits)
+  ((\x -> MkHand (Card r0 x) (Card r1 x)) <$> allSuits)
+    <> ((\x -> MkHand (Card r1 x) (Card r0 x)) <$> allSuits)
 toHands (MkOffsuit r0 r1) =
-  ((\(x,y) -> MkHand (Card r0 x) (Card r1 y)) <$> enum2 allSuits) <>
-  ((\(x,y) -> MkHand (Card r0 y) (Card r1 x)) <$> enum2 allSuits)
+  ((\(x, y) -> MkHand (Card r0 x) (Card r1 y)) <$> enum2 allSuits)
+    <> ((\(x, y) -> MkHand (Card r0 y) (Card r1 x)) <$> enum2 allSuits)
 
 -- | a representative pair of cards for a B, choosing Club and Diamond.
 --
@@ -251,33 +237,33 @@ instance Representable RangedHand where
 instance Pretty (RangedHand Text) where
   pretty s =
     pretty $
-    Text.intercalate
-      "\n"
-      ( ( \x ->
-            Text.intercalate
-              " "
-              --
-              ( (\y -> index s (ShapedHandS $ 13 * (12 - y) + (12 - x)))
-                  <$> [0 .. 12]
-              )
+      Text.intercalate
+        "\n"
+        ( ( \x ->
+              Text.intercalate
+                " "
+                --
+                ( (\y -> index s (ShapedHandS $ 13 * (12 - y) + (12 - x)))
+                    <$> [0 .. 12]
+                )
+          )
+            <$> [0 .. 12]
         )
-          <$> [0 .. 12]
-      )
 
 instance Pretty (RangedHand Char) where
   pretty s =
     pretty $
-    Text.intercalate
-      "\n"
-      ( ( \x ->
-            Text.intercalate
-              ""
-              ( (\y -> Text.singleton $ index s (ShapedHandS $ 13 * (12 - x) + (12 - y)))
-                  <$> [0 .. 12]
-              )
+      Text.intercalate
+        "\n"
+        ( ( \x ->
+              Text.intercalate
+                ""
+                ( (\y -> Text.singleton $ index s (ShapedHandS $ 13 * (12 - x) + (12 - y)))
+                    <$> [0 .. 12]
+                )
+          )
+            <$> [0 .. 12]
         )
-          <$> [0 .. 12]
-      )
 
 instance Pretty (RangedHand RawAction) where
   pretty s = pretty $ stratSym ("f", "c", "r", "r") 10 s
@@ -327,10 +313,13 @@ lpad n t = pack (replicate (n - Text.length t) ' ') <> t
 enumBs :: RangedHand Int
 enumBs =
   tabulate
-  (Map.fromListWith (+)
-   ((,1) . liso shapedHandS . fromHand . uncurry MkHand <$>
-    enum2 allCards)
-    Map.!)
+    ( Map.fromListWith
+        (+)
+        ( (,1) . from shapedHandS . fromHand . uncurry MkHand
+            <$> enum2 allCards
+        )
+        Map.!
+    )
 
 -- | The theoretical combinatorial count.
 --
@@ -365,8 +354,8 @@ any2 = (/ sum handTypeCount) <$> handTypeCount
 someRanges :: Int -> Map.Map Text (RangedHand Double)
 someRanges n = do
   Map.fromList
-    [ ("o2", tabulate (\b -> winHand (riso shapedHandS b) 2 n)),
-      ("o9", tabulate (\b -> winHand (riso shapedHandS b) 9 n)),
+    [ ("o2", tabulate (\b -> winHand (to shapedHandS b) 2 n)),
+      ("o9", tabulate (\b -> winHand (to shapedHandS b) 9 n)),
       ("count", handTypeCount),
       ("freq", (/ sum handTypeCount) <$> handTypeCount)
     ]
@@ -383,7 +372,7 @@ writeSomeRanges n = writeFile "other/some.str" (show $ someRanges n)
 -- FIXME:
 --
 -- >>> (Just m) <- readSomeRanges
--- >>> index (m Map.! "o2") (liso shapedHandS $ MkSuited Jack Ten)
+-- >>> index (m Map.! "o2") (from shapedHandS $ MkSuited Jack Ten)
 -- 0.5742
 readSomeRanges :: IO (Maybe (Map.Map Text (RangedHand Double)))
 readSomeRanges = do
@@ -410,7 +399,7 @@ winHand b p n =
 --
 -- ![odds9 example](other/odds9.svg)
 winOdds :: Int -> Int -> RangedHand Double
-winOdds p n = tabulate (\b -> winHand (riso shapedHandS b) p n)
+winOdds p n = tabulate (\b -> winHand (to shapedHandS b) p n)
 
 -- | Top x percent of hands, order determined by a RangedHand Double, for n-seated.
 --
@@ -457,8 +446,12 @@ topBs bs x = tabulate (`elem` top)
 rcf :: RangedHand Double -> Double -> Double -> Double -> RangedHand RawAction
 rcf s r x y =
   tabulate
-    (\b -> bool (bool RawFold RawCall (index (topBs s y) b))
-      (RawRaise r) (index (topBs s x) b))
+    ( \b ->
+        bool
+          (bool RawFold RawCall (index (topBs s y) b))
+          (RawRaise r)
+          (index (topBs s x) b)
+    )
 
 -- | Simulate the expected value of a strategy
 --
@@ -571,7 +564,7 @@ betRanges ss t = go ss t
 apply :: RangedHand RawAction -> Table -> RawAction
 apply s t = fromMaybe RawFold $ case hero t of
   Nothing -> error "bad juju"
-  Just i -> Just $ index s (liso shapedHandS $ fromHand (playerCards (cards t) List.!! i))
+  Just i -> Just $ index s (from shapedHandS $ fromHand (playerCards (cards t) List.!! i))
 
 -- | deal n cards given a Hand has been dealt.
 --
@@ -579,17 +572,18 @@ apply s t = fromMaybe RawFold $ case hero t of
 -- [Ah, 7s, Tc, 5s, 6d, 7c, 6s]
 dealShapedHand :: (RandomGen g) => ShapedHand -> Int -> State g CardsS
 dealShapedHand b n =
-  dealNWith n .
-  (\(x,y) -> let (x',y') =
-                  bool (y,x) (x,y) (x <= y) in
-              S.splitAt x' (uncardsS allCardsS) &
-              second (S.splitAt (y'-x')) &
-              (\(t,(t', t'')) -> t <> S.tail t' <> S.tail t'') &
-              CardsS
-  ) .
-  (\(Hand x y) -> (fromIntegral (uncardS (liso cardS x)), fromIntegral (uncardS (liso cardS y)))) .
-  toRepHand $
-  b
+  dealNWith n
+    . ( \(x, y) ->
+          let (x', y') =
+                bool (y, x) (x, y) (x <= y)
+           in S.splitAt x' (uncardsS allCardsS)
+                & second (S.splitAt (y' - x'))
+                & (\(t, (t', t'')) -> t <> S.tail t' <> S.tail t'')
+                & CardsS
+      )
+    . (\(Hand x y) -> (fromIntegral (uncardS (from cardS x)), fromIntegral (uncardS (from cardS y))))
+    . toRepHand
+    $ b
 
 -- | deal a table given player i has been dealt a B
 --
@@ -599,10 +593,11 @@ dealTableHand :: (RandomGen g) => TableConfig -> Int -> ShapedHand -> State g Ta
 dealTableHand cfg i b = do
   (CardsS xs) <- dealShapedHand b (5 + (numPlayers cfg - 1) * 2)
   pure $
-    makeTableS cfg $ CardsS $
-    S.take (2 * i) xs <>
-    (\(Hand x y) -> uncardsS $ liso cardsS [x,y]) (toRepHand b) <>
-    S.drop (2 * i) xs
+    makeTableS cfg $
+      CardsS $
+        S.take (2 * i) xs
+          <> (\(Hand x y) -> uncardsS $ from cardsS [x, y]) (toRepHand b)
+          <> S.drop (2 * i) xs
 
 -- | create a list of n dealt tables, with p players, where b is dealt to player k
 --
@@ -613,6 +608,8 @@ dealTableHand cfg i b = do
 tablesB :: Int -> ShapedHand -> Int -> Int -> [Table]
 tablesB p b k n =
   evalState
-  (replicateM n
-   (dealTableHand (defaultTableConfig {numPlayers = p}) k b))
-  (mkStdGen 42)
+    ( replicateM
+        n
+        (dealTableHand (defaultTableConfig {numPlayers = p}) k b)
+    )
+    (mkStdGen 42)

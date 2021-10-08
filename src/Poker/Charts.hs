@@ -1,15 +1,11 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
@@ -30,29 +26,29 @@ module Poker.Charts
 where
 
 import Chart hiding (shape)
+import Data.Bifunctor
+import Data.Bool
+import Data.Foldable
 import Data.Functor.Rep
 import qualified Data.Map.Strict as Map
-import Lens.Micro
-import Prelude
-import Poker.RangedHand
-import Poker.Card.Storable
-import Poker.Table
 import Data.Text (Text, pack)
-import Data.Bifunctor
+import GHC.Exts (fromList)
+import Lens.Micro hiding (to)
+import Poker hiding (fromList)
+import Poker.Card.Storable
+import Poker.RangedHand
+import Poker.Table
 import Prettyprinter
 import Prettyprinter.Render.Text
-import Data.Foldable
-import GHC.Exts (fromList)
-import Data.Bool
-import Poker hiding (fromList)
+import Prelude
 
--- >>> import Poker
--- >>> import Lens.Micro
--- >>> import Prelude
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XTypeApplications
 -- >>> import Lens.Micro
+-- >>> import Lens.Micro
+-- >>> import Poker
+-- >>> import Prelude
 -- >>> import qualified Data.Text as Text
 -- >>> (Just m) <- readSomeRanges
 -- >>> s = m Map.! "o2"
@@ -63,7 +59,7 @@ toText_ = renderStrict . layoutCompact . pretty
 
 -- | A grid of points on the XY plane representing translation of the basis from B ~> 13x13 XY
 sGrid :: RangedHand (Point Double)
-sGrid = RangedHand $ fromList $ fmap (\(Point x y) -> Point (- x) y) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
+sGrid = RangedHand $ fromList $ fmap (\(Point x y) -> Point (-x) y) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
 
 -- | A grid of rectangles on the XY plane representing translation from B ~> 13x13 squares
 sRect :: RangedHand (Rect Double)
@@ -71,16 +67,18 @@ sRect = (`addPoint` ((/ 13.0) <$> Rect (-0.5) 0.5 (-0.5) 0.5)) <$> sGrid
 
 -- | text colour for Hand text charts.
 colourText :: RangedHand Colour
-colourText = tabulate $
-  fromHandType (Colour 0 0 0.4 1, Colour 0 0.4 0 1, Colour 0.4 0 0 1) .
-  riso shapedHandS
+colourText =
+  tabulate $
+    fromHandType (Colour 0 0 0.4 1, Colour 0 0.4 0 1, Colour 0.4 0 0 1)
+      . to shapedHandS
 
 -- | default background rectangle colour representing hand type.
 colourBackground :: RangedHand Colour
-colourBackground = tabulate $
-  fromHandType
-  (Colour 0.2 0.2 1 0.2, Colour 0.5 0.8 0.5 0.2, Colour 0.8 0.5 0.5 0.2) .
-  riso shapedHandS
+colourBackground =
+  tabulate $
+    fromHandType
+      (Colour 0.2 0.2 1 0.2, Colour 0.5 0.8 0.5 0.2, Colour 0.8 0.5 0.5 0.2)
+      . to shapedHandS
 
 -- | default colors represneting fold, call or raise.
 fcrColours :: RawAction -> Colour
@@ -126,7 +124,7 @@ textChart sc st =
       ps
   where
     gs = grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double]
-    ps = PointXY . (\(Point x y) -> Point (- x) y) <$> gs
+    ps = PointXY . (\(Point x y) -> Point (-x) y) <$> gs
 
 -- | pixel chart of a RangedHand Double
 bPixelChart ::

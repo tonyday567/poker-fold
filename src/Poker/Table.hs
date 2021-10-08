@@ -1,19 +1,14 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -42,44 +37,43 @@ module Poker.Table
     fromRawAction,
     fromRawActionType,
     actOn,
+  )
+where
 
-  ) where
-
-import Poker hiding (fromList)
-import Poker.Card.Storable
-import Data.FormatN
-import qualified Data.List as List
-import qualified Data.Sequence as Seq
-import Lens.Micro
-import Prelude
-import Prettyprinter hiding (comma)
-import GHC.Generics
 import Data.Bool
 import Data.Foldable
-import GHC.Exts hiding (toList)
+import Data.FormatN
+import qualified Data.List as List
 import Data.Maybe
+import qualified Data.Sequence as Seq
 import Data.Text (Text)
+import GHC.Exts hiding (toList)
+import GHC.Generics hiding (from, to)
+import Lens.Micro hiding (to)
+import Poker hiding (fromList)
+import Poker.Card.Storable
+import Prettyprinter hiding (comma)
+import Prelude
 
 -- $setup
 --
+-- >>> :set -XOverloadedLabels
+-- >>> :set -XOverloadedStrings
+-- >>> :set -XTypeApplications
 -- >>> import Poker
 -- >>> import Poker.Card.Storable
 -- >>> import Poker.Random
 -- >>> import Prettyprinter
--- >>> import qualified Data.Map.Strict as Map
 -- >>> import qualified Data.List as List
--- >>> import qualified Data.Vector.Storable as S
--- >>> import qualified Data.Vector as V
+-- >>> import qualified Data.Map.Strict as Map
 -- >>> import qualified Data.Text as Text
--- >>> :set -XOverloadedLabels
--- >>> :set -XOverloadedStrings
--- >>> :set -XTypeApplications
+-- >>> import qualified Data.Vector as V
+-- >>> import qualified Data.Vector.Storable as S
 -- >>> let cs = [Card {rank = Ace, suit = Heart},Card {rank = Seven, suit = Spade},Card {rank = Ten, suit = Heart},Card {rank = Five, suit = Spade},Card {rank = Six, suit = Club},Card {rank = Seven, suit = Heart},Card {rank = Six, suit = Spade},Card {rank = Nine, suit = Heart},Card {rank = Four, suit = Spade}]
 --
 -- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
 -- Ah7s Th5s|6c7h6s|9h|4s,hero: 0,o o,9.5 9,0.5 1,0,
---
 
 -- | A typical poker table setup for texas holdem.
 --
@@ -98,8 +92,9 @@ data TableCards = TableCards
   deriving (Eq, Show, Generic)
 
 instance Pretty TableCards where
-  pretty (TableCards ps (f0,f1,f2) t r) =
-    concatWith (surround "|")
+  pretty (TableCards ps (f0, f1, f2) t r) =
+    concatWith
+      (surround "|")
       [ hsep $ (\(Hand x y) -> pretty x <> pretty y) <$> toList ps,
         pretty f0 <> pretty f1 <> pretty f2,
         pretty t,
@@ -110,13 +105,16 @@ instance Pretty TableCards where
 deal :: [Card] -> TableCards
 deal cs =
   TableCards
-  (fromList
-   ((\x ->
-      MkHand (cs List.!! (2 * x)) (cs List.!! (2 * x + 1))) <$>
-     [0 .. n - 1]))
-  (cs List.!! (n * 2), cs List.!! (1 + n * 2), cs List.!! (2 + n * 2))
-  (cs List.!! (3 + n * 2))
-  (cs List.!! (4 + n * 2))
+    ( fromList
+        ( ( \x ->
+              MkHand (cs List.!! (2 * x)) (cs List.!! (2 * x + 1))
+          )
+            <$> [0 .. n - 1]
+        )
+    )
+    (cs List.!! (n * 2), cs List.!! (1 + n * 2), cs List.!! (2 + n * 2))
+    (cs List.!! (3 + n * 2))
+    (cs List.!! (4 + n * 2))
   where
     n = (length cs - 5) `div` 2
 
@@ -159,7 +157,8 @@ numSeats ts = length (ts ^. #seats)
 
 instance Pretty Table where
   pretty (Table cs n s st bs p h) =
-    concatWith (surround ",")
+    concatWith
+      (surround ",")
       [ pretty cs,
         "hero: " <> pretty n,
         hsep $ pretty <$> toList s,
@@ -219,12 +218,11 @@ liveHands :: Table -> [(Int, [Card])]
 liveHands ts = (\i -> hands (ts ^. #cards) List.!! i) <$> liveSeats ts
 
 -- | Provide the player hands combined with the table cards.
---
 hands :: TableCards -> [(Int, [Card])]
-hands (TableCards ps (f0,f1,f2) t r) =
+hands (TableCards ps (f0, f1, f2) t r) =
   zip
-  [0 .. (length ps - 1)]
-  ((\(Hand x y) -> [x, y, f0, f1, f2, t , r]) <$> ps)
+    [0 .. (length ps - 1)]
+    ((\(Hand x y) -> [x, y, f0, f1, f2, t, r]) <$> ps)
 
 -- | Static configuration for setting up a table.
 --
@@ -249,7 +247,7 @@ makeTable cfg cs = Table (deal cs) (Just 0) (Seq.replicate (cfg ^. #numPlayers) 
 
 -- | Construct a Table with the supplied cards.
 makeTableS :: TableConfig -> CardsS -> Table
-makeTableS cfg cs = Table (deal (riso cardsS cs)) (Just 0) (Seq.replicate (cfg ^. #numPlayers) BettingOpen) (Seq.zipWith (-) (cfg ^. #stacks0) bs) bs 0 Seq.Empty
+makeTableS cfg cs = Table (deal (to cardsS cs)) (Just 0) (Seq.replicate (cfg ^. #numPlayers) BettingOpen) (Seq.zipWith (-) (cfg ^. #stacks0) bs) bs 0 Seq.Empty
   where
     bs = bbs (cfg ^. #numPlayers) (cfg ^. #ante)
 
@@ -406,4 +404,3 @@ actOn (RawRaise r) ts = case ts ^. #hero of
       bet = min (gap + r) st
       r' = bet - gap
       st' = st - bet
-

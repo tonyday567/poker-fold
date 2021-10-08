@@ -1,35 +1,39 @@
 {-# OPTIONS_GHC -Wall #-}
 
-import Poker.RangedHand
-import Poker.Evaluate
-import Prelude
 import Options.Applicative
+import Poker.Evaluate
+import Poker.RangedHand
+import Prelude
 
 data RunType = RunHvs7 | RunSomeRanges deriving (Eq, Show)
 
 data Options = Options
   { optionSims :: Int,
     optionRunType :: RunType
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 sims :: Parser Int
 sims =
-  option auto (long "sims" <> short 's' <> help "number of simulations for RangedHand maps") <|>
-  pure 10000
+  option auto (long "sims" <> short 's' <> help "number of simulations for RangedHand maps")
+    <|> pure 10000
 
 runType :: Parser RunType
 runType =
-  flag' RunHvs7 (long "hvs7" <> help "write hvs7.vec file") <|>
-  pure RunSomeRanges
+  flag' RunHvs7 (long "hvs7" <> help "write hvs7.vec file")
+    <|> pure RunSomeRanges
 
 options :: Parser Options
-options = Options <$>
-  sims <*>
-  runType
+options =
+  Options
+    <$> sims
+    <*> runType
 
 opts :: ParserInfo Options
-opts = info (options <**> helper)
-  (fullDesc <> progDesc "poker-hvs7" <> header "Storable map writes for poker-fold")
+opts =
+  info
+    (options <**> helper)
+    (fullDesc <> progDesc "poker-hvs7" <> header "Storable map writes for poker-fold")
 
 main :: IO ()
 main = do

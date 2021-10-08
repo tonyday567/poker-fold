@@ -1,15 +1,11 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
@@ -36,40 +32,42 @@ module Poker.Random
   )
 where
 
+import Control.Monad.State.Lazy
+  ( MonadState (get, put),
+    State,
+    evalState,
+    replicateM,
+  )
+import Data.Bool (bool)
+import Data.Foldable (Foldable (foldl'))
+import Data.List (sort)
+import qualified Data.List as List
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
-import Lens.Micro ( (&), (.~), (^.) )
-import Prelude
-import Poker.Evaluate
-import Poker.Card.Storable
-import Poker.Table
-import System.Random ( mkStdGen, RandomGen, uniformR )
-import Control.Monad.State.Lazy
-    ( MonadState(put, get), evalState, State, replicateM )
-import Data.List (sort)
+import Lens.Micro ((&), (.~), (^.))
 import Poker
-import Data.Foldable ( Foldable(foldl') )
-import Data.Bool ( bool )
-import qualified Data.List as List
+import Poker.Card.Storable
+import Poker.Evaluate
+import Poker.Table
+import System.Random (RandomGen, mkStdGen, uniformR)
+import Prelude
 
 -- $setup
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XTypeApplications
+-- >>> import Control.Monad.State.Lazy
+-- >>> import Lens.Micro hiding (to)
 -- >>> import Poker
 -- >>> import Poker.Card.Storable
--- >>> import Poker.RangedHand
 -- >>> import Poker.Random
+-- >>> import Poker.RangedHand
 -- >>> import Poker.Table
--- >>> import qualified Data.Vector.Storable as S
--- >>> import Lens.Micro
 -- >>> import Prelude
--- >>> import Control.Monad.State.Lazy
--- >>> import System.Random
 -- >>> import Prettyprinter
--- >>> import Lens.Micro
--- >>> import Prelude
+-- >>> import System.Random
 -- >>> import qualified Data.Text as Text
+-- >>> import qualified Data.Vector.Storable as S
 
 -- | uniform random variate of an Enum-style Int
 --
@@ -147,15 +145,15 @@ vshuffle as = go as S.empty
     go :: S.Vector Int -> S.Vector Int -> S.Vector Int
     go as dealt =
       bool
-      (go (S.unsafeTail as) (S.snoc dealt x1))
-      dealt
-      (S.null as)
+        (go (S.unsafeTail as) (S.snoc dealt x1))
+        dealt
+        (S.null as)
       where
         x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
 
 -- | deal n cards as a CardsS
 --
--- >>> pretty $ riso cardsS $ evalState (dealNS 7) (mkStdGen 42)
+-- >>> pretty $ to cardsS $ evalState (dealNS 7) (mkStdGen 42)
 -- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealNS :: (RandomGen g) => Int -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
@@ -172,7 +170,7 @@ dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.len
 dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
   cs <- dealNS (5 + cfg ^. #numPlayers * 2)
-  pure $ makeTable cfg (riso cardsS cs)
+  pure $ makeTable cfg (to cardsS cs)
 
 -- | uniform random variate of HandRank
 --
@@ -199,19 +197,27 @@ card7s n = evalState (replicateM n (fmap toEnum . ishuffle <$> rvis 52 7)) (mkSt
 -- >>> S.length $ uncards2S $ card7sS 100
 -- 700
 card7sS :: Int -> Cards2S
-card7sS n = Cards2S $ S.convert $ S.map fromIntegral $ mconcat $
-  evalState
-  (replicateM n (vshuffle <$> rviv 52 7))
-  (mkStdGen 42)
+card7sS n =
+  Cards2S $
+    S.convert $
+      S.map fromIntegral $
+        mconcat $
+          evalState
+            (replicateM n (vshuffle <$> rviv 52 7))
+            (mkStdGen 42)
 
 -- | flat storable vector of ints, representing n 7-card sets
 --
 -- uses ishuffle
 card7sSI :: Int -> Cards2S
-card7sSI n = Cards2S $ S.fromList $ fmap fromIntegral $ mconcat $
-  evalState
-  (replicateM n (ishuffle <$> rvis 52 7))
-  (mkStdGen 42)
+card7sSI n =
+  Cards2S $
+    S.fromList $
+      fmap fromIntegral $
+        mconcat $
+          evalState
+            (replicateM n (ishuffle <$> rvis 52 7))
+            (mkStdGen 42)
 
 -- | create a list of n dealt tables, with p players
 --
@@ -221,9 +227,11 @@ card7sSI n = Cards2S $ S.fromList $ fmap fromIntegral $ mconcat $
 tables :: Int -> Int -> [Table]
 tables p n =
   evalState
-  (replicateM n
-   (dealTable (defaultTableConfig & #numPlayers .~ p)))
-  (mkStdGen 42)
+    ( replicateM
+        n
+        (dealTable (defaultTableConfig & #numPlayers .~ p))
+    )
+    (mkStdGen 42)
 
 -- | An enumeration of 2 samples from a list without replacement
 --
@@ -237,11 +245,10 @@ enum2 xs = fmap (p . fmap toEnum) . (\x y -> ishuffle [x, y]) <$> [0 .. (n - 1)]
     p _ = error "list too short"
 
 -- | isomorphic to shuffle, but keeps track of the sliced out bit.
---
 ishuffle :: [Int] -> [Int]
 ishuffle as = reverse $ go as []
   where
     go [] s = s
-    go (x0 : xs) s = go xs (x1:s)
+    go (x0 : xs) s = go xs (x1 : s)
       where
         x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) x0 s
