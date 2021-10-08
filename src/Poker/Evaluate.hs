@@ -27,15 +27,16 @@ module Poker.Evaluate
     straight,
     flush,
     kind,
-    run,
-    oRankCount,
     rankCount,
     suitRanks,
+
+    -- Evaluation on Storable cards
     handRankS,
     straightS,
     flushS,
     kindS,
     rankCountS,
+    suitRanksS,
 
     -- * Showdown
     bestLiveHand,
@@ -57,7 +58,6 @@ module Poker.Evaluate
     hvs7Write,
     hvs7,
     allHandRanks,
-    allHandRanksV,
     lookupHR,
     lookupHRUnsorted,
     lookupHRUnsafe,
@@ -67,7 +67,8 @@ module Poker.Evaluate
   ) where
 
 import Poker hiding (fromList)
-import Poker.Types
+import Poker.Card.Storable
+import Poker.Table
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
@@ -86,7 +87,6 @@ import Control.Applicative
 import Data.List (sortOn)
 import Data.Tuple
 import Data.Ord
-import Prettyprinter hiding (comma)
 import qualified Data.Vector.Algorithms.Intro as Intro
 import GHC.Generics
 import Data.Bool
@@ -97,8 +97,10 @@ import Data.Maybe
 -- $setup
 --
 -- >>> import Poker
--- >>> import Poker.Types
+-- >>> import Poker.Card.Storable
 -- >>> import Poker.Random
+-- >>> import Poker.Table
+-- >>> import Poker.RangedHand
 -- >>> import Prettyprinter
 -- >>> import qualified Data.Map.Strict as Map
 -- >>> import qualified Data.List as List
@@ -114,13 +116,22 @@ import Data.Maybe
 -- >>> pretty t
 -- Ah7s Th5s|6c7h6s|9h|4s,hero: 0,o o,9.5 9,0.5 1,0,
 --
--- Hero raises and quick fold from the BB.
+-- >>> let hs = fmap snd $ liveHands t
+-- >>> pretty hs
+-- [[Ah, 7s, 6c, 7h, 6s, 9h, 4s], [Th, 5s, 6c, 7h, 6s, 9h, 4s]]
+--
+-- >>> riso cardsS7L hs
+-- Cards2S {uncards2S = [50,23,16,22,19,30,11,34,15,16,22,19,30,11]}
+--
+-- The pre-evaluated storable vector
+-- >>> s <- hvs7
+-- >>> :t s
+-- s :: S.Vector GHC.Word.Word16
 
 -- | 5 card standard poker rankings
 --
--- >>> let junk = HighCard Ace King Ten Six Three
--- >>> (junk==) . toEnum . fromEnum $ junk
--- True
+-- >>> handRank . snd <$> liveHands t
+-- [TwoPair Seven Six Ace,OnePair Six Ten Nine Seven]
 data HandRank
   = HighCard Rank Rank Rank Rank Rank
   | OnePair Rank Rank Rank Rank
@@ -133,90 +144,44 @@ data HandRank
   | StraightFlush Rank
   deriving (Eq, Ord, Show, Generic)
 
-instance Enum HandRank where
-  fromEnum (HighCard r0 r1 r2 r3 r4) = sum $ zipWith (\r i -> r * 13 ^ i) (fromEnum <$> [r4, r3, r2, r1, r0]) [0 .. 4]
-  fromEnum (OnePair r0 r1 r2 r3) = 13 ^ 5 + sum (zipWith (\r i -> r * 13 ^ i) (fromEnum <$> [r3, r2, r1, r0]) [0 .. 3 :: Int])
-  fromEnum (TwoPair r0 r1 r2) = 13 ^ 5 + 13 ^ 4 + sum (zipWith (\r i -> r * 13 ^ i) (fromEnum <$> [r2, r1, r0]) [0 .. 2])
-  fromEnum (ThreeOfAKind r0 r1 r2) = 13 ^ 5 + 13 ^ 4 + 13 ^ 3 + sum (zipWith (\r i -> r * 13 ^ i) (fromEnum <$> [r2, r1, r0]) [0 .. 2])
-  fromEnum (Straight r0) = 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + fromEnum r0
-  fromEnum (Flush r0 r1 r2 r3 r4) = 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 13 + sum (zipWith (\r i -> r * 13 ^ i) (fromEnum <$> [r4, r3, r2, r1, r0]) [0 .. 4])
-  fromEnum (FullHouse r0 r1) = 2 * 13 ^ 5 + 13 ^ 4 + 13 ^ 3 + 13 + sum (zipWith (\r i -> r * 13 ^ i) (fromEnum <$> [r1, r0]) [0 .. 1])
-  fromEnum (FourOfAKind r0 r1) = 2 * 13 ^ 5 + 13 ^ 4 + 13 ^ 3 + 13 ^ 2 + 13 + sum (zipWith (\r i -> r * 13 ^ i) (fromEnum <$> [r1, r0]) [0 .. 1])
-  fromEnum (StraightFlush r0) = 2 * 13 ^ 5 + 13 ^ 4 + 13 ^ 3 + 2 * 13 ^ 2 + 13 + fromEnum r0
-
-  toEnum x
-    | x < 13 ^ 5 =
-      (\(r0 : r1 : r2 : r3 : r4 : _) -> HighCard r0 r1 r2 r3 r4) $ toEnum <$> base13 x
-    | x < 13 ^ 5 + 13 ^ 4 =
-      (\(r0 : r1 : r2 : r3 : _) -> OnePair r0 r1 r2 r3) $ toEnum <$> base13 (x - 13 ^ 5)
-    | x < 13 ^ 5 + 13 ^ 4 + 13 ^ 3 =
-      (\(r0 : r1 : r2 : _) -> TwoPair r0 r1 r2) $ toEnum <$> base13 (x - (13 ^ 5 + 13 ^ 4))
-    | x < 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 =
-      (\(r0 : r1 : r2 : _) -> ThreeOfAKind r0 r1 r2) $ toEnum <$> base13 (x - (13 ^ 5 + 13 ^ 4 + 13 ^ 3))
-    | x < 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 13 =
-      Straight (toEnum $ x - (13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3))
-    | x < 2 * 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 13 =
-      (\(r0 : r1 : r2 : r3 : r4 : _) -> Flush r0 r1 r2 r3 r4) $ toEnum <$> base13 x
-    | x < 2 * 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 13 ^ 2 + 13 =
-      (\(r0 : r1 : _) -> FullHouse r0 r1) $ toEnum <$> base13 (x - (2 * 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 13))
-    | x < 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 2 * 13 ^ 2 + 13 =
-      (\(r0 : r1 : _) -> FourOfAKind r0 r1) $ toEnum <$> base13 (x - (13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 2 * 13 ^ 2 + 13))
-    | x < 13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 2 * 13 ^ 2 + 2 * 13 =
-      StraightFlush (toEnum $ x - (13 ^ 5 + 13 ^ 4 + 2 * 13 ^ 3 + 2 * 13 ^ 2 + 13))
-    | otherwise = StraightFlush Ace
-
--- | converts from an integral to base 13, as a list.
-base13 :: (Integral a) => a -> [a]
-base13 x = go x []
+-- | enumeration of all possible HandRanks, in ascending order.
+--
+-- >>> length allHandRanks
+-- 7462
+allHandRanks :: [HandRank]
+allHandRanks =
+  [ HighCard a b c d e
+  | a <- ranks, b <- ranksLT a, c <- ranksLT b, d <- ranksLT c, e <- ranksLT d
+  , not (a == succ b && b == succ c && c == succ d && d == s e)
+  , not (a == Ace && [b,c,d,e] == [Five, Four, Three, Two]) ] ++
+  [OnePair a b c d |
+   a <- ranks,
+   b <- ranks,
+   a /= b,
+   c <- ranksLT b,
+   a /= c,
+   d <- ranksLT c,
+   a /= d] ++
+  [ TwoPair a b c
+  | a <- ranks, b <- ranksLT a
+  , c <- ranks, a /= c, b /= c ] ++
+  [ThreeOfAKind a b c |
+   a <- ranks, b <- ranks, a /= b, c <- ranksLT b, a /= c] ++
+  [ Straight f| f <- ranksGE Five ] ++
+  [ Flush a b c d e
+  | a <- ranks, b <- ranksLT a, c <- ranksLT b, d <- ranksLT c, e <- ranksLT d
+  , not (a == succ b && b == succ c && c == succ d && d == s e)
+  , not (a == Ace && [b,c,d,e] == [Five, Four, Three, Two]) ] ++
+  [ FullHouse a b | a <- ranks, b <- ranks, a /= b ] ++
+  [ FourOfAKind a b | a <- ranks, b <- ranks, a /= b ] ++
+  [ StraightFlush f| f <- ranksGE Five ]
   where
-    go 0 l = l
-    go acc l = let (d, m) = acc `divMod` 13 in go d (m : l)
-
-instance Pretty HandRank where
-  pretty (HighCard r0 r1 r2 r3 r4) =
-    " H:"
-      <> pretty r0
-      <> pretty r1
-      <> pretty r2
-      <> pretty r3
-      <> pretty r4
-  pretty (OnePair r0 r1 r2 r3) =
-    " P:"
-      <> pretty r0
-      <> pretty r1
-      <> pretty r2
-      <> pretty r3
-  pretty (TwoPair r0 r1 r2) =
-    "2P:"
-      <> pretty r0
-      <> pretty r1
-      <> pretty r2
-  pretty (ThreeOfAKind r0 r1 r2) =
-    " 3:"
-      <> pretty r0
-      <> pretty r1
-      <> pretty r2
-  pretty (FourOfAKind r0 r1) =
-    " 4:"
-      <> pretty r0
-      <> pretty r1
-  pretty (FullHouse r0 r1) =
-    "32:"
-      <> pretty r0
-      <> pretty r1
-  pretty (Straight r0) =
-    " S:"
-      <> pretty r0
-  pretty (Flush r0 r1 r2 r3 r4) =
-    " F:"
-      <> pretty r0
-      <> pretty r1
-      <> pretty r2
-      <> pretty r3
-      <> pretty r4
-  pretty (StraightFlush r0) =
-    "SF:"
-      <> pretty r0
+    s Ace = Two
+    s other = succ other
+    ranks        = [Two .. Ace]
+    ranksLT Two  = []
+    ranksLT rank = [Two .. pred rank ]
+    ranksGE rank = reverse [Ace, King .. rank ]
 
 -- | compute a HandRank from a list of Cards.
 --
@@ -257,6 +222,12 @@ run [] = Nothing
 run rs@(Ace : rs') = run5 rs <|> bool Nothing (Just Five) (run4 rs' == Just Five)
 run rs = run5 rs
 
+-- | straight check. Returns the highest Rank.
+--
+-- Special rules for an Ace, which can be counted as high or low.
+--
+-- >>> straight $ (\r -> Card r Heart) <$> [Ace, King, Queen, Five, Four, Three, Two]
+-- Just (Straight Five)
 straight :: [Card] -> Maybe HandRank
 straight cs = Straight <$> run (Set.toDescList $ ranks cs)
 
@@ -348,6 +319,7 @@ handRankS cs =
   ( flushS cs <|>
     straightS (ranksSet cs))
 
+-- | Check straight on storable ranks
 straightS :: RanksS -> Maybe HandRank
 straightS rs = Straight <$> runS rs
 
@@ -376,6 +348,7 @@ run5S rs = listToMaybe $ fst <$> filter ((>= 5) . snd) (runsS rs)
 run4S :: RanksS -> Maybe Rank
 run4S rs = listToMaybe $ fst <$> filter ((>= 4) . snd) (runsS rs)
 
+-- | check Flush on storable cards
 flushS :: CardsS -> Maybe HandRank
 flushS cs =
   case second (sortOn Down) <$> filter ((>= 5) . length . snd) (suitRanksS cs) of
@@ -398,18 +371,8 @@ oRankCount :: RanksS -> [(Rank, Word8)]
 oRankCount rs =
   fmap (first toEnum) $ sortOn (Down . swap) $ toList $ V.imapMaybe (\i a -> bool Nothing (Just (i,a)) (a/=0)) (S.convert $ rankCountS rs)
 
-
-{-
--- unboxed version
-oRankCountU :: RanksS -> U.Vector (Word8, Word8)
-oRankCountU (RanksS rs) = U.create $ do
-  v <- UM.generate 13 (\i -> (fromIntegral i :: Word8, 0 :: Word8))
-  S.mapM_ (UM.modify v (second (+1))) rs
-  A.sortBy (comparing (Down . swap)) v
-  pure v
-
--}
-
+-- | compute Kinds on storable ranks
+--
 kindS :: RanksS -> HandRank
 kindS rs =
   case oRankCount rs of
@@ -561,7 +524,7 @@ binomR n k = binomR (n - 1) (k - 1) * n `div` k
 binomM :: Int -> Int -> Int
 binomM n k = (S.! (n + 53 * k)) (genBinoms 52 7)
 
--- | generaate binoms for memoization
+-- | generate binoms for memoization
 genBinoms :: Int -> Int -> S.Vector Int
 genBinoms n k =
   S.generate ((n+1)*(k+1)) (\p -> let (d,m) = p `divMod` (n + 1) in binom m d)
@@ -581,6 +544,8 @@ hvsWrite :: Int -> FilePath -> IO ()
 hvsWrite n f = writeMMapVector f (handValues n)
 
 -- | write the hvs7 vector to a file
+--
+-- Takes 5 minutes.
 hvs7Write :: IO ()
 hvs7Write = hvsWrite 7 "other/hvs7.vec"
 
@@ -611,49 +576,6 @@ mapHRValue = Map.fromList (zip allHandRanks [(0::Word16)..])
 -- FourOfAKind Ace King
 mapValueHR :: Map.Map Word16 HandRank
 mapValueHR = Map.fromList (zip [(0::Word16)..] allHandRanks)
-
--- | enumeration of all possible HandRanks, in ascending order.
---
--- >>> length allHandRanks
--- 7462
-allHandRanks :: [HandRank]
-allHandRanks =
-  [ HighCard a b c d e
-  | a <- ranks, b <- ranksLT a, c <- ranksLT b, d <- ranksLT c, e <- ranksLT d
-  , not (a == succ b && b == succ c && c == succ d && d == s e)
-  , not (a == Ace && [b,c,d,e] == [Five, Four, Three, Two]) ] ++
-  [OnePair a b c d |
-   a <- ranks,
-   b <- ranks,
-   a /= b,
-   c <- ranksLT b,
-   a /= c,
-   d <- ranksLT c,
-   a /= d] ++
-  [ TwoPair a b c
-  | a <- ranks, b <- ranksLT a
-  , c <- ranks, a /= c, b /= c ] ++
-  [ThreeOfAKind a b c |
-   a <- ranks, b <- ranks, a /= b, c <- ranksLT b, a /= c] ++
-  [ Straight f| f <- ranksGE Five ] ++
-  [ Flush a b c d e
-  | a <- ranks, b <- ranksLT a, c <- ranksLT b, d <- ranksLT c, e <- ranksLT d
-  , not (a == succ b && b == succ c && c == succ d && d == s e)
-  , not (a == Ace && [b,c,d,e] == [Five, Four, Three, Two]) ] ++
-  [ FullHouse a b | a <- ranks, b <- ranks, a /= b ] ++
-  [ FourOfAKind a b | a <- ranks, b <- ranks, a /= b ] ++
-  [ StraightFlush f| f <- ranksGE Five ]
-  where
-    s Ace = Two
-    s other = succ other
-    ranks        = [Two .. Ace]
-    ranksLT Two  = []
-    ranksLT rank = [Two .. pred rank ]
-    ranksGE rank = reverse [Ace, King .. rank ]
-
--- | enumeration of all possible HandRanks
-allHandRanksV :: V.Vector HandRank
-allHandRanksV = V.fromList allHandRanks
 
 -- | look up the HandRank of some cards.
 --
@@ -688,18 +610,31 @@ sortS xs = S.create $ do
     Intro.sort xs'
     pure xs'
 
+-- | Version for unsorted cards
+--
+-- >>> (Map.!) mapValueHR . lookupHRUnsorted s . liso cardsS <$> hs
+-- [TwoPair Seven Six Ace,OnePair Six Ten Nine Seven]
 lookupHRUnsorted :: S.Vector Word16 -> CardsS -> Word16
 lookupHRUnsorted s (CardsS v) = s S.! toLexiPosRS 52 7 (sortS $ S.map fromEnum v)
 
--- | version hiding IO
+-- | version hiding the IO call for hvs7
+--
+-- >>> (Map.!) mapValueHR . lookupHRUnsafe . liso cardsS <$> (List.sort <$> hs)
+-- [TwoPair Seven Six Ace,OnePair Six Ten Nine Seven]
+--
 lookupHRUnsafe :: CardsS -> Word16
 lookupHRUnsafe = lookupHR (unsafePerformIO hvs7)
 
--- | look up the HandRank of a bunch of cards.
+-- | look up the HandRank of a bunch of cards. Cards must be sorted in ascending order.
 --
+-- >>> fmap ((Map.!) mapValueHR) $ S.toList $ lookupHRs s (riso cardsS7L (List.sort <$> hs))
+-- [TwoPair Seven Six Ace,OnePair Six Ten Nine Seven]
 lookupHRs :: S.Vector Word16 -> Cards2S -> S.Vector Word16
 lookupHRs s = applyS (lookupHR s)
 
 -- | version hiding IO
+--
+-- >>> fmap ((Map.!) mapValueHR) $ S.toList $ lookupHRsUnsafe (riso cardsS7L (List.sort <$> hs))
+-- [TwoPair Seven Six Ace,OnePair Six Ten Nine Seven]
 lookupHRsUnsafe :: Cards2S -> S.Vector Word16
 lookupHRsUnsafe = lookupHRs (unsafePerformIO hvs7)

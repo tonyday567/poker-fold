@@ -35,7 +35,8 @@ import qualified Data.Map.Strict as Map
 import Lens.Micro
 import Prelude
 import Poker.RangedHand
-import Poker.Types
+import Poker.Card.Storable
+import Poker.Table
 import Data.Text (Text, pack)
 import Data.Bifunctor
 import Prettyprinter

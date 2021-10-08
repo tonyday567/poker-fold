@@ -2,3 +2,4 @@
 - ignore: {name: Eta reduce}
 - ignore: {name: Move guards forward}
 - ignore: {name: Use tuple-section}
+- ignore: {name: Use camelCase}

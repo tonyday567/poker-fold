@@ -7,7 +7,7 @@ import Poker hiding (fromList)
 import Prelude
 import Poker.RangedHand
 import Poker.Evaluate
-import Poker.Types
+import Poker.Card.Storable
 import Poker.Random
 import Perf
 import qualified Prelude as P
@@ -19,7 +19,6 @@ import Data.Map.Strict (Map)
 import qualified Data.Vector.Algorithms.Intro as Intro
 import Data.Vector.Storable (Storable)
 import Data.Text (Text, pack, unpack)
-import Data.Word
 import Data.List (sort)
 import Text.Read (readMaybe)
 import System.Environment
@@ -29,6 +28,7 @@ import System.Random
 import Control.Applicative
 import Data.Maybe
 import Data.Foldable
+import qualified Data.List as List
 
 --
 -- The only thing that works anymore here is:
@@ -75,27 +75,27 @@ unfold1 f x = case f x of
 -- | Generates all permutations of a multiset 
 --   (based on \"algorithm L\" in Knuth; somewhat less efficient). 
 --   The order is lexicographic.  
-algoL :: (Ord a) => [a] -> [[a]] 
-algoL xs' = unfold1 nextp xs' where
+algoL :: (Ord a) => [a] -> [[a]]
+algoL = unfold1 nextp where
 
   -- next :: [a] -> Maybe [a]
-  nextp xs = case findj (reverse xs,[]) of 
+  nextp xs = case findj (reverse xs,[]) of
     Nothing -> Nothing
-    Just ( (l:ls) , rs) -> Just $ inc l ls (reverse rs,[]) 
+    Just ( l:ls , rs) -> Just $ inc l ls (reverse rs,[])
     Just ( [] , _ ) -> P.error "permute: should not happen"
 
   -- we use simple list zippers: (left,right)
   -- findj :: ([a],[a]) -> Maybe ([a],[a])   
-  findj ( xxs@(x:xs) , yys@(y:_) ) = if x >= y 
+  findj ( xxs@(x:xs) , yys@(y:_) ) = if x >= y
     then findj ( xs , x : yys )
     else Just ( xxs , yys )
-  findj ( x:xs , [] ) = findj ( xs , [x] )  
+  findj ( x:xs , [] ) = findj ( xs , [x] )
   findj ( [] , _ ) = Nothing
-  
+
   -- inc :: a -> [a] -> ([a],[a]) -> [a]
-  inc !u us ( (x:xs) , yys ) = if u >= x
-    then inc u us ( xs , x : yys ) 
-    else reverse (x:us)  ++ reverse (u:yys) ++ xs
+  inc !u us ( x:xs , yys ) = if u >= x
+  then inc u us ( xs , x : yys )
+  else reverse (x:us)  ++ reverse (u:yys) ++ xs
   inc _ _ ( [] , _ ) = P.error "permute: should not happen"
 
 sortS :: (Ord a, Storable a) => S.Vector a -> S.Vector a
@@ -125,7 +125,7 @@ logTickIO l x = do
 logTicks :: Int -> Text -> (a -> b) -> a -> IO ()
 logTicks n l x y = do
   (t, _) <- ticks n x y
-  putStrLn (unpack l <> ": " <> (show $ sum t))
+  putStrLn (unpack l <> ": " <> show (sum t))
 
 toSecs :: Cycle -> Double
 toSecs = (/ 2.2e9) . P.fromIntegral
@@ -135,7 +135,7 @@ main = do
   args' <- getArgs
   let (r, n) = case args' of
         [] -> ("lookupHRs", 1000000)
-        (r':[]) -> (pack r', 1000000)
+        [r'] -> (pack r', 1000000)
         (r':n':_) -> (pack r', fromMaybe 1000000 $ readMaybe n')
   logTick "sum" sum [1..n]
   handRankSpeeds n r
@@ -155,17 +155,12 @@ main = do
     -- fromList [("flushS","0.566"),("kindS","0.546"),("ranksSet","0.978"),("straightS","0.222"),("toRanksS","0.102")]
     "handRankS_" -> do
       m <- handRankS_P n
-      let m' = Map.map (\x -> fixed (Just 3) (toSecs x)) m
+      let m' = Map.map (fixed (Just 3) . toSecs) m
       print m'
     -- fromList [("flushS",1000000),("kindS",923093),("ranksSet",969338),("straightS",969338),("toRanksS",923093)]
     "handRankS_Count" -> do
       c <- handRankS_CountP n
       print c
-    "lookupHR_" -> do
-      s <- hvs7
-      h <- lookupHR_ s (card7sS n)
-      print (S.sum $ fst h)
-      print $ Map.map (\x -> fixed (Just 3) (toSecs x)) (snd h)
     _ -> pure ()
 
 sortingChecks :: Int -> Text -> IO ()
@@ -184,7 +179,7 @@ sortingChecks n t = do
     _ -> pure ()
 
 algorithms :: Int -> Text -> IO ()
-algorithms n t = do
+algorithms n t =
   case t of
     --
     "algoL" -> do
@@ -197,7 +192,7 @@ algorithms n t = do
 -- win odds: 8.758 for n = 10000 about 2.59 secs per million evals
 winodds :: Int -> Text -> IO ()
 winodds n r = case r of
-    "winodds" -> do
+    "winodds" ->
       logTick "win odds" (toList . winOdds 2) n
     _ -> pure ()
 
@@ -205,8 +200,7 @@ binoms :: Int -> Text -> IO ()
 binoms n r = case r of
     "binom" -> logTicks n "binom" (binom 52) 7
     "binomR" -> logTicks n "binomR" (binomR 52) 7
-    "binomM" -> do
-      -- http://hackage.haskell.org/package/chimera-0.2.0.0/docs/Data-Chimera.html
+    "binomM" ->
       logTicks n "binomM" (binomM 52) 7
     _ -> pure ()
 
@@ -224,8 +218,7 @@ handRankS_ cs = runPerfT $ do
         Just x -> pure x
         Nothing -> do
           rs2 <- perf "toRanksS" cycles $ pure (toRanksS cs)
-          k <- perf "kindS" cycles $ pure (kindS rs2) 
-          pure k
+          perf "kindS" cycles $ pure (kindS rs2)
 
 handRankS_Count :: CardsS -> IO (HandRank, Map.Map Text Int)
 handRankS_Count cs = runPerfT $ do
@@ -239,8 +232,7 @@ handRankS_Count cs = runPerfT $ do
         Just x -> pure x
         Nothing -> do
           rs2 <- perf "toRanksS" count $ pure (toRanksS cs)
-          k <- perf "kindS" count $ pure (kindS rs2) 
-          pure k
+          perf "kindS" count $ pure (kindS rs2)
 
 handRankS_P :: Int -> IO (Map Text Cycle)
 handRankS_P n = do
@@ -261,9 +253,6 @@ handRankSpeeds n r = case r of
 
     -- 2.162
     "handRankS" -> logTick "handRankS" (applyV handRankS) (card7sS n)
-
-    -- 1.938
-    "handRankS2" -> logTick "handRankS Storable result" (applyS (fromEnum . handRankS)) (card7sS n)
 
     -- 0.396
     -- toLexiPosRS: 0.267
@@ -286,43 +275,32 @@ handRankSpeeds n r = case r of
 
     _ -> pure ()
 
-
--- * lookupHR performance
---
-lookupHR_ :: S.Vector Word16 -> Cards2S -> IO (S.Vector Word16, Map.Map Text Cycle)
-lookupHR_ s cs = runPerfT $ do
-  cs' <- perf "sortS" cycles $ pure (applyM (sortS . uncardsS) cs)
-  cs'' <- perf "fromEnum" cycles $ pure (S.map fromEnum cs')
-  cs''' <- perf "toLexiPosRS" cycles $ pure (applyFlatS 7 (toLexiPosRS 52 7) cs'')
-  cs'''' <- perf "S.!" cycles $ pure (S.map (s S.!) cs''')
-  pure cs''''
-
 -- * lookupHR component performance
 --
 lookupHR_Speeds :: Int -> Text -> IO ()
 lookupHR_Speeds n r =
   case r of
     --
-    "lookupHR_sortS" -> do
+    "lookupHR_sortS" ->
       logTicks n "lookupHR_SortS"
-        (applyM (sortS . uncardsS))
-        (card7sS n)
+      (applyM (sortS . uncardsS))
+      (card7sS n)
     --
-    "lookupHR_fromEnum" -> do
+    "lookupHR_fromEnum" ->
       logTicks n "lookupHR_fromEnum"
-        (S.map fromEnum)
-        (applyM (sortS . uncardsS) (card7sS n))
+      (S.map fromEnum)
+      (applyM (sortS . uncardsS) (card7sS n))
 
     --
-    "lookupHR_toLexiPosRS" -> do
+    "lookupHR_toLexiPosRS" ->
       logTicks n "lookupHR_toLexiPosRS"
-        (applyFlatS 7 (toLexiPosRS 52 7))
-        (S.map fromEnum . applyM (sortS . uncardsS) $ (card7sS n))
+      (applyFlatS 7 (toLexiPosRS 52 7))
+      (S.map fromEnum . applyM (sortS . uncardsS) $ card7sS n)
 
     --
     "lookupHR_lookup" -> do
       s <- hvs7
-      let !cs = (applyFlatS 7 (toLexiPosRS 52 7)) . S.map fromEnum . applyM (sortS . uncardsS) $ (card7sS n)
+      let !cs = applyFlatS 7 (toLexiPosRS 52 7) . S.map fromEnum . applyM (sortS . uncardsS) $ card7sS n
       logTicks n "lookupHR_lookup"
         (S.map (s S.!))
         cs
@@ -336,7 +314,7 @@ lookupTech n r = case r of
     "read" -> do
       (t, _) <- tickIO hvs7
       putStrLn ("instantiate hvs7: " <> show n <> " " <> unpack (fixed (Just 3) (toSecs t)))
-    "hvs7Write" -> do
+    "hvs7Write" ->
       hvs7Write
     "combinations752" -> logTick "combinations 7 [0..51]: " (length . combinations 7) [0..51::Int]
     "allhandranks" -> do
@@ -361,7 +339,6 @@ lookupTech n r = case r of
 
 hrlookups :: Int -> Text -> IO ()
 hrlookups n t = case t of
-    -- * lookups
     -- @7462 length, storable is the best lookup
     -- >>> stack exec speed storablemmaplookup
     -- storable mmap lookup: length: 7462: 0.013
@@ -372,18 +349,18 @@ hrlookups n t = case t of
     -- >>> stack exec speed maplookup
     -- map lookup: length: 7462: 0.413
     "maplookup" -> do
-      let !l = V.length allHandRanksV
+      let !l = length allHandRanks
       let !ts = evalState (replicateM n rvHandRank) (mkStdGen 42)
-      logTick ("map lookup: length: " <> fixed (Just 0) (fromIntegral l)) (fmap ((Map.!) mapHRValue)) ts
+      logTick ("map lookup: length: " <> fixed (Just 0) (fromIntegral l)) (fmap (mapHRValue Map.!)) ts
     "storablemmaplookup" -> do
       s <- hvs7
       let !l = min 7462 (S.length s)
       let !rvs = evalState (S.replicateM n (rvi l)) (mkStdGen 42)
       logTick "storable mmap lookup: length: 7462" (S.map (s S.!)) rvs
     "vectorlookup" -> do
-      let !l = V.length allHandRanksV
+      let !l = length allHandRanks
       let !rvs = evalState (replicateM n (rvi l)) (mkStdGen 42)
-      logTick ("vector lookup: length: " <> fixed (Just 0) (fromIntegral l :: Double)) (fmap (allHandRanksV V.!)) rvs
+      logTick ("vector lookup: length: " <> fixed (Just 0) (fromIntegral l :: Double)) (fmap (allHandRanks List.!!)) rvs
     -- 0.003
     "storablelookup" -> do
       s <- hvs7
@@ -418,9 +395,9 @@ handRankComponents n r = case r of
     -- flush: 0.623
     -- kind: 0.707
     --  rankCountS: 0.303
-    "handRankS" -> logTick "handRankS"
-      (applyS (fromEnum . handRankS))
-      (Cards2S $ applyM (sortS . uncardsS) (card7sS n))
+    -- "handRankS" -> logTick "handRankS"
+    --   (applyS handRankS)
+    --   (Cards2S $ applyM (sortS . uncardsS) (card7sS n))
 
     -- 0.284
     "rank" -> do
@@ -433,7 +410,7 @@ handRankComponents n r = case r of
       let !cs = uncards2S $ card7sS n
       logTick "flush n straight check"
          (applyFlat 7
-          (fmap (fromEnum) . (\x -> flush x <|> straight x) . fmap (toEnum . fromIntegral) . S.toList))
+          ((\x -> flush x <|> straight x) . fmap (toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.612
@@ -441,7 +418,7 @@ handRankComponents n r = case r of
       let !cs = uncards2S $ card7sS n
       logTick "flush"
          (applyFlat 7
-          (fmap fromEnum . flush . fmap (toEnum . fromIntegral) . S.toList))
+          (flush . fmap (toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.623
@@ -470,7 +447,7 @@ handRankComponents n r = case r of
     "kind" -> do
       let !cs = uncards2S $ card7sS n
       logTick "kind"
-         (applyFlat 7 (kind . fmap rank . fmap (toEnum . fromIntegral) . S.toList))
+         (applyFlat 7 (kind . fmap (rank . toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.707
@@ -478,13 +455,6 @@ handRankComponents n r = case r of
       let !cs = uncards2S $ card7sS n
       logTick "kindS"
          (applyFlat 7 (kindS . RanksS)) (S.map (`div` 4) cs)
-
-    -- 0.707
-    "oRankCount" -> do
-      let !cs = uncards2S $ card7sS n
-      logTick "oRankCount"
-         (applyFlat 7 (oRankCount . RanksS))
-         cs
 
     -- 1.887
     "rankCount" -> do

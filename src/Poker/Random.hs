@@ -25,15 +25,14 @@ module Poker.Random
     dealNS,
     dealNWith,
     dealTable,
-    dealShapedHand,
-    dealTableHand,
     rvs52,
     rvHandRank,
     card7s,
     card7sS,
     card7sSI,
     tables,
-    tablesB,
+    enum2,
+    ishuffle,
   )
 where
 
@@ -42,24 +41,26 @@ import qualified Data.Vector.Storable as S
 import Lens.Micro ( (&), (.~), (^.) )
 import Prelude
 import Poker.Evaluate
-import Poker.Types
+import Poker.Card.Storable
+import Poker.Table
 import System.Random ( mkStdGen, RandomGen, uniformR )
 import Control.Monad.State.Lazy
     ( MonadState(put, get), evalState, State, replicateM )
 import Data.List (sort)
-import Data.Bifunctor ( Bifunctor(second) )
 import Poker
 import Data.Foldable ( Foldable(foldl') )
 import Data.Bool ( bool )
+import qualified Data.List as List
 
 -- $setup
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XTypeApplications
 -- >>> import Poker
--- >>> import Poker.Types
+-- >>> import Poker.Card.Storable
 -- >>> import Poker.RangedHand
 -- >>> import Poker.Random
+-- >>> import Poker.Table
 -- >>> import qualified Data.Vector.Storable as S
 -- >>> import Lens.Micro
 -- >>> import Prelude
@@ -164,24 +165,6 @@ dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 dealNWith :: (RandomGen g) => Int -> CardsS -> State g CardsS
 dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.length cs) n)
 
--- | deal n cards given a Hand has been dealt.
---
--- >>> pretty $ evalState (dealShapedHand (MkPair Ace) 7) (mkStdGen 42)
--- [Ah, 7s, Tc, 5s, 6d, 7c, 6s]
-dealShapedHand :: (RandomGen g) => ShapedHand -> Int -> State g CardsS
-dealShapedHand b n =
-  dealNWith n .
-  (\(x,y) -> let (x',y') =
-                  bool (y,x) (x,y) (x <= y) in
-              S.splitAt x' (uncardsS allCardsS) &
-              second (S.splitAt (y'-x')) &
-              (\(t,(t', t'')) -> t <> S.tail t' <> S.tail t'') &
-              CardsS
-  ) .
-  (\(Hand x y) -> (fromIntegral (uncardS (liso cardS x)), fromIntegral (uncardS (liso cardS y)))) .
-  toRepHand $
-  b
-
 -- | deal a table
 --
 -- >>> pretty $ evalState (dealTable defaultTableConfig) (mkStdGen 42)
@@ -191,19 +174,6 @@ dealTable cfg = do
   cs <- dealNS (5 + cfg ^. #numPlayers * 2)
   pure $ makeTable cfg (riso cardsS cs)
 
--- | deal a table given player i has been dealt a B
---
--- >>> pretty $ evalState (dealTableHand defaultTableConfig 0 (MkPair Ace)) (mkStdGen 42)
--- AcAd Ah7s|Tc5s6d|7c|6s,hero: 0,o o,9.5 9,0.5 1,0,
-dealTableHand :: (RandomGen g) => TableConfig -> Int -> ShapedHand -> State g Table
-dealTableHand cfg i b = do
-  (CardsS xs) <- dealShapedHand b (5 + (cfg ^. #numPlayers - 1) * 2)
-  pure $
-    makeTableS cfg $ CardsS $
-    S.take (2 * i) xs <>
-    (\(Hand x y) -> uncardsS $ liso cardsS [x,y]) (toRepHand b) <>
-    S.drop (2 * i) xs
-
 -- | uniform random variate of HandRank
 --
 -- >>> evalState rvHandRank (mkStdGen 42)
@@ -211,9 +181,9 @@ dealTableHand cfg i b = do
 rvHandRank :: (RandomGen g) => State g HandRank
 rvHandRank = do
   g <- get
-  let (x, g') = uniformR (0, V.length allHandRanksV - 1) g
+  let (x, g') = uniformR (0, length allHandRanks - 1) g
   put g'
-  pure (allHandRanksV V.! x)
+  pure (allHandRanks List.!! x)
 
 -- * random card generation
 
@@ -255,15 +225,23 @@ tables p n =
    (dealTable (defaultTableConfig & #numPlayers .~ p)))
   (mkStdGen 42)
 
--- | create a list of n dealt tables, with p players, where b is dealt to player k
+-- | An enumeration of 2 samples from a list without replacement
 --
--- >>> pretty $ tablesB 2 (MkPair Ace) 1 3
--- [ Ah7s AcAd|Tc5s6d|7c|6s,hero: 0,o o,9.5 9,0.5 1,0,
--- , 7s4s AcAd|Td3d6c|Kh|Ts,hero: 0,o o,9.5 9,0.5 1,0,
--- , 9c8s AcAd|Ks2h4h|5d|Tc,hero: 0,o o,9.5 9,0.5 1,0, ]
-tablesB :: Int -> ShapedHand -> Int -> Int -> [Table]
-tablesB p b k n =
-  evalState
-  (replicateM n
-   (dealTableHand (defaultTableConfig & #numPlayers .~ p) k b))
-  (mkStdGen 42)
+-- >>> enum2 [0..2]
+-- [(0,1),(0,2),(1,0),(1,2),(2,0),(2,1)]
+enum2 :: [a] -> [(a, a)]
+enum2 xs = fmap (p . fmap toEnum) . (\x y -> ishuffle [x, y]) <$> [0 .. (n - 1)] <*> [0 .. (n - 2)]
+  where
+    n = length xs
+    p (x : y : _) = (xs List.!! x, xs List.!! y)
+    p _ = error "list too short"
+
+-- | isomorphic to shuffle, but keeps track of the sliced out bit.
+--
+ishuffle :: [Int] -> [Int]
+ishuffle as = reverse $ go as []
+  where
+    go [] s = s
+    go (x0 : xs) s = go xs (x1:s)
+      where
+        x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) x0 s
