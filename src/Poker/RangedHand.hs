@@ -7,7 +7,6 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -18,39 +17,32 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
--- | A poker library.
+-- | RangedHand computations
 --
--- TODO:
 --
--- - https://commons.wikimedia.org/wiki/Category:Playing_cards_set_by_Byron_Knoll
---
--- - https://github.com/atinm/poker-eval/
--- 
--- - https://www.codingthewheel.com/archives/poker-hand-evaluator-roundup/#2p2
---
-module Poker.Strategy
-  ( -- * Strategy
+module Poker.RangedHand
+  ( -- * RangedHand
     topBs,
     ev,
-    ev2Strats,
+    evs,
+    ev2Ranges,
     winHand,
     winOdds,
     rcf,
 
-    fromAction,
-    fromActionType,
-    someStrats,
-    writeSomeStrats,
-    readSomeStrats,
+    fromRawAction,
+    fromRawActionType,
+    someRanges,
+    writeSomeRanges,
+    readSomeRanges,
 
   )
 where
 
-import Data.Functor.Rep
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Lens.Micro
-import NumHask.Prelude
+import Prelude
 import Poker.Random
 import Poker.Types
 import Control.Monad.State.Lazy
@@ -61,6 +53,11 @@ import Data.List (sort, sortOn)
 import Data.Ord
 import System.Random
 import Text.Read (readMaybe)
+import Data.Bool
+import Data.Foldable
+import Data.Maybe
+import Poker
+import Data.Functor.Rep
 
 -- $setup
 --
@@ -69,7 +66,7 @@ import Text.Read (readMaybe)
 -- >>> :set -XTypeApplications
 -- >>> import Poker
 -- >>> import Poker.Types
--- >>> import Poker.Strategy
+-- >>> import Poker.RangedHand
 -- >>> import Poker.Random
 -- >>> import qualified Data.Map.Strict as Map
 -- >>> import Lens.Micro
@@ -80,55 +77,57 @@ import Text.Read (readMaybe)
 -- >>> import Lens.Micro
 -- >>> import Prelude
 -- >>> import qualified Data.Text as Text
+-- >>> import Data.Functor.Rep
+-- >>> import Data.Bool
 -- >>> cs = evalState (dealN 9) (mkStdGen 42)
 -- >>> pretty cs
 -- [Ac, 7s, Tc, 5s, 6d, 7c, 6s, 9c, 4s]
 --
 -- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
--- Ac7s Tc5s,6d7c6s9c4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
 --
--- >>> (Just m) <- readSomeStrats
+-- >>> (Just m) <- readSomeRanges
 -- >>> Map.keys m
 -- ["count","freq","o2","o9"]
 --
 -- >>> s = m Map.! "o2"
 --
 
--- | create some common enumeration/simulation results in Strat shape, from scratch.
-someStrats :: Int -> Map.Map Text (Strat Double)
-someStrats n = do
+-- | create some common enumeration/simulation results in RangedHandshape, from scratch.
+someRanges :: Int -> Map.Map Text (RangedHand Double)
+someRanges n = do
   Map.fromList
-    [ ("o2", tabulate (\b -> winHand b 2 n)),
-      ("o9", tabulate (\b -> winHand b 9 n)),
+    [ ("o2", tabulate (\b -> winHand (riso shapedHandS b) 2 n)),
+      ("o9", tabulate (\b -> winHand (riso shapedHandS b) 9 n)),
       ("count", handTypeCount),
       ("freq", (/ sum handTypeCount) <$> handTypeCount)
     ]
 
--- | write Strat results to file.
+-- | write RangedHand results to file.
 --
--- > writeSomeStrats 1000
+-- > writeSomeRanges 1000
 --
 -- n = 100000 is about 5 mins
-writeSomeStrats :: Int -> IO ()
-writeSomeStrats n = writeFile "other/some.str" (show $ someStrats n)
+writeSomeRanges :: Int -> IO ()
+writeSomeRanges n = writeFile "other/some.str" (show $ someRanges n)
 
--- | read Strat map
+-- | read RangedHand map
 -- FIXME:
 --
--- >> (Just m) <- readSomeStrats
--- >> index (m Map.! "o2") (Suited Jack Ten)
--- 0.5544
-readSomeStrats :: IO (Maybe (Map.Map Text (Strat Double)))
-readSomeStrats = do
+-- >>> (Just m) <- readSomeRanges
+-- >>> index (m Map.! "o2") (liso shapedHandS $ MkSuited Jack Ten)
+-- 0.5742
+readSomeRanges :: IO (Maybe (Map.Map Text (RangedHand Double)))
+readSomeRanges = do
   t <- readFile "other/some.str"
   pure $ readMaybe t
 
 -- | Given a B, what is the chance of that player winning against p other players, simulated n times.
 --
--- >>> winHand (Paired Two) 2 1000
--- 0.481
-winHand :: Hand -> Int -> Int -> Double
+-- >>> winHand (MkPair Two) 2 1000
+-- 0.4995
+winHand :: ShapedHand -> Int -> Int -> Double
 winHand b p n =
   (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHand <$> tablesB p b 0 n
 
@@ -143,26 +142,26 @@ winHand b p n =
 -- > winOdds 9 1000
 --
 -- ![odds9 example](other/odds9.svg)
-winOdds :: Int -> Int -> Strat Double
-winOdds p n = tabulate (\b -> winHand b p n)
+winOdds :: Int -> Int -> RangedHand Double
+winOdds p n = tabulate (\b -> winHand (riso shapedHandS b) p n)
 
--- | Top x percent of hands, order determined by a Strat Double, for n-seated.
+-- | Top x percent of hands, order determined by a RangedHand Double, for n-seated.
 --
--- >> pretty (bool "." "x" <$> topBs (m Map.! "o2") 0.25 :: Strat Text)
--- x x x x x x x x x x x . .
--- x x x x x x x . . . . . .
--- x x x . . . . . . . . . .
+-- >>> pretty (bool "." "x" <$> topBs (m Map.! "o2") 0.25 :: RangedHand Text.Text)
+-- x x x x x x x x x x . . .
+-- x x x x x x . . . . . . .
+-- x x x x x . . . . . . . .
 -- x x x x . . . . . . . . .
--- x x x . x . . . . . . . .
--- x x . . . x . . . . . . .
+-- x x x x x . . . . . . . .
+-- x x x . . x . . . . . . .
 -- x x . . . . x . . . . . .
 -- x x . . . . . x . . . . .
--- x x . . . . . . x . . . .
+-- x . . . . . . . x . . . .
 -- x . . . . . . . . x . . .
--- x . . . . . . . . . x . .
 -- x . . . . . . . . . . . .
 -- x . . . . . . . . . . . .
-topBs :: Strat Double -> Double -> Strat Bool
+-- x . . . . . . . . . . . .
+topBs :: RangedHand Double -> Double -> RangedHand Bool
 topBs bs x = tabulate (`elem` top)
   where
     sortedBList x = second snd <$> sortOn (Down . fst . snd) (toList (liftR2 (,) (tabulate id) (liftR2 (,) x handTypeCount)))
@@ -170,40 +169,39 @@ topBs bs x = tabulate (`elem` top)
     cut = x * total
     top = fst <$> List.takeWhile ((< cut) . snd) as
 
--- | convert an Action top "f","c", or "r"
-fromAction :: Action -> Text
-fromAction = fromActionType ("f", "c", "r")
+-- | convert an RawAction top "f","c", or "r"
+fromRawAction :: RawAction -> Text
+fromRawAction = fromRawActionType ("f", "c", "r")
 
--- | Convert from an Action to a triple representing fold, call or raise.
-fromActionType :: (a, a, a) -> Action -> a
-fromActionType (a, _, _) Fold = a
-fromActionType (_, a, _) Call = a
-fromActionType (_, _, a) (Raise _) = a
+-- | Convert from an RawAction to a triple representing fold, call or raise.
+fromRawActionType :: (a, a, a) -> RawAction -> a
+fromRawActionType (a, _, _) RawFold = a
+fromRawActionType (_, a, _) RawCall = a
+fromRawActionType (_, _, a) (RawRaise _) = a
 
--- | Construct a Strat Action that chooses to (Raise r) for the top x% of hands, or Call for the top y%, and thus Fold for the bottom (1-y)%.
+-- | Construct a RangedHand RawAction that chooses to (Raise r) for the top x% of hands, or Call for the top y%, and thus Fold for the bottom (1-y)%.
 --
 -- eg raising with your top 10% and calling with your top 50% (top defined by o2 stats) is
 --
--- FIXME: wrong eg Jacks favaoured over Queens.
---
--- >>> pretty $ fromAction <$> rcf (m Map.! "o2") 10 0.1 0.5
--- r r r r r c c c c c f f f
--- r r r c c c c c c c f f c
--- r r r c r c c c c f f f f
--- c c c c c r c c c c f f f
+-- >>> pretty $ fromRawAction <$> rcf (m Map.! "o2") 10 0.1 0.5
+-- r r r r r c c c c c c c c
+-- r r c c c c c c c c c c c
 -- r r r c c c c c c f f f f
--- c c c c c c c c c f f f f
--- c c c c c c c c f f f f f
--- c c c c c f f c c f f f f
--- c c c c c f f c f f f f f
--- f f c c f f f f f c f f f
--- f f f f f f f f f f f f f
--- f f f f f f f f f f f f f
--- f f f f f f f f f f f f f
-rcf :: Strat Double -> Double -> Double -> Double -> Strat Action
+-- r r c r c c c f f f f f f
+-- r c c c r c c f f f f f f
+-- r c c c c r f f f f f f f
+-- c c c c c c r f f f f f f
+-- c c c c c f f r f f f f f
+-- c c c c f f f f r f f f f
+-- c c c f f f f f f c f f f
+-- c c c f f f f f f f c f f
+-- c c c f f f f f f f f c f
+-- c c c f f f f f f f f f c
+rcf :: RangedHand Double -> Double -> Double -> Double -> RangedHand RawAction
 rcf s r x y =
   tabulate
-    (\b -> bool (bool Fold Call (index (topBs s y) b)) (Raise r) (index (topBs s x) b))
+    (\b -> bool (bool RawFold RawCall (index (topBs s y) b))
+      (RawRaise r) (index (topBs s x) b))
 
 -- | Simulate the expected value of a strategy
 --
@@ -214,21 +212,21 @@ rcf s r x y =
 -- >>> acts = [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
 -- >>> ts = makeTable (defaultTableConfig & #numPlayers .~ 2) <$> cards
 --
--- >> pretties ts
--- A♡7♠ T♡5♠,6♣7♡6♠9♡4♠,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 9♠A♠ 3♣5♠,K♡T♣9♢9♣2♢,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 4♣5♡ 9♣8♢,6♠J♣4♠Q♡Q♡,hero: Just 0,o o,9.5 9,0.5 1,0,
--- Q♠9♠ Q♣8♠,J♡6♢4♡A♢8♡,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 9♠J♠ 5♢2♠,J♡8♡6♢T♡5♠,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 2♣5♡ Q♡3♡,4♣3♢K♠T♢Q♣,hero: Just 0,o o,9.5 9,0.5 1,0,
--- 5♣K♣ 9♠9♣,9♡6♠2♡3♡4♢,hero: Just 0,o o,9.5 9,0.5 1,0,
--- K♡9♡ T♠Q♠,3♣6♠K♢7♣9♣,hero: Just 0,o o,9.5 9,0.5 1,0,
--- K♣A♡ 4♡6♠,6♡8♣6♣5♠3♡,hero: Just 0,o o,9.5 9,0.5 1,0,
--- K♣Q♢ A♢9♢,A♣4♠2♣K♢8♣,hero: Just 0,o o,9.5 9,0.5 1,0,
+-- >>> pretty ts
+-- [ Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 9sAs 3d5s|KcTd9h|9d|2h,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 4d5c 9d8h|6sJd4s|Qc|Qc,hero: 0,o o,9.5 9,0.5 1,0,
+-- , Qs9s Qd8s|Jc6h4c|Ah|8c,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 9sJs 5h2s|Jc8c6h|Tc|5s,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 2d5c Qc3c|4d3hKs|Th|Qc,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 5dKd 9s9d|9c6s2c|3c|4h,hero: 0,o o,9.5 9,0.5 1,0,
+-- , Kc9c TsQs|3d6sKd|7d|9d,hero: 0,o o,9.5 9,0.5 1,0,
+-- , KdAc 4c6s|6c8d6c|5s|3c,hero: 0,o o,9.5 9,0.5 1,0,
+-- , KdQh Ah9h|Ad4s2d|Kh|8d,hero: 0,o o,9.5 9,0.5 1,0, ]
 --
--- >> ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
--- Just (-0.29999999999999893)
-ev :: Int -> Int -> [Strat Action] -> Maybe Double
+-- >>> ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
+-- Just 0.5500000000000007
+ev :: Int -> Int -> [RangedHand RawAction] -> Maybe Double
 ev n sims acts =
   listToMaybe $
     fmap ((+ negate 10) . (/ fromIntegral sims) . sum) $
@@ -237,13 +235,13 @@ ev n sims acts =
 
 -- | Simulate winnings for each seat.
 --
--- > all (==20.0) $ sum <$> evs 2 100 [rcf 1 0 0.9, rcf 1 0.3 0.9, rcf 1 0.1 0.5, rcf 1 0.6 0.8]
+-- >>> all (==20.0) $ sum <$> evs 2 100 [rcf s 1 0 0.9, rcf s 1 0.3 0.9, rcf s 1 0.1 0.5, rcf s 1 0.6 0.8]
 -- True
-evs :: Int -> Int -> [Strat Action] -> [[Double]]
+evs :: Int -> Int -> [RangedHand RawAction] -> [[Double]]
 evs n sims acts = fmap (\x -> toList $ x ^. #stacks) (evTables n sims acts)
 
 -- | Simulate end state of tables given strategies.
-evTables :: Int -> Int -> [Strat Action] -> [Table]
+evTables :: Int -> Int -> [RangedHand RawAction] -> [Table]
 evTables n sims acts =
   showdown . bet acts <$> tables
   where
@@ -266,24 +264,24 @@ evTables n sims acts =
 --
 -- - BB Call on UTG Raise
 --
--- >>> (Just m) <- readSomeStrats
+-- >>> (Just m) <- readSomeRanges
 -- >>> s = m Map.! "o2"
 --
 -- [0,0,0,0,0] is iso to always Fold
 --
--- >>> ev2Strats s 100 [0,0,0,0,0]
+-- >>> ev2Ranges s 100 [0,0,0,0,0]
 -- Just (-0.5)
 --
 -- [1,_,1,_] is iso to always Raise
 --
--- >>> ev2Strats s 100 [1,1,1,1,1]
--- Just 0.9199999999999999
+-- >>> ev2Ranges s 100 [1,1,1,1,1]
+-- Just 0.3949999999999996
 --
 -- [0,1,0,_,_] is iso to always Call
 --
--- >> ev2Strats s 100 [0,1,0,1,1]
--- Just (-0.19500000000000028)
-ev2Strats :: Strat Double -> Int -> [Double] -> Maybe Double
-ev2Strats s sims (s0r : s0c : s1r : s2r : s3r : _) =
+-- >>> ev2Ranges s 100 [0,1,0,1,1]
+-- Just 3.500000000000014e-2
+ev2Ranges :: RangedHand Double -> Int -> [Double] -> Maybe Double
+ev2Ranges s sims (s0r : s0c : s1r : s2r : s3r : _) =
   ev 2 sims [rcf s 10 s0r s0c, rcf s 10 s1r 1, rcf s 10 0 s2r, rcf s 10 0 s3r]
-ev2Strats _ _ _ = Nothing
+ev2Ranges _ _ _ = Nothing

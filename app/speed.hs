@@ -1,13 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NegativeLiterals #-}
-{-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -Wall #-}
 
-import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
-import NumHask.Prelude
-import Poker.Strategy
+import Poker hiding (fromList)
+import Prelude
+import Poker.RangedHand
 import Poker.Types
 import Poker.Random
 import Perf
@@ -28,6 +26,14 @@ import Control.Monad
 import Control.Monad.State.Lazy
 import System.Random
 import Control.Applicative
+import Data.Maybe
+import Data.Foldable
+
+--
+-- The only thing that works anymore here is:
+-- > poker-speed handRankS_
+-- sum: 0.032
+-- fromList [("flushS","1.019"),("kindS","0.499"),("ranksSet","0.938"),("straightS","0.226"),("toRanksS","0.112")]
 
 -- http://kcats.org/csci/464/doc/knuth/fascicles/fasc3a.pdf
 -- https://www.daniweb.com/programming/computer-science/threads/41584/the-fastest-combination-generator
@@ -118,7 +124,7 @@ logTickIO l x = do
 logTicks :: Int -> Text -> (a -> b) -> a -> IO ()
 logTicks n l x y = do
   (t, _) <- ticks n x y
-  (putStrLn . unpack) (l <> ": " <> fixed (Just 3) (toSecs $ sum t))
+  putStrLn (unpack l <> ": " <> (show $ sum t))
 
 toSecs :: Cycle -> Double
 toSecs = (/ 2.2e9) . P.fromIntegral
@@ -126,24 +132,25 @@ toSecs = (/ 2.2e9) . P.fromIntegral
 main :: IO ()
 main = do
   args' <- getArgs
-  let (run, n) = case args' of
+  let (r, n) = case args' of
         [] -> ("lookupHRs", 1000000)
         (r':[]) -> (pack r', 1000000)
         (r':n':_) -> (pack r', fromMaybe 1000000 $ readMaybe n')
-  handRankSpeeds n run
-  binoms n run
-  hrlookups n run
-  lookupTech n run
-  cardChecks n run
-  winodds n run
-  handRankComponents n run
-  resolution 2 n run
-  writeSome n run
-  sortingChecks n run
-  lookupHR_Speeds n run
-  algorithms n run
+  logTick "sum" sum [1..n]
+  handRankSpeeds n r
+  binoms n r
+  hrlookups n r
+  lookupTech n r
+  cardChecks n r
+  winodds n r
+  handRankComponents n r
+  resolution 2 n r
+  writeSome n r
+  sortingChecks n r
+  lookupHR_Speeds n r
+  algorithms n r
 
-  case run of
+  case r of
     -- fromList [("flushS","0.566"),("kindS","0.546"),("ranksSet","0.978"),("straightS","0.222"),("toRanksS","0.102")]
     "handRankS_" -> do
       m <- handRankS_P n
@@ -188,13 +195,13 @@ algorithms n t = do
 -- handRank evals are 169 * p * n
 -- win odds: 8.758 for n = 10000 about 2.59 secs per million evals
 winodds :: Int -> Text -> IO ()
-winodds n run = case run of
+winodds n r = case r of
     "winodds" -> do
       logTick "win odds" (toList . winOdds 2) n
     _ -> pure ()
 
 binoms :: Int -> Text -> IO ()
-binoms n run = case run of
+binoms n r = case r of
     "binom" -> logTicks n "binom" (binom 52) 7
     "binomR" -> logTicks n "binomR" (binomR 52) 7
     "binomM" -> do
@@ -234,7 +241,6 @@ handRankS_Count cs = runPerfT $ do
           k <- perf "kindS" count $ pure (kindS rs2) 
           pure k
 
-
 handRankS_P :: Int -> IO (Map Text Cycle)
 handRankS_P n = do
       let cs = card7sS n
@@ -248,7 +254,7 @@ handRankS_CountP n = do
       pure $ Map.unionsWith (+) $ V.toList $ V.map snd rs
 
 handRankSpeeds :: Int -> Text -> IO ()
-handRankSpeeds n run = case run of
+handRankSpeeds n r = case r of
     -- 5.45
     "handRank" -> logTick "handRank" (fmap handRank) (card7s n)
 
@@ -293,8 +299,8 @@ lookupHR_ s cs = runPerfT $ do
 -- * lookupHR component performance
 --
 lookupHR_Speeds :: Int -> Text -> IO ()
-lookupHR_Speeds n run =
-  case run of
+lookupHR_Speeds n r =
+  case r of
     --
     "lookupHR_sortS" -> do
       logTicks n "lookupHR_SortS"
@@ -325,7 +331,7 @@ lookupHR_Speeds n run =
 
 -- | storable lookup components
 lookupTech :: Int -> Text -> IO ()
-lookupTech n run = case run of
+lookupTech n r = case r of
     "read" -> do
       (t, _) <- tickIO hvs7
       putStrLn ("instantiate hvs7: " <> show n <> " " <> unpack (fixed (Just 3) (toSecs t)))
@@ -402,7 +408,7 @@ cardChecks n t = case t of
     _ -> pure ()
 
 handRankComponents :: Int -> Text -> IO ()
-handRankComponents n run = case run of
+handRankComponents n r = case r of
     -- 4.297
     "handRankAll" -> logTick "handRank" (fmap handRank) (card7s n)
 
@@ -419,14 +425,14 @@ handRankComponents n run = case run of
     "rank" -> do
       let !cs = uncards2S $ card7sS n
       logTick "rank for a flat"
-        (applyFlat 7 (S.map (fromEnum . rank . toEnum . toIntegral))) cs
+        (applyFlat 7 (S.map (fromEnum . rank . toEnum . fromIntegral))) cs
 
     -- 1.532
     "royals" -> do
       let !cs = uncards2S $ card7sS n
       logTick "flush n straight check"
          (applyFlat 7
-          (fmap (fromEnum) . (\x -> flush x <|> straight x) . fmap (toEnum . toIntegral) . S.toList))
+          (fmap (fromEnum) . (\x -> flush x <|> straight x) . fmap (toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.612
@@ -434,7 +440,7 @@ handRankComponents n run = case run of
       let !cs = uncards2S $ card7sS n
       logTick "flush"
          (applyFlat 7
-          (fmap fromEnum . flush . fmap (toEnum . toIntegral) . S.toList))
+          (fmap fromEnum . flush . fmap (toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.623
@@ -449,7 +455,7 @@ handRankComponents n run = case run of
       let !cs = uncards2S $ card7sS n
       logTick "straight"
          (applyFlat 7
-          (straight . fmap (toEnum . toIntegral) . S.toList))
+          (straight . fmap (toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.977
@@ -463,7 +469,7 @@ handRankComponents n run = case run of
     "kind" -> do
       let !cs = uncards2S $ card7sS n
       logTick "kind"
-         (applyFlat 7 (kind . fmap rank . fmap (toEnum . toIntegral) . S.toList))
+         (applyFlat 7 (kind . fmap rank . fmap (toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.707
@@ -483,7 +489,7 @@ handRankComponents n run = case run of
     "rankCount" -> do
       let !cs = uncards2S $ card7sS n
       logTick "rankCount"
-         (applyFlat 7 (rankCount . fmap (rank . toEnum . toIntegral) . S.toList))
+         (applyFlat 7 (rankCount . fmap (rank . toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.307
@@ -497,7 +503,7 @@ handRankComponents n run = case run of
     "suitRanks" -> do
       let !cs = uncards2S $ card7sS n
       logTick "suitRanks"
-         (applyFlat 7 (suitRanks . fmap (toEnum . toIntegral) . S.toList))
+         (applyFlat 7 (suitRanks . fmap (toEnum . fromIntegral) . S.toList))
          cs
 
     -- 0.039
@@ -525,7 +531,7 @@ handRankComponents n run = case run of
     _ -> pure ()
 
 resolution :: Int -> Int -> Text -> IO ()
-resolution p n run = case run of
+resolution p n r = case r of
     -- 4.183
     "bestLiveHand" ->
       logTick "bestLiveHand"  (fmap bestLiveHand) (tables p n)
@@ -534,18 +540,18 @@ resolution p n run = case run of
       logTick "tables" (tables p) n
     -- 3.941
     "tablesB" ->
-      logTick "tablesB" (tablesB p (Paired Ace) 0) n
+      logTick "tablesB" (tablesB p (MkPair Ace) 0) n
     -- 3.964
     "winHand" ->
-      logTick "winHand" (winHand (Paired Ace) 2) n
+      logTick "winHand" (winHand (MkPair Ace) 2) n
     -- 3.769
     "winOdds" ->
       logTick "winOdds" (sum . winOdds 2) (n `div` 169)
     _ -> pure ()
 
 writeSome :: Int -> Text -> IO ()
-writeSome n run = case run of
-    "writeSomeStrats" ->
-      logTickIO "writeSomeStrats" (writeSomeStrats n)
+writeSome n r = case r of
+    "writeSomeRanges" ->
+      logTickIO "writeSomeRanges" (writeSomeRanges n)
     _ -> pure ()
 

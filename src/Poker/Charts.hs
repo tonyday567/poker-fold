@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -34,27 +33,27 @@ import Chart hiding (shape)
 import Data.Functor.Rep
 import qualified Data.Map.Strict as Map
 import Lens.Micro
-import NumHask.Prelude
-import Poker.Strategy
+import Prelude
+import Poker.RangedHand
 import Poker.Types
-import GHC.OverloadedLabels
 import Data.Text (Text, pack)
 import Data.Bifunctor
 import Prettyprinter
 import Prettyprinter.Render.Text
-import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
+import Data.Foldable
+import GHC.Exts (fromList)
+import Data.Bool
+import Poker hiding (fromList)
 
 -- >>> import Poker
 -- >>> import Lens.Micro
--- >>> import NumHask.Prelude
+-- >>> import Prelude
 -- >>> :set -XOverloadedLabels
 -- >>> :set -XOverloadedStrings
--- >>> :set -XNoImplicitPrelude
 -- >>> :set -XTypeApplications
 -- >>> import Lens.Micro
--- >>> import NumHask.Prelude
 -- >>> import qualified Data.Text as Text
--- >>> (Just m) <- readSomeStrats
+-- >>> (Just m) <- readSomeRanges
 -- >>> s = m Map.! "o2"
 --
 
@@ -62,34 +61,39 @@ toText_ :: (Pretty a) => a -> Text
 toText_ = renderStrict . layoutCompact . pretty
 
 -- | A grid of points on the XY plane representing translation of the basis from B ~> 13x13 XY
-sGrid :: Strat (Point Double)
-sGrid = Strat $ fromList $ fmap (\(Point x y) -> Point (- x) y) (grid MidPos (one :: Rect Double) (Point 13 13) :: [Point Double])
+sGrid :: RangedHand (Point Double)
+sGrid = RangedHand $ fromList $ fmap (\(Point x y) -> Point (- x) y) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
 
 -- | A grid of rectangles on the XY plane representing translation from B ~> 13x13 squares
-sRect :: Strat (Rect Double)
-sRect = (`addPoint` ((/ 13.0) <$> one)) <$> sGrid
+sRect :: RangedHand (Rect Double)
+sRect = (`addPoint` ((/ 13.0) <$> Rect (-0.5) 0.5 (-0.5) 0.5)) <$> sGrid
 
 -- | text colour for Hand text charts.
-colourText :: Strat Colour
-colourText = tabulate $ fromHandType (Colour 0 0 0.4 1, Colour 0 0.4 0 1, Colour 0.4 0 0 1)
+colourText :: RangedHand Colour
+colourText = tabulate $
+  fromHandType (Colour 0 0 0.4 1, Colour 0 0.4 0 1, Colour 0.4 0 0 1) .
+  riso shapedHandS
 
 -- | default background rectangle colour representing hand type.
-colourBackground :: Strat Colour
-colourBackground = tabulate $ fromHandType (Colour 0.2 0.2 1 0.2, Colour 0.5 0.8 0.5 0.2, Colour 0.8 0.5 0.5 0.2)
+colourBackground :: RangedHand Colour
+colourBackground = tabulate $
+  fromHandType
+  (Colour 0.2 0.2 1 0.2, Colour 0.5 0.8 0.5 0.2, Colour 0.8 0.5 0.5 0.2) .
+  riso shapedHandS
 
 -- | default colors represneting fold, call or raise.
-fcrColours :: Action -> Colour
-fcrColours = fromActionType (Colour 1 0 0 0.2, Colour 0 1 0 0.2, Colour 0 0 1 0.2)
+fcrColours :: RawAction -> Colour
+fcrColours = fromRawActionType (Colour 1 0 0 0.2, Colour 0 1 0 0.2, Colour 0 0 1 0.2)
 
-fromHandType :: (a, a, a) -> Hand -> a
-fromHandType (a, _, _) (Paired _) = a
-fromHandType (_, a, _) (Suited _ _) = a
-fromHandType (_, _, a) (Offsuited _ _) = a
+fromHandType :: (a, a, a) -> ShapedHand -> a
+fromHandType (a, _, _) (MkPair _) = a
+fromHandType (_, a, _) (MkSuited _ _) = a
+fromHandType (_, _, a) (MkOffsuit _ _) = a
 
--- | Rectangles in the Strat square with supplied fill color.
+-- | Rectangles in the RangedHand square with supplied fill color.
 --
 -- ![rect example](other/rect.svg)
-rectChart :: Strat Colour -> ChartSvg
+rectChart :: RangedHand Colour -> ChartSvg
 rectChart s =
   mempty & #chartList
     .~ toList
@@ -99,10 +103,10 @@ rectChart s =
           s
       )
 
--- | chart text in a Strat square format with supplied text color.
+-- | chart text in a RangedHand square format with supplied text color.
 --
 -- ![text example](other/text.svg)
-textChart :: Strat Colour -> Strat Text -> ChartSvg
+textChart :: RangedHand Colour -> RangedHand Text -> ChartSvg
 textChart sc st =
   mempty & #chartList
     .~ zipWith
@@ -120,28 +124,28 @@ textChart sc st =
       (zip (toList st :: [Text]) (toList sc))
       ps
   where
-    gs = grid MidPos (one :: Rect Double) (Point 13 13) :: [Point Double]
+    gs = grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double]
     ps = PointXY . (\(Point x y) -> Point (- x) y) <$> gs
 
--- | pixel chart of a Strat Double
+-- | pixel chart of a RangedHand Double
 bPixelChart ::
   SurfaceStyle ->
   SurfaceLegendOptions ->
-  Strat Double ->
+  RangedHand Double ->
   [Chart Double]
 bPixelChart pixelStyle plo s =
   runHud (aspect 1) hs1 cs1
   where
     f :: Point Double -> Double
-    f (Point x y) = index s (toEnum $ (12 - floor x) + 13 * floor y)
+    f (Point x y) = index s (ShapedHandS $ (12 - floor x) + 13 * floor y)
     (cs1, hs1) =
       surfacefl
         f
         (SurfaceOptions pixelStyle (Point 13 13) (Rect 0 13 0 13))
         plo
 
--- | Pixel chart of a Strat Double using supplied colour gradient.
-pixelChartWith :: [Colour] -> Strat Double -> ChartSvg
+-- | Pixel chart of a RangedHand Double using supplied colour gradient.
+pixelChartWith :: [Colour] -> RangedHand Double -> ChartSvg
 pixelChartWith cs xs =
   mempty & #chartList
     .~ (textChart (tabulate $ const dark) stratText ^. #chartList)
@@ -152,10 +156,10 @@ pixelChartWith cs xs =
         )
         xs
 
--- | Pixel chart of a Strat Double
+-- | Pixel chart of a RangedHand Double
 --
 -- ![pixel example](other/odds9.svg)
-pixelChart :: Strat Double -> ChartSvg
+pixelChart :: RangedHand Double -> ChartSvg
 pixelChart = pixelChartWith colourGradient
 
 -- | default colour gradient for pixel charts
@@ -165,13 +169,13 @@ colourGradient = [Colour 0 1 0 0.3, Colour 0 0 1 0.3, Colour 1 0 0 0.3]
 -- | draw text Hands in the XY-plane
 --
 -- ![scatter example](other/compare29.svg)
-scatterChart :: Strat (Point Double) -> ChartSvg
+scatterChart :: RangedHand (Point Double) -> ChartSvg
 scatterChart ps = mempty & #hudOptions .~ (defaultHudOptions & #hudCanvas .~ Nothing) & #chartList .~ [c]
   where
     c = Chart (TextA (defaultTextStyle & #size .~ 0.04 & #color %~ setOpac 0.4) ls) (toList $ fmap PointXY ps)
     ls = renderStrict . layoutCompact . pretty <$> (toEnum <$> [0 .. 168] :: [Hand])
 
-rectExample :: Strat Double -> ChartSvg
+rectExample :: RangedHand Double -> ChartSvg
 rectExample s =
   rectChart (fcrColours <$> rcf s 10 0.2 0.6)
     <> textChart (setOpac 0.8 . fcrColours <$> rcf s 10 0.2 0.6) stratText
@@ -186,7 +190,7 @@ rankYAxis = defaultAxisOptions & #axisBar .~ Nothing & #place .~ PlaceLeft & #ax
 -- | Make all the document charts.
 writeAllCharts :: IO ()
 writeAllCharts = do
-  (Just m) <- readSomeStrats
+  (Just m) <- readSomeRanges
   let s = m Map.! "o2"
   writeChartSvg "other/text.svg" $
     textChart colourText stratText

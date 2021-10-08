@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -26,7 +25,7 @@ module Poker.Random
     dealNS,
     dealNWith,
     dealTable,
-    dealHand,
+    dealShapedHand,
     dealTableHand,
     rvs52,
     rvHandRank,
@@ -40,15 +39,17 @@ where
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
-import Lens.Micro
-import NumHask.Prelude
+import Lens.Micro ( (&), (.~), (^.) )
+import Prelude
 import Poker.Types
-import System.Random
+import System.Random ( mkStdGen, RandomGen, uniformR )
 import Control.Monad.State.Lazy
-import GHC.OverloadedLabels
+    ( MonadState(put, get), evalState, State, replicateM )
 import Data.List (sort)
-import Data.Bifunctor
-import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
+import Data.Bifunctor ( Bifunctor(second) )
+import Poker
+import Data.Foldable ( Foldable(foldl') )
+import Data.Bool ( bool )
 
 -- $setup
 -- >>> :set -XOverloadedLabels
@@ -56,7 +57,7 @@ import Poker hiding (fromList, Suited, Pair, Hand, Raise, Call, Fold, Seat)
 -- >>> :set -XTypeApplications
 -- >>> import Poker
 -- >>> import Poker.Types
--- >>> import Poker.Strategy
+-- >>> import Poker.RangedHand
 -- >>> import Poker.Random
 -- >>> import qualified Data.Vector.Storable as S
 -- >>> import Lens.Micro
@@ -148,7 +149,7 @@ vshuffle as = go as S.empty
       dealt
       (S.null as)
       where
-        x1 = foldl' (\acc d -> bool acc (acc + one) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
+        x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
 
 -- | deal n cards as a CardsS
 --
@@ -157,33 +158,33 @@ vshuffle as = go as S.empty
 dealNS :: (RandomGen g) => Int -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
--- >>> pretty $ evalState (dealNSWith 7 deckS) (mkStdGen 42)
+-- >>> pretty $ evalState (dealNSWith 7 allCardsS) (mkStdGen 42)
 -- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealNWith :: (RandomGen g) => Int -> CardsS -> State g CardsS
 dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.length cs) n)
 
 -- | deal n cards given a Hand has been dealt.
 --
--- >>> pretty $ evalState (dealHand (Paired Ace) 7) (mkStdGen 42)
--- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
-dealHand :: (RandomGen g) => Hand -> Int -> State g CardsS
-dealHand b n =
+-- >>> pretty $ evalState (dealShapedHand (MkPair Ace) 7) (mkStdGen 42)
+-- [Ah, 7s, Tc, 5s, 6d, 7c, 6s]
+dealShapedHand :: (RandomGen g) => ShapedHand -> Int -> State g CardsS
+dealShapedHand b n =
   dealNWith n .
   (\(x,y) -> let (x',y') =
                   bool (y,x) (x,y) (x <= y) in
-              S.splitAt x' (uncardsS deckS) &
+              S.splitAt x' (uncardsS allCardsS) &
               second (S.splitAt (y'-x')) &
               (\(t,(t', t'')) -> t <> S.tail t' <> S.tail t'') &
               CardsS
   ) .
-  bimap (fromIntegral . fromEnum) (fromIntegral . fromEnum) .
-  toRepPair $
+  (\(Hand x y) -> (fromIntegral (uncardS (liso cardS x)), fromIntegral (uncardS (liso cardS y)))) .
+  toRepHand $
   b
 
 -- | deal a table
 --
 -- >>> pretty $ evalState (dealTable defaultTableConfig) (mkStdGen 42)
--- Ac7s Tc5s,6d7c6s9c4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
 dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
   cs <- dealNS (5 + cfg ^. #numPlayers * 2)
@@ -191,15 +192,15 @@ dealTable cfg = do
 
 -- | deal a table given player i has been dealt a B
 --
--- >>> pretty $ evalState (dealTableHand defaultTableConfig 0 (Paired Ace)) (mkStdGen 42)
--- AhAs Ac7s,Tc5s6d7c6s,hero: 0,o o,9.5 9,0.5 1,0,
-dealTableHand :: (RandomGen g) => TableConfig -> Int -> Hand -> State g Table
+-- >>> pretty $ evalState (dealTableHand defaultTableConfig 0 (MkPair Ace)) (mkStdGen 42)
+-- AcAd Ah7s|Tc5s6d|7c|6s,hero: 0,o o,9.5 9,0.5 1,0,
+dealTableHand :: (RandomGen g) => TableConfig -> Int -> ShapedHand -> State g Table
 dealTableHand cfg i b = do
-  (CardsS xs) <- dealHand b (5 + (cfg ^. #numPlayers - 1) * 2)
+  (CardsS xs) <- dealShapedHand b (5 + (cfg ^. #numPlayers - 1) * 2)
   pure $
     makeTableS cfg $ CardsS $
     S.take (2 * i) xs <>
-    (\(x,y) -> uncardsS $ liso cardsS [x,y]) (toRepPair b) <>
+    (\(Hand x y) -> uncardsS $ liso cardsS [x,y]) (toRepHand b) <>
     S.drop (2 * i) xs
 
 -- | uniform random variate of HandRank
@@ -243,7 +244,9 @@ card7sSI n = Cards2S $ S.fromList $ fmap fromIntegral $ mconcat $
 
 -- | create a list of n dealt tables, with p players
 --
--- > pretty <$> tables 2 2
+-- >>> pretty $ tables 2 2
+-- [ Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 9sAs 3d5s|KcTd9h|9d|2h,hero: 0,o o,9.5 9,0.5 1,0, ]
 tables :: Int -> Int -> [Table]
 tables p n =
   evalState
@@ -253,9 +256,11 @@ tables p n =
 
 -- | create a list of n dealt tables, with p players, where b is dealt to player k
 --
--- > :t pretty <$> tablesB 2 (Paired Ace) 1 3
---
-tablesB :: Int -> Hand -> Int -> Int -> [Table]
+-- >>> pretty $ tablesB 2 (MkPair Ace) 1 3
+-- [ Ah7s AcAd|Tc5s6d|7c|6s,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 7s4s AcAd|Td3d6c|Kh|Ts,hero: 0,o o,9.5 9,0.5 1,0,
+-- , 9c8s AcAd|Ks2h4h|5d|Tc,hero: 0,o o,9.5 9,0.5 1,0, ]
+tablesB :: Int -> ShapedHand -> Int -> Int -> [Table]
 tablesB p b k n =
   evalState
   (replicateM n

@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 
 import Poker.Types
-import Poker.Strategy
+import Poker.RangedHand
 import Prelude
 import Options.Applicative
 
-data RunType = RunHvs7 | RunSomeStrats deriving (Eq, Show)
+data RunType = RunHvs7 | RunSomeRanges deriving (Eq, Show)
 
 data Options = Options
   { optionSims :: Int,
@@ -14,18 +14,18 @@ data Options = Options
 
 sims :: Parser Int
 sims =
-  option auto (long "sims" <> short 's' <> help "number of simulations for Strat maps") <|>
+  option auto (long "sims" <> short 's' <> help "number of simulations for RangedHand maps") <|>
   pure 10000
 
-run :: Parser RunType
-run =
+runType :: Parser RunType
+runType =
   flag' RunHvs7 (long "hvs7" <> help "write hvs7.vec file") <|>
-  pure RunSomeStrats
+  pure RunSomeRanges
 
 options :: Parser Options
 options = Options <$>
   sims <*>
-  run
+  runType
 
 opts :: ParserInfo Options
 opts = info (options <**> helper)
@@ -38,6 +38,6 @@ main = do
     RunHvs7 -> do
       putStrLn "writing hvs7.vec"
       hvs7Write
-    RunSomeStrats -> do
+    RunSomeRanges -> do
       putStrLn "writing some.str"
-      writeSomeStrats (optionSims o)
+      writeSomeRanges (optionSims o)
