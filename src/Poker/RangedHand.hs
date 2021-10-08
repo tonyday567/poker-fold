@@ -45,6 +45,7 @@ import Lens.Micro
 import Prelude
 import Poker.Random
 import Poker.Types
+import Poker.Evaluate
 import Control.Monad.State.Lazy
 import GHC.OverloadedLabels
 import Data.Bifunctor

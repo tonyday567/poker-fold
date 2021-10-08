@@ -47,6 +47,7 @@ library
     prettyprinter,
   exposed-modules:
     Poker.RangedHand
+    Poker.Evaluate
     Poker.Charts
     Poker.Random
     Poker.Types

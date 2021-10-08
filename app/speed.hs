@@ -6,6 +6,7 @@
 import Poker hiding (fromList)
 import Prelude
 import Poker.RangedHand
+import Poker.Evaluate
 import Poker.Types
 import Poker.Random
 import Perf

@@ -41,6 +41,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import Lens.Micro ( (&), (.~), (^.) )
 import Prelude
+import Poker.Evaluate
 import Poker.Types
 import System.Random ( mkStdGen, RandomGen, uniformR )
 import Control.Monad.State.Lazy

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 
-import Poker.Types
 import Poker.RangedHand
+import Poker.Evaluate
 import Prelude
 import Options.Applicative
 
