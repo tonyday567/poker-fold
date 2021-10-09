@@ -24,6 +24,7 @@ import Poker.Card.Storable
 import Poker.Evaluate
 import Poker.Random
 import Poker.RangedHand
+import Poker.Table
 import System.Environment
 import System.Random
 import Text.Read (readMaybe)
@@ -35,6 +36,17 @@ import qualified Prelude as P
 -- > poker-speed handRankS_
 -- sum: 0.032
 -- fromList [("flushS","1.019"),("kindS","0.499"),("ranksSet","0.938"),("straightS","0.226"),("toRanksS","0.112")]
+
+-- TODO: CardS speed test:
+--
+-- 1. coercion (via the enum instance?)
+--
+-- > toCard (CardS x) = (\(r,s) -> Card (unsafeCoerce r) (unsafeCoerce s)) (x `divMod` 4)
+-- > fromCard (Card r s) = CardS $ unsafeCoerce r * 4 + unsafeCoerce s
+--
+-- 2. divmod (this iso)
+--
+-- 3. Word8 + Word8 = Word16
 
 -- http://kcats.org/csci/464/doc/knuth/fascicles/fasc3a.pdf
 -- https://www.daniweb.com/programming/computer-science/threads/41584/the-fastest-combination-generator
@@ -98,12 +110,6 @@ algoL = unfold1 nextp
         else reverse (x : us) ++ reverse (u : yys) ++ xs
     inc _ _ ([], _) = P.error "permute: should not happen"
 
-sortS :: (Ord a, Storable a) => S.Vector a -> S.Vector a
-sortS xs = S.create $ do
-  xs' <- S.thaw xs
-  Intro.sort xs'
-  pure xs'
-
 sortSNoinline :: (Ord a, Storable a) => S.Vector a -> S.Vector a
 sortSNoinline xs = S.create $ do
   xs' <- S.thaw xs
@@ -149,7 +155,6 @@ main = do
   resolution 2 n r
   writeSome n r
   sortingChecks n r
-  lookupHR_Speeds n r
   algorithms n r
 
   case r of
@@ -169,14 +174,14 @@ sortingChecks n t = do
   let cs = card7sS n
   case t of
     -- 1.699
-    "listsort" -> logTick "listsort" (fmap sort) (from cardsS7L cs)
+    "listsort" -> logTick "listsort" (fmap sort) (to cardsS7L cs)
     -- 0.912
-    "listsortS" -> logTick "listsortS" (applyV (sort . S.toList . uncardsS)) cs
+    "listsortS" -> logTick "listsortS" (applyV (sort . S.toList . unwrapCards)) cs
     -- 0.797
     -- sortS has deteriorated in performance, from 0.3, as I have used it.
-    "sortS" -> logTick "sortS" (applyV (sortS . uncardsS)) cs
+    "sortS" -> logTick "sortS" (applyV (sortS . unwrapCards)) cs
     -- 1.170
-    "sortSNoinline" -> logTick "sortSNoinline" (applyV (sortSNoinline . uncardsS)) cs
+    "sortSNoinline" -> logTick "sortSNoinline" (applyV (sortSNoinline . unwrapCards)) cs
     _ -> pure ()
 
 algorithms :: Int -> Text -> IO ()
@@ -200,8 +205,6 @@ binoms :: Int -> Text -> IO ()
 binoms n r = case r of
   "binom" -> logTicks n "binom" (binom 52) 7
   "binomR" -> logTicks n "binomR" (binomR 52) 7
-  "binomM" ->
-    logTicks n "binomM" (binomM 52) 7
   _ -> pure ()
 
 -- | handRankS version for performance testing.
@@ -216,8 +219,7 @@ handRankS_ cs = runPerfT $ do
       case st of
         Just x -> pure x
         Nothing -> do
-          rs2 <- perf "toRanksS" cycles $ pure (toRanksS cs)
-          perf "kindS" cycles $ pure (kindS rs2)
+          perf "kindS" cycles $ pure (kindS rs)
 
 handRankS_Count :: CardsS -> IO (HandRank, Map.Map Text Int)
 handRankS_Count cs = runPerfT $ do
@@ -253,7 +255,7 @@ handRankSpeeds n r = case r of
   "handRankS" -> logTick "handRankS" (applyV handRankS) (card7sS n)
   -- 0.396
   -- toLexiPosRS: 0.267
-  -- applyFlat: 0.010
+  -- applyFlatV: 0.010
   -- lookup: 0.087
   -- unknown: 0.032
   "lookupHRUnsafe" ->
@@ -262,57 +264,19 @@ handRankSpeeds n r = case r of
       (applyV lookupHRUnsafe)
       ( V.foldMap id $
           applyV
-            (Cards2S . S.fromList . sort . S.toList . uncardsS)
+            (Cards2S . S.fromList . sort . S.toList . unwrapCards)
             (card7sS n)
       )
   -- 0.359
   "lookupHR2" -> do
     s <- hvs7
-    let !cs = CardsS $ uncards2S (card7sS 1)
+    let !cs = CardsS $ unwrapCards2 (card7sS 1)
     logTicks
       n
       "lookupHR2"
       (lookupHR s)
       cs
   _ -> pure ()
-
--- * lookupHR component performance
-
---
-lookupHR_Speeds :: Int -> Text -> IO ()
-lookupHR_Speeds n r =
-  case r of
-    --
-    "lookupHR_sortS" ->
-      logTicks
-        n
-        "lookupHR_SortS"
-        (applyM (sortS . uncardsS))
-        (card7sS n)
-    --
-    "lookupHR_fromEnum" ->
-      logTicks
-        n
-        "lookupHR_fromEnum"
-        (S.map fromEnum)
-        (applyM (sortS . uncardsS) (card7sS n))
-    --
-    "lookupHR_toLexiPosRS" ->
-      logTicks
-        n
-        "lookupHR_toLexiPosRS"
-        (applyFlatS 7 (toLexiPosRS 52 7))
-        (S.map fromEnum . applyM (sortS . uncardsS) $ card7sS n)
-    --
-    "lookupHR_lookup" -> do
-      s <- hvs7
-      let !cs = applyFlatS 7 (toLexiPosRS 52 7) . S.map fromEnum . applyM (sortS . uncardsS) $ card7sS n
-      logTicks
-        n
-        "lookupHR_lookup"
-        (S.map (s S.!))
-        cs
-    _ -> pure ()
 
 -- | storable lookup components
 lookupTech :: Int -> Text -> IO ()
@@ -328,15 +292,15 @@ lookupTech n r = case r of
     putStrLn ("allHandRank instantiation: " <> unpack (fixed (Just 3) (toSecs t)))
 
   -- 0.264
-  -- applyFlat adds 0.0xx
+  -- applyFlatV adds 0.0xx
   "toLexiPosRS" -> do
-    let !cs = S.map fromEnum $ uncards2S $ card7sS n
-    logTick "toLexiPosRS" (applyFlat 7 (toLexiPosRS 52 7)) cs
+    let !cs = S.map fromEnum $ unwrapCards2 $ card7sS n
+    logTick "toLexiPosRS" (applyFlatV 7 (toLexiPosRS 52 7)) cs
 
   -- 0.087
   "lookupHRsLookup" -> do
     s <- hvs7
-    let !cs = applyFlatS 7 (toLexiPosRS 52 7) $ S.map fromEnum $ uncards2S $ card7sS n
+    let !cs = applyFlatS 7 (toLexiPosRS 52 7) $ S.map fromEnum $ unwrapCards2 $ card7sS n
     logTick
       "lookupHRs: Lookup Component"
       (S.map (s S.!))
@@ -386,9 +350,9 @@ cardChecks n t = case t of
   -- 1.873
   "card7s" -> logTick "card7s" card7s n
   -- 2.505
-  "card7sS" -> logTick "card7sS" (uncards2S . card7sS) n
+  "card7sS" -> logTick "card7sS" (unwrapCards2 . card7sS) n
   -- 1.001
-  "card7sSI" -> logTick "card7sSI ishuffle" (uncards2S . card7sSI) n
+  "card7sSI" -> logTick "card7sSI ishuffle" (unwrapCards2 . card7sSI) n
   _ -> pure ()
 
 handRankComponents :: Int -> Text -> IO ()
@@ -400,24 +364,21 @@ handRankComponents n r = case r of
   -- flush: 0.623
   -- kind: 0.707
   --  rankCountS: 0.303
-  -- "handRankS" -> logTick "handRankS"
-  --   (applyS handRankS)
-  --   (Cards2S $ applyM (sortS . uncardsS) (card7sS n))
 
   -- 0.284
   "rank" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "rank for a flat"
-      (applyFlat 7 (S.map (fromEnum . rank . toEnum . fromIntegral)))
+      (applyFlatV 7 (S.map (fromEnum . rank . toEnum . fromIntegral)))
       cs
 
   -- 1.532
   "royals" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "flush n straight check"
-      ( applyFlat
+      ( applyFlatV
           7
           ((\x -> flush x <|> straight x) . fmap (toEnum . fromIntegral) . S.toList)
       )
@@ -425,10 +386,10 @@ handRankComponents n r = case r of
 
   -- 0.612
   "flush" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "flush"
-      ( applyFlat
+      ( applyFlatV
           7
           (flush . fmap (toEnum . fromIntegral) . S.toList)
       )
@@ -436,18 +397,18 @@ handRankComponents n r = case r of
 
   -- 0.623
   "flushS" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "flushS"
-      (applyFlat 7 (flushS . CardsS))
+      (applyFlatV 7 (flushS . CardsS))
       cs
 
   -- 1.082
   "straight" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "straight"
-      ( applyFlat
+      ( applyFlatV
           7
           (straight . fmap (toEnum . fromIntegral) . S.toList)
       )
@@ -455,55 +416,55 @@ handRankComponents n r = case r of
 
   -- 0.977
   "straightS" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "straightS"
-      (applyFlat 7 (straightS . RanksS))
+      (applyFlatV 7 (straightS . RanksS))
       cs
 
   -- 1.507
   "kind" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "kind"
-      (applyFlat 7 (kind . fmap (rank . toEnum . fromIntegral) . S.toList))
+      (applyFlatV 7 (kind . fmap (rank . toEnum . fromIntegral) . S.toList))
       cs
 
   -- 0.707
   "kindS" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "kindS"
-      (applyFlat 7 (kindS . RanksS))
+      (applyFlatV 7 (kindS . RanksS))
       (S.map (`div` 4) cs)
 
   -- 1.887
   "rankCount" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "rankCount"
-      (applyFlat 7 (rankCount . fmap (rank . toEnum . fromIntegral) . S.toList))
+      (applyFlatV 7 (rankCount . fmap (rank . toEnum . fromIntegral) . S.toList))
       cs
 
   -- 0.307
   "rankCountS" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "rankCountS"
-      (applyFlat 7 (rankCountS . RanksS))
+      (applyFlatV 7 (rankCountS . RanksS))
       cs
 
   -- 1.432
   "suitRanks" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "suitRanks"
-      (applyFlat 7 (suitRanks . fmap (toEnum . fromIntegral) . S.toList))
+      (applyFlatV 7 (suitRanks . fmap (toEnum . fromIntegral) . S.toList))
       cs
 
   -- 0.039
   "handRankSum" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "sum"
       (applyFlatS 7 S.sum)
@@ -511,18 +472,18 @@ handRankComponents n r = case r of
 
   -- 0.470
   "handRankToList" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "toList"
-      (applyFlat 7 S.toList)
+      (applyFlatV 7 S.toList)
       cs
 
   -- 0.206
   "wrapping" -> do
-    let !cs = uncards2S $ card7sS n
+    let !cs = unwrapCards2 $ card7sS n
     logTick
       "wrapping"
-      ( applyFlat
+      ( applyFlatV
           7
           (sum . S.toList)
       )

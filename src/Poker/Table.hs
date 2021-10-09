@@ -37,6 +37,10 @@ module Poker.Table
     fromRawAction,
     fromRawActionType,
     actOn,
+
+    -- * Showdown
+    showdown,
+    bestLiveHand,
   )
 where
 
@@ -52,8 +56,10 @@ import GHC.Generics hiding (from, to)
 import Lens.Micro hiding (to)
 import Poker hiding (fromList)
 import Poker.Card.Storable
+import Poker.Evaluate
 import Prettyprinter hiding (comma)
 import Prelude
+import Data.Bifunctor
 
 -- $setup
 --
@@ -404,3 +410,40 @@ actOn (RawRaise r) ts = case ts ^. #hero of
       bet = min (gap + r) st
       r' = bet - gap
       st' = st - bet
+
+-- | Ship the pot to the winning hands
+--
+-- >>>
+-- >>> t = makeTable defaultTableConfig cs
+-- >>> pretty $ showdown t
+-- Ah7s Th5s|6c7h6s|9h|4s,hero: 0,o o,11 9,0 0,0,
+showdown :: Table -> Table
+showdown ts =
+  ts
+    & #stacks %~ (\s -> foldr ($) s (Seq.adjust' (+ pot' / fromIntegral (length winners)) <$> winners))
+    & #bets .~ fromList (replicate (numSeats ts) 0)
+    & #pot .~ 0
+  where
+    pot' = sum (ts ^. #bets) + ts ^. #pot
+    winners = bestLiveHand ts
+
+-- | Find the (maybe multiple) best a's
+bests :: (Ord a) => [(Int, a)] -> a -> [Int] -> [Int]
+bests [] _ res = res
+bests ((i, x) : xs) x' res =
+  case compare x x' of
+    LT -> bests xs x' res
+    EQ -> bests xs x' (i : res)
+    GT -> bests xs x [i]
+
+-- | index of the winning hands
+--
+-- >>> bestLiveHand t
+-- [0]
+--
+bestLiveHand :: Table -> [Int]
+bestLiveHand ts =
+  fmap
+    (\xs -> bests xs 0 [])
+    (fmap (second (lookupHRUnsafe . from cardsS . List.sort)))
+    $ liveHands ts

@@ -2,7 +2,16 @@ cabal-version: 2.4
 name:          poker-fold
 version:       0.0.1
 synopsis: A poker library
-description: A poker library exploring holdem strategy.
+description: An experimental poker library building on poker-base, focused on
+    .
+    - fast evaluation
+    .
+    - poker ai (algorithms and intelligence)
+    .
+    - exploration of holdem strategy
+    .
+    ![odds](other/glines.svg)
+
 category: project
 author: Tony Day
 maintainer: tonyday567@gmail.com

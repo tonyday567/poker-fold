@@ -153,15 +153,14 @@ vshuffle as = go as S.empty
 
 -- | deal n cards as a CardsS
 --
--- >>> pretty $ to cardsS $ evalState (dealNS 7) (mkStdGen 42)
--- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
+-- >>> pretty $ evalState (dealNS 7) (mkStdGen 42)
+-- Ac7sTc5s6d7c6s
 dealNS :: (RandomGen g) => Int -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
-
 -- | deal n cards from a given deck
 -- >>> pretty $ evalState (dealNWith 7 allCardsS) (mkStdGen 42)
--- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
+-- Ac7sTc5s6d7c6s
 dealNWith :: (RandomGen g) => Int -> CardsS -> State g CardsS
 dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.length cs) n)
 
@@ -196,7 +195,7 @@ card7s n = evalState (replicateM n (fmap toEnum . ishuffle <$> rvis 52 7)) (mkSt
 
 -- | Flat storable vector of n 7-card sets.
 --
--- >>> S.length $ uncards2S $ card7sS 100
+-- >>> S.length $ unwrapCards2 $ card7sS 100
 -- 700
 card7sS :: Int -> Cards2S
 card7sS n =

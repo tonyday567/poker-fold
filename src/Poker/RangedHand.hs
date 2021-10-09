@@ -77,7 +77,6 @@ import GHC.Word
 import NumHask.Array (Array)
 import Poker hiding (fromList)
 import Poker.Card.Storable
-import Poker.Evaluate
 import Poker.Random
 import Poker.Table
 import Prettyprinter
@@ -143,11 +142,11 @@ shapedHandS =
 
 fromShapedHand :: ShapedHand -> ShapedHandS
 fromShapedHand (MkOffsuit r0 r1) =
-  ShapedHandS $ unrankS (from rankS r1) * 13 + unrankS (from rankS r0)
+  ShapedHandS $ unwrapRank (from rankS r1) * 13 + unwrapRank (from rankS r0)
 fromShapedHand (MkPair p) =
-  ShapedHandS $ let p' = unrankS (from rankS p) in p' * 13 + p'
+  ShapedHandS $ let p' = unwrapRank (from rankS p) in p' * 13 + p'
 fromShapedHand (MkSuited r0 r1) =
-  ShapedHandS $ unrankS (from rankS r0) * 13 + unrankS (from rankS r1)
+  ShapedHandS $ unwrapRank (from rankS r0) * 13 + unwrapRank (from rankS r1)
 
 toShapedHand :: ShapedHandS -> ShapedHand
 toShapedHand (ShapedHandS x) = case compare d m of
@@ -568,19 +567,19 @@ apply s t = fromMaybe RawFold $ case hero t of
 -- | deal n cards given a Hand has been dealt.
 --
 -- >>> pretty $ evalState (dealShapedHand (MkPair Ace) 7) (mkStdGen 42)
--- [Ah, 7s, Tc, 5s, 6d, 7c, 6s]
+-- Ah7sTc5s6d7c6s
 dealShapedHand :: (RandomGen g) => ShapedHand -> Int -> State g CardsS
 dealShapedHand b n =
   dealNWith n
     . ( \(x, y) ->
           let (x', y') =
                 bool (y, x) (x, y) (x <= y)
-           in S.splitAt x' (uncardsS allCardsS)
+           in S.splitAt x' (unwrapCards allCardsS)
                 & second (S.splitAt (y' - x'))
                 & (\(t, (t', t'')) -> t <> S.tail t' <> S.tail t'')
                 & CardsS
       )
-    . (\(Hand x y) -> (fromIntegral (uncardS (from cardS x)), fromIntegral (uncardS (from cardS y))))
+    . (\(Hand x y) -> (fromIntegral (unwrapCard (from cardS x)), fromIntegral (unwrapCard (from cardS y))))
     . toRepHand
     $ b
 
@@ -595,7 +594,7 @@ dealTableHand cfg i b = do
     makeTableS cfg $
       CardsS $
         S.take (2 * i) xs
-          <> (\(Hand x y) -> uncardsS $ from cardsS [x, y]) (toRepHand b)
+          <> (\(Hand x y) -> unwrapCards $ from cardsS [x, y]) (toRepHand b)
           <> S.drop (2 * i) xs
 
 -- | create a list of n dealt tables, with p players, where b is dealt to player k
