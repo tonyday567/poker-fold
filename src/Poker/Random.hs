@@ -12,23 +12,32 @@
 
 -- | Card entropy
 module Poker.Random
-  ( rvi,
+  ( -- * Usage
+    -- $usage
+
+    -- * Sampling
+    rvi,
     rvis,
     rviv,
     shuffle,
+    ishuffle,
     vshuffle,
+
+    -- * Deals
     dealN,
     dealNS,
     dealNWith,
     dealTable,
-    rvs52,
     rvHandRank,
+
+    -- * Card sets
     card7s,
     card7sS,
     card7sSI,
     tables,
+
+    -- * Enumeration
     enum2,
-    ishuffle,
   )
 where
 
@@ -52,14 +61,23 @@ import Poker.Table
 import System.Random (RandomGen, mkStdGen, uniformR)
 import Prelude
 
+-- $usage
+-- >>> import Control.Monad.State.Lazy
+-- >>> import Poker
+-- >>> import Poker.Card.Storable
+-- >>> import Poker.Random
+-- >>> import Prelude
+-- >>> import Prettyprinter
+-- >>> import System.Random
+-- >>> pretty $ evalState (dealNS 7) (mkStdGen 42)
+-- Ac7sTc5s6d7c6s
+
 -- $setup
--- >>> :set -XOverloadedLabels
--- >>> :set -XOverloadedStrings
--- >>> :set -XTypeApplications
 -- >>> import Control.Monad.State.Lazy
 -- >>> import Lens.Micro hiding (to)
 -- >>> import Poker
 -- >>> import Poker.Card.Storable
+-- >>> import Poker.Evaluate
 -- >>> import Poker.Random
 -- >>> import Poker.RangedHand
 -- >>> import Poker.Table
@@ -69,7 +87,9 @@ import Prelude
 -- >>> import qualified Data.Text as Text
 -- >>> import qualified Data.Vector.Storable as S
 
--- | uniform random variate of an Enum-style Int
+-- | Uniform random variate of an Int
+--
+-- @rvi 52@ generates a random variate between 0 and 51 inclusive.
 --
 -- >>> pretty (toEnum $ evalState (rvi 52) (mkStdGen 42) :: Card)
 -- Ac
@@ -82,34 +102,28 @@ rvi n = do
 
 -- | reducing finite population n samples
 --
+-- @rvis 52 2@ produces a list containing a random variate between 0 and 51, and an rv between 0 and 50.
+--
 -- >>> let xs = evalState (rvis 52 7) (mkStdGen 42)
 -- >>> xs
 -- [48,23,31,15,16,18,17]
 --
--- evalState (shuffle 52 <$> (rvis 52 7)) (mkStdGen 42)
--- ([48,23,32,15,17,20,19],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,18,21,22,24,25,26,27,28,29,30,31,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,49,50,51])
 rvis :: (RandomGen g) => Int -> Int -> State g [Int]
 rvis n k = sequence (rvi . (n -) <$> [0 .. (k - 1)])
 
--- | finite population n samples without replacement
+-- | Vector version of rvis
 --
 -- >>> evalState (rviv 52 7) (mkStdGen 42)
 -- [48,23,31,15,16,18,17]
 --
--- >>> evalState (vshuffle <$> (rviv 52 7)) (mkStdGen 42)
--- [48,23,32,15,17,20,19]
 rviv :: (RandomGen g) => Int -> Int -> State g (S.Vector Int)
 rviv n k = S.mapM (rvi . (n -)) (S.generate k id)
 
--- | a valid series of random index values to shuffle a population of 52 enums (for testing)
+-- | Creates sample without replacement given an 'rvis' process.
 --
--- >>> rvs52
--- [48,23,31,15,16,18,17,23,11,31,5,14,30,28,27,2,9,11,27,24,17,0,10,2,2,11,8,2,18,8,11,16,6,14,3,1,6,0,2,11,1,6,3,7,4,1,5,4,2,1,0,0]
-rvs52 :: [Int]
-rvs52 = flip evalState (mkStdGen 42) $ rvis 52 52
-
--- | vector perfect shuffle
+-- Does this by actually cutting up vectors.
 --
+-- >>> rvs52 = flip evalState (mkStdGen 42) $ rvis 52 52
 -- >>> shuffle 52 rvs52
 -- ([48,23,32,15,17,20,19,28,11,39,5,18,41,38,37,2,12,16,44,40,29,0,21,4,6,26,22,7,45,25,33,46,14,43,9,3,30,1,13,50,10,36,31,49,35,24,51,47,34,27,8,42],[])
 shuffle :: Int -> [Int] -> (V.Vector Int, V.Vector Int)
@@ -129,16 +143,33 @@ cutV v x =
   where
     n = V.length v
 
--- | deal n cards from a fresh, shuffled, standard pack.
+-- | Creates sample without replacement given an 'rvis' process.
 --
--- >>> pretty $ evalState (dealN 7) (mkStdGen 42)
--- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
-dealN :: (RandomGen g) => Int -> State g [Card]
-dealN n = fmap toEnum . ishuffle <$> rvis 52 n
+-- Computation treats rvis output as indices.
+--
+-- isomorphic to fst . shuffle 52
+--
+-- >>> rvs52 = flip evalState (mkStdGen 42) $ rvis 52 52
+-- >>> ishuffle rvs52
+-- [48,23,32,15,17,20,19,28,11,39,5,18,41,38,37,2,12,16,44,40,29,0,21,4,6,26,22,7,45,25,33,46,14,43,9,3,30,1,13,50,10,36,31,49,35,24,51,47,34,27,8,42]
+--
+-- TODO: refactor the sort
+ishuffle :: [Int] -> [Int]
+ishuffle as = reverse $ go as []
+  where
+    go [] s = s
+    go (x0 : xs) s = go xs (x1 : s)
+      where
+        x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) x0 (sort s)
 
--- | isomorphic to shuffle, but keeps track of the sliced out bit.
+-- | Vector version of ishuffle
 --
--- > shuffle 52 (take 52 rvs52) == ishuffle rvs52
+-- >>> rvs52' = flip evalState (mkStdGen 42) $ rviv 52 52
+-- >>> vshuffle rvs52'
+-- [48,23,32,15,17,20,19,28,11,39,5,18,41,38,37,2,12,16,44,40,29,0,21,4,6,26,22,7,45,25,33,46,14,43,9,3,30,1,13,50,10,36,31,49,35,24,51,47,34,27,8,42]
+--
+-- >>> flip evalState (mkStdGen 42) $ fmap ((==[0..51]) . S.toList . sortS . vshuffle) (rviv 52 52)
+-- True
 vshuffle :: S.Vector Int -> S.Vector Int
 vshuffle as = go as S.empty
   where
@@ -151,6 +182,13 @@ vshuffle as = go as S.empty
       where
         x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
 
+-- | deal n cards from a fresh, shuffled, standard pack.
+--
+-- >>> pretty $ evalState (dealN 7) (mkStdGen 42)
+-- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
+dealN :: (RandomGen g) => Int -> State g [Card]
+dealN n = fmap toEnum . ishuffle <$> rvis 52 n
+
 -- | deal n cards as a CardsS
 --
 -- >>> pretty $ evalState (dealNS 7) (mkStdGen 42)
@@ -159,6 +197,7 @@ dealNS :: (RandomGen g) => Int -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
 -- | deal n cards from a given deck
+--
 -- >>> pretty $ evalState (dealNWith 7 allCardsS) (mkStdGen 42)
 -- Ac7sTc5s6d7c6s
 dealNWith :: (RandomGen g) => Int -> CardsS -> State g CardsS
@@ -184,12 +223,10 @@ rvHandRank = do
   put g'
   pure (allHandRanks List.!! x)
 
--- * random card generation
-
 -- | random 7-Card list of lists
 --
--- >>> :t pretty <$> card7s 2
--- pretty <$> card7s 2 :: [Doc ann]
+-- >>> pretty <$> card7s 2
+-- [[Ac, 7s, Tc, 5s, 6d, 7c, 6s],[7s, 4s, Td, 3d, 6c, Kh, Ts]]
 card7s :: Int -> [[Card]]
 card7s n = evalState (replicateM n (fmap toEnum . ishuffle <$> rvis 52 7)) (mkStdGen 42)
 
@@ -207,9 +244,10 @@ card7sS n =
             (replicateM n (vshuffle <$> rviv 52 7))
             (mkStdGen 42)
 
--- | flat storable vector of ints, representing n 7-card sets
+-- | flat storable vector of ints, representing n 7-card sets using ishuffle
 --
--- uses ishuffle
+-- >>> S.length $ unwrapCards2 $ card7sSI 100
+-- 700
 card7sSI :: Int -> Cards2S
 card7sSI n =
   Cards2S $
@@ -245,11 +283,3 @@ enum2 xs = fmap (p . fmap toEnum) . (\x y -> ishuffle [x, y]) <$> [0 .. (n - 1)]
     p (x : y : _) = (xs List.!! x, xs List.!! y)
     p _ = error "list too short"
 
--- | isomorphic to shuffle, but keeps track of the sliced out bit.
-ishuffle :: [Int] -> [Int]
-ishuffle as = reverse $ go as []
-  where
-    go [] s = s
-    go (x0 : xs) s = go xs (x1 : s)
-      where
-        x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) x0 s

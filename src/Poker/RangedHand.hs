@@ -453,27 +453,8 @@ rcf s r x y =
 
 -- | Simulate the expected value of a strategy
 --
--- FIXME: nefarious duplicate card bug
---
--- >>> :set -XOverloadedLabels
--- >>> cards = evalState (replicateM 10 (dealN (5 + 2 * 2))) (mkStdGen 42)
--- >>> acts = [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
--- >>> ts = makeTable (defaultTableConfig & #numPlayers .~ 2) <$> cards
---
--- >>> pretty ts
--- [ Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
--- , 9sAs 3d5s|KcTd9h|9d|2h,hero: 0,o o,9.5 9,0.5 1,0,
--- , 4d5c 9d8h|6sJd4s|Qc|Qc,hero: 0,o o,9.5 9,0.5 1,0,
--- , Qs9s Qd8s|Jc6h4c|Ah|8c,hero: 0,o o,9.5 9,0.5 1,0,
--- , 9sJs 5h2s|Jc8c6h|Tc|5s,hero: 0,o o,9.5 9,0.5 1,0,
--- , 2d5c Qc3c|4d3hKs|Th|Qc,hero: 0,o o,9.5 9,0.5 1,0,
--- , 5dKd 9s9d|9c6s2c|3c|4h,hero: 0,o o,9.5 9,0.5 1,0,
--- , Kc9c TsQs|3d6sKd|7d|9d,hero: 0,o o,9.5 9,0.5 1,0,
--- , KdAc 4c6s|6c8d6c|5s|3c,hero: 0,o o,9.5 9,0.5 1,0,
--- , KdQh Ah9h|Ad4s2d|Kh|8d,hero: 0,o o,9.5 9,0.5 1,0, ]
---
 -- >>> ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
--- Just 0.5500000000000007
+-- Just 2.999999999999936e-2
 ev :: Int -> Int -> [RangedHand RawAction] -> Maybe Double
 ev n sims acts =
   listToMaybe $
@@ -523,12 +504,12 @@ evTables n sims acts =
 -- [1,_,1,_] is iso to always Raise
 --
 -- >>> ev2Ranges s 100 [1,1,1,1,1]
--- Just 0.3949999999999996
+-- Just (-1.205)
 --
 -- [0,1,0,_,_] is iso to always Call
 --
 -- >>> ev2Ranges s 100 [0,1,0,1,1]
--- Just 3.500000000000014e-2
+-- Just (-0.125)
 ev2Ranges :: RangedHand Double -> Int -> [Double] -> Maybe Double
 ev2Ranges s sims (s0r : s0c : s1r : s2r : s3r : _) =
   ev 2 sims [rcf s 10 s0r s0c, rcf s 10 s1r 1, rcf s 10 0 s2r, rcf s 10 0 s3r]
