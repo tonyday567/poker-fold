@@ -11,9 +11,44 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 
--- | RangedHand computations
+-- | __A Shaped Hand__
+--
+-- A 'Suit' in holdem is unordered; no Suit is better or worse than another when assessing hand ranks. A consequence of the unordered nature of suits is that the set of all 'Hand's, the pair of cards dealt to a player, can be divided into iso-equivalence classes where equivalance is seen from the point of view of hand strength or value in the presence of non-determinism.
+--
+-- For example, there is no difference pre-flop between being dealt a @AhKc@ and a @AsKd@. Specifically, the probability of forming various hands by the river is exactly the same for both hands. Another example is @AhKc@ and @KcAh@ as the order of the cards doesn't effect the potential hand value.
+--
+-- It follows then that the Strategy (how should one progress or act in a holdem game) for both of these example 'Hand's is also identical. This is the idea behind a 'ShapedHand'.
+--
+-- A 'ShapedHand' can be:
+--
+-- - a 'Pair' (two 'Card's of the same 'Rank'): which occurs 12 times in a full enumerations of a fresh deck. (4 suits x 3 suits)
+--
+-- - an 'Offsuit' (two 'Card's of different 'Rank', with the first rank of a 'ShapedHand' representing the highest rank): which occurs 24 time ((low ranked dealt first && high rank dealt first) x 4 suits x 3 suits)
+--
+-- - 'Suited' (two 'Card's of different 'Rank' and the same 'Suit'): which occurs 8 times ((low && high ranked) x 4 suits)
+--
+-- ![count example](other/count.svg)
+--
+-- With respect to poker strategy (how should I act), a 'ShapedHand' can be considered to be a lossless compression algorithm. Transformations from 'Hand' to 'ShapedHand' reduce the necessary enumeration of Strategy from 2652 different possibilities to 169, with no loss of fidelity.
+--
+--
+-- __A Ranged Hand__
+--
+-- A 'RangedHand' a is a vector of a's representing a value for each possible 'ShapedHand' (there are 169 of them). Poker strategy (what should I do) is often expressed in terms of 'ShapedHand's. Some examples:
+--
+-- - "In the big blind, facing an AllIn raise, you should call with your best 20% of hands."
+--
+-- This can be represented as a RangedHand Bool. "Pair Ace" is likely to be True and "Offsuit Three Two" False.
+--
+-- - "I think that bet is a complete bluff"
+-- A RangedHand Double representing a probability distribution eg 0 for good ShapedHands (not bluffs) and a small value for all other shaped hands (bluffs), adding to one.
+--
+-- - "I always lose with Jacks."
+--
+-- A statement that can be verified by examining a hand history of the player and dividing up profit and loss into starting hand HandRanges.
+--
 module Poker.RangedHand
-  ( -- * Storable version of ShapedHand
+  ( -- * Storable ShapedHand
     ShapedHandS (..),
     shapedHandS,
     fromHand,
@@ -23,35 +58,35 @@ module Poker.RangedHand
     -- * RangedHand
     RangedHand (..),
     stratText,
-    enumBs,
+    enumShapedHands,
     handTypeCount,
     any2,
+    always,
+    allin,
 
-    -- * computations
+    -- * Simulation
+    winHand,
+    winOdds,
     topBs,
     ev,
     evs,
     ev2Ranges,
-    winHand,
-    winOdds,
     rcf,
 
-    -- * saved ranges
-    someRanges,
-    writeSomeRanges,
-    readSomeRanges,
-
-    -- * table interaction
+    -- * Table Interaction
     dealShapedHand,
     dealTableHand,
     tablesB,
     apply,
-    betRanges,
+    applies,
+
+    -- * Saved RangeHands
+    someRanges,
+    writeSomeRanges,
+    readSomeRanges,
 
     -- * lpad
     lpad,
-    always,
-    allin,
   )
 where
 
@@ -117,24 +152,10 @@ import Prelude
 --
 -- >>> s = m Map.! "o2"
 
--- | Card pairs dealt to a holdem player have identical probability structures to each other, when viewed through a stochastic future of betting action.
---
--- These groupings or iso-sets of card pairs map to a dense representation of what a hand should do, given an element of this iso-set is in their hands. This representation forms a basis for modelling player actions, in the presence of uncertainty about what other seats hold, and what they will do about it.
---
--- A (Card, Card) can be:
---
--- - a pair (the same rank): in 12 enumerations of a deck. (4 suits x 3 suits)
---
--- - offsuited (of different rank): in 24 enumerations of a deck: (low | high ranked) x 4 suits x 3 suits
---
--- - suited (of different rank and the same suit): in 8 enumerations of a deck ((low | high ranked) x 4 suits)
---
--- ![count example](other/count.svg)
---
--- The transformation from (Card, Card) to Hand reduces the strategy vector size from 52*51 to 169, and provides expansion back into the (Card, Card) domain when needed.
+-- |
 newtype ShapedHandS = ShapedHandS {unShapedHandS :: Word8} deriving (Eq, Show, Ord)
 
--- | isomorphism between shapedHand and shapedHandS
+-- | Isomorphism between shapedHand and shapedHandS
 shapedHandS :: Iso ShapedHand ShapedHandS
 shapedHandS =
   Iso fromShapedHand toShapedHand
@@ -155,7 +176,7 @@ toShapedHand (ShapedHandS x) = case compare d m of
   where
     (d, m) = x `divMod` 13
 
--- | convert from a Card pair to a Hand
+-- | convert from a 'Hand' to a 'ShapedHand'
 --
 -- The base mechanism of this transformation is to forget suit details.
 --
@@ -172,7 +193,7 @@ fromHand (Hand (Card r s) (Card r' s'))
   | s == s' = MkSuited (max r r') (min r r')
   | otherwise = MkOffsuit (max r r') (min r r')
 
--- | Enumeration of the Hands that a ShapedHand represents.
+-- | Enumeration of the iso-equivalence classes of 'Hand' that a 'ShapedHand' represents.
 --
 -- >>> pretty $ toHands (MkPair Ace)
 -- [AcAd, AcAh, AcAs, AdAc, AdAh, AdAs, AhAc, AhAd, AhAs, AsAc, AsAd, AsAh]
@@ -185,28 +206,29 @@ toHands (MkOffsuit r0 r1) =
   ((\(x, y) -> MkHand (Card r0 x) (Card r1 y)) <$> enum2 allSuits)
     <> ((\(x, y) -> MkHand (Card r0 y) (Card r1 x)) <$> enum2 allSuits)
 
--- | a representative pair of cards for a B, choosing Club and Diamond.
+-- | a representative pair of cards for a B, arbitrarily choosing Club and Diamond.
 --
--- Always have a good think about this in the realm of raw card simulation.
+-- >>> toRepHand (Offsuit Ace Two)
+--
 toRepHand :: ShapedHand -> Hand
 toRepHand (MkPair r) = MkHand (Card r Club) (Card r Diamond)
 toRepHand (MkSuited r0 r1) = MkHand (Card r0 Club) (Card r1 Club)
 toRepHand (MkOffsuit r0 r1) = MkHand (Card r0 Club) (Card r1 Diamond)
 
--- | The spirit of RangedHand is to be a representable functor of a's indexed by ShapedHand.
+-- | A RangedHand is an array with size 169 representing the set of ShapedHands.
 --
--- A RangedHand can be many things:
---
--- One example is as a statistic across the set of hands. Here is a chart of the chances of winning given a Hand, against another player with any2.
+-- Ranged hands can be used in many different contexts. One example is as a statistic across the set of hands. Here is a chart of the chances of winning given a Hand, against another player with 'any2'.
 --
 -- ![bwin example](other/bwin.svg)
 --
--- Another example is as a strategy for a seat: what betting action should be taken, given what I might be holding in my Hand.
+-- Another example is as a strategy for a seat: what betting action should be taken, given what I might be holding in my Hand. Always Call looks like:
 --
 -- >>> :t always RawCall
 -- always RawCall :: RangedHand RawAction
 --
--- Or the dual to this question: given the betting action that has occurred, what are my guesses about their Hand. (FIXME: NYI)
+-- Or the dual to this question: given the betting action that has occurred, what are my guesses about other player strategies. (FIXME: NYI)
+--
+-- RangedHand instances for representable functors tend to be very useful.
 newtype RangedHand a = RangedHand
   { array :: Array '[169] a
   }
@@ -265,25 +287,6 @@ instance Pretty (RangedHand Char) where
 instance Pretty (RangedHand RawAction) where
   pretty s = pretty $ stratSym ("f", "c", "r", "r") 10 s
 
--- | screen representation of a RangedHand
---
--- >>> pretty stratText
--- AAp AKo AQo AJo ATo A9o A8o A7o A6o A5o A4o A3o A2o
--- AKs KKp KQo KJo KTo K9o K8o K7o K6o K5o K4o K3o K2o
--- AQs KQs QQp QJo QTo Q9o Q8o Q7o Q6o Q5o Q4o Q3o Q2o
--- AJs KJs QJs JJp JTo J9o J8o J7o J6o J5o J4o J3o J2o
--- ATs KTs QTs JTs TTp T9o T8o T7o T6o T5o T4o T3o T2o
--- A9s K9s Q9s J9s T9s 99p 98o 97o 96o 95o 94o 93o 92o
--- A8s K8s Q8s J8s T8s 98s 88p 87o 86o 85o 84o 83o 82o
--- A7s K7s Q7s J7s T7s 97s 87s 77p 76o 75o 74o 73o 72o
--- A6s K6s Q6s J6s T6s 96s 86s 76s 66p 65o 64o 63o 62o
--- A5s K5s Q5s J5s T5s 95s 85s 75s 65s 55p 54o 53o 52o
--- A4s K4s Q4s J4s T4s 94s 84s 74s 64s 54s 44p 43o 42o
--- A3s K3s Q3s J3s T3s 93s 83s 73s 63s 53s 43s 33p 32o
--- A2s K2s Q2s J2s T2s 92s 82s 72s 62s 52s 42s 32s 22p
-stratText :: RangedHand Text
-stratText = renderStrict . layoutCompact . pretty <$> tabulate toShapedHand
-
 stratSym :: (Text, Text, Text, Text) -> Double -> RangedHand RawAction -> Text
 stratSym (f, c, r, rr) b s =
   Text.intercalate
@@ -302,13 +305,35 @@ stratSym (f, c, r, rr) b s =
     toSym RawCall = c
     toSym (RawRaise x) = bool r rr (x > b)
 
+-- | on-screen grid-style representation of a RangedHand
+--
+-- >>> pretty stratText
+-- AAp AKo AQo AJo ATo A9o A8o A7o A6o A5o A4o A3o A2o
+-- AKs KKp KQo KJo KTo K9o K8o K7o K6o K5o K4o K3o K2o
+-- AQs KQs QQp QJo QTo Q9o Q8o Q7o Q6o Q5o Q4o Q3o Q2o
+-- AJs KJs QJs JJp JTo J9o J8o J7o J6o J5o J4o J3o J2o
+-- ATs KTs QTs JTs TTp T9o T8o T7o T6o T5o T4o T3o T2o
+-- A9s K9s Q9s J9s T9s 99p 98o 97o 96o 95o 94o 93o 92o
+-- A8s K8s Q8s J8s T8s 98s 88p 87o 86o 85o 84o 83o 82o
+-- A7s K7s Q7s J7s T7s 97s 87s 77p 76o 75o 74o 73o 72o
+-- A6s K6s Q6s J6s T6s 96s 86s 76s 66p 65o 64o 63o 62o
+-- A5s K5s Q5s J5s T5s 95s 85s 75s 65s 55p 54o 53o 52o
+-- A4s K4s Q4s J4s T4s 94s 84s 74s 64s 54s 44p 43o 42o
+-- A3s K3s Q3s J3s T3s 93s 83s 73s 63s 53s 43s 33p 32o
+-- A2s K2s Q2s J2s T2s 92s 82s 72s 62s 52s 42s 32s 22p
+stratText :: RangedHand Text
+stratText = renderStrict . layoutCompact . pretty <$> tabulate toShapedHand
+
 -- | left pad some text
 lpad :: Int -> Text -> Text
 lpad n t = pack (replicate (n - Text.length t) ' ') <> t
 
--- | enumerate (Card, Card) and count the Bs
-enumBs :: RangedHand Int
-enumBs =
+-- | enumerate card pairs from a fresh deck and count the ShapedHands
+--
+-- handTypeCount == enumShapedHands
+--
+enumShapedHands :: RangedHand Int
+enumShapedHands =
   tabulate
     ( Map.fromListWith
         (+)
@@ -337,46 +362,29 @@ enumBs =
 --  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0 24.0
 --  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0
 --  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0
-handTypeCount :: RangedHand Double
+handTypeCount :: RangedHand Int
 handTypeCount = tabulate $ \x -> case toShapedHand x of
   (Pair _) -> 12
   (Suited _ _) -> 8
   (Offsuit _ _) -> 24
 
 -- | A RangedHand with no information about the Hand.
+--
+-- >>> 1 == sum (array any2)
 any2 :: RangedHand Double
-any2 = (/ sum handTypeCount) <$> handTypeCount
+any2 = let xs = fromIntegral <$> handTypeCount in (/ sum xs) <$> xs
 
--- | create some common enumeration/simulation results in RangedHandshape, from scratch.
-someRanges :: Int -> Map.Map Text (RangedHand Double)
-someRanges n = do
-  Map.fromList
-    [ ("o2", tabulate (\b -> winHand (to shapedHandS b) 2 n)),
-      ("o9", tabulate (\b -> winHand (to shapedHandS b) 9 n)),
-      ("count", handTypeCount),
-      ("freq", (/ sum handTypeCount) <$> handTypeCount)
-    ]
+-- | Always perform an action
+always :: RawAction -> RangedHand RawAction
+always a = tabulate (const a)
 
--- | write RangedHand results to file.
---
--- > writeSomeRanges 1000
---
--- n = 100000 is about 5 mins
-writeSomeRanges :: Int -> IO ()
-writeSomeRanges n = writeFile "other/some.str" (show $ someRanges n)
+-- | Raise to the cursor's stack size.
+allin :: Table -> RangedHand RawAction
+allin ts = tabulate (const (RawRaise x))
+  where
+    x = stacks ts List.!! fromMaybe 0 (cursor ts)
 
--- | read RangedHand map
--- FIXME:
---
--- >>> (Just m) <- readSomeRanges
--- >>> index (m Map.! "o2") (from shapedHandS $ MkSuited Jack Ten)
--- 0.5742
-readSomeRanges :: IO (Maybe (Map.Map Text (RangedHand Double)))
-readSomeRanges = do
-  t <- readFile "other/some.str"
-  pure $ readMaybe t
-
--- | Given a B, what is the chance of that player winning against p other players, simulated n times.
+-- | Given a 'ShapedHand', what is the chance of that player winning against p other players, simulated n times.
 --
 -- >>> winHand (MkPair Two) 2 1000
 -- 0.4995
@@ -398,7 +406,7 @@ winHand b p n =
 winOdds :: Int -> Int -> RangedHand Double
 winOdds p n = tabulate (\b -> winHand (to shapedHandS b) p n)
 
--- | Top x percent of hands, order determined by a RangedHand Double, for n-seated.
+-- | Top x percent of hands, order determined by a RangedHand Double.
 --
 -- >>> pretty (bool "." "x" <$> topBs (m Map.! "o2") 0.25 :: RangedHand Text.Text)
 -- x x x x x x x x x x . . .
@@ -417,8 +425,8 @@ winOdds p n = tabulate (\b -> winHand (to shapedHandS b) p n)
 topBs :: RangedHand Double -> Double -> RangedHand Bool
 topBs bs x = tabulate (`elem` top)
   where
-    sortedBList x = second snd <$> sortOn (Down . fst . snd) (toList (liftR2 (,) (tabulate id) (liftR2 (,) x handTypeCount)))
-    (total, as) = second reverse $ foldl' (\(c', xs) (b, c) -> (c' + c, (b, c' + c) : xs)) (0, []) (sortedBList bs)
+    sortedList x = second snd <$> sortOn (Down . fst . snd) (toList (liftR2 (,) (tabulate id) (liftR2 (,) x (fromIntegral <$> handTypeCount))))
+    (total, as) = second reverse $ foldl' (\(c', xs) (b, c) -> (c' + c, (b, c' + c) : xs)) (0, []) (sortedList bs)
     cut = x * total
     top = fst <$> List.takeWhile ((< cut) . snd) as
 
@@ -450,7 +458,7 @@ rcf s r x y =
           (index (topBs s x) b)
     )
 
--- | Simulate the expected value of a strategy
+-- | Simulate the expected value of a list of ranged hand actions (for seat 0)
 --
 -- >>> ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
 -- Just 2.999999999999936e-2
@@ -471,14 +479,12 @@ evs n sims acts = fmap (toList . stacks) (evTables n sims acts)
 -- | Simulate end state of tables given strategies.
 evTables :: Int -> Int -> [RangedHand RawAction] -> [Table]
 evTables n sims acts =
-  showdown . betRanges acts <$> tables
+  showdown . applies acts <$> tables
   where
     cards = evalState (replicateM sims (dealN (5 + 2 * n))) (mkStdGen 42)
     tables = makeTable (defaultTableConfig {tableSize = n}) <$> cards
 
--- | Simulate the expected value of a 2 seat game, given the 5 decision point cuts of headsup described in 'actOn'.
---
--- aka bug detector.
+-- | Simulate the expected value of a 2 seat game, given the 5 decision point cuts of headsup flop-only holdem described in 'actOn'.
 --
 -- The 5 points are:
 --
@@ -514,28 +520,7 @@ ev2Ranges s sims (s0r : s0c : s1r : s2r : s3r : _) =
   ev 2 sims [rcf s 10 s0r s0c, rcf s 10 s1r 1, rcf s 10 0 s2r, rcf s 10 0 s3r]
 ev2Ranges _ _ _ = Nothing
 
--- | Always perform an action
-always :: RawAction -> RangedHand RawAction
-always a = tabulate (const a)
-
--- | Raise to the cursor's stack size.
-allin :: Table -> RangedHand RawAction
-allin ts = tabulate (const (RawRaise x))
-  where
-    x = stacks ts List.!! fromMaybe 0 (cursor ts)
-
--- | Follow a betting pattern according to a strategy list, until betting is closed, or the list ends.
---
--- >>> pretty $ betRanges (always (RawRaise 10) : (replicate 3 (always RawCall))) t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c1:9.0r0
-betRanges :: [RangedHand RawAction] -> Table -> Table
-betRanges ss t = go ss t
-  where
-    go [] t = t
-    go (s : ss') t =
-      bool (betRanges ss' (actOn (apply s t) t)) t (closed t)
-
--- | Apply a strategy to a table, supplying the Action for the cursor, if any.
+-- | Apply a 'RangedHand' 'RawAction', supplying a RawAction for the cursor.
 --
 -- >>> apply (always RawCall) t
 -- RawCall
@@ -543,6 +528,17 @@ apply :: RangedHand RawAction -> Table -> RawAction
 apply s t = fromMaybe RawFold $ case cursor t of
   Nothing -> error "bad juju"
   Just i -> Just $ index s (from shapedHandS $ fromHand (playerCards (cards t) List.!! i))
+
+-- | Apply a list of 'RangedHand' 'RawAction's, until betting is closed, or the list ends.
+--
+-- >>> pretty $ betRanges (always (RawRaise 10) : (replicate 3 (always RawCall))) t
+-- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c1:9.0r0
+applies :: [RangedHand RawAction] -> Table -> Table
+applies ss t = go ss t
+  where
+    go [] t = t
+    go (s : ss') t =
+      bool (applies ss' (actOn (apply s t) t)) t (closed t)
 
 -- | deal n cards given a Hand has been dealt.
 --
@@ -591,3 +587,32 @@ tablesB p b k n =
         (dealTableHand (defaultTableConfig {tableSize = p}) k b)
     )
     (mkStdGen 42)
+
+-- | create some common simulation results
+someRanges :: Int -> Map.Map Text (RangedHand Double)
+someRanges n = do
+  Map.fromList
+    [ ("o2", tabulate (\b -> winHand (to shapedHandS b) 2 n)),
+      ("o9", tabulate (\b -> winHand (to shapedHandS b) 9 n)),
+      ("count", fromIntegral <$> handTypeCount),
+      ("any2", any2)
+    ]
+
+-- | write some common simulation results to file.
+--
+-- > writeSomeRanges 1000
+--
+-- n = 100000 is about 5 mins
+writeSomeRanges :: Int -> IO ()
+writeSomeRanges n = writeFile "other/some.str" (show $ someRanges n)
+
+-- | read RangedHand map
+-- FIXME:
+--
+-- >>> (Just m) <- readSomeRanges
+-- >>> index (m Map.! "o2") (from shapedHandS $ MkSuited Jack Ten)
+-- 0.5742
+readSomeRanges :: IO (Maybe (Map.Map Text (RangedHand Double)))
+readSomeRanges = do
+  t <- readFile "other/some.str"
+  pure $ readMaybe t
