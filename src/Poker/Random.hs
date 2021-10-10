@@ -30,11 +30,10 @@ module Poker.Random
     dealTable,
     rvHandRank,
 
-    -- * Card sets
+    -- * Random Card sets
     card7s,
     card7sS,
     card7sSI,
-    tables,
 
     -- * Enumeration
     enum2,
@@ -53,7 +52,6 @@ import Data.List (sort)
 import qualified Data.List as List
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
-import Lens.Micro ((&), (.~), (^.))
 import Poker
 import Poker.Card.Storable
 import Poker.Evaluate
@@ -209,7 +207,7 @@ dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.len
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
 dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
-  cs <- dealNS (5 + cfg ^. #numPlayers * 2)
+  cs <- dealNS (5 + tableSize cfg * 2)
   pure $ makeTable cfg (to cardsS cs)
 
 -- | uniform random variate of HandRank
@@ -257,20 +255,6 @@ card7sSI n =
           evalState
             (replicateM n (ishuffle <$> rvis 52 7))
             (mkStdGen 42)
-
--- | create a list of n dealt tables, with p players
---
--- >>> pretty $ tables 2 2
--- [ Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
--- , 9sAs 3d5s|KcTd9h|9d|2h,hero: 0,o o,9.5 9,0.5 1,0, ]
-tables :: Int -> Int -> [Table]
-tables p n =
-  evalState
-    ( replicateM
-        n
-        (dealTable (defaultTableConfig & #numPlayers .~ p))
-    )
-    (mkStdGen 42)
 
 -- | An enumeration of 2 samples from a list without replacement
 --

@@ -24,7 +24,6 @@ import Poker.Card.Storable
 import Poker.Evaluate
 import Poker.Random
 import Poker.RangedHand
-import Poker.Table
 import System.Environment
 import System.Random
 import Text.Read (readMaybe)
@@ -492,12 +491,6 @@ handRankComponents n r = case r of
 
 resolution :: Int -> Int -> Text -> IO ()
 resolution p n r = case r of
-  -- 4.183
-  "bestLiveHand" ->
-    logTick "bestLiveHand" (fmap bestLiveHand) (tables p n)
-  -- 3.967
-  "tables" ->
-    logTick "tables" (tables p) n
   -- 3.941
   "tablesB" ->
     logTick "tablesB" (tablesB p (MkPair Ace) 0) n

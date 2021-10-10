@@ -67,7 +67,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Maybe
 import Data.Ord
-import qualified Data.Sequence as Seq
 import Data.Text (Text, pack)
 import qualified Data.Text as Text
 import qualified Data.Vector.Storable as S
@@ -475,7 +474,7 @@ evTables n sims acts =
   showdown . betRanges acts <$> tables
   where
     cards = evalState (replicateM sims (dealN (5 + 2 * n))) (mkStdGen 42)
-    tables = makeTable (defaultTableConfig {numPlayers = n}) <$> cards
+    tables = makeTable (defaultTableConfig {tableSize = n}) <$> cards
 
 -- | Simulate the expected value of a 2 seat game, given the 5 decision point cuts of headsup described in 'actOn'.
 --
@@ -519,11 +518,11 @@ ev2Ranges _ _ _ = Nothing
 always :: RawAction -> RangedHand RawAction
 always a = tabulate (const a)
 
--- | Raise to the hero's stack size.
+-- | Raise to the cursor's stack size.
 allin :: Table -> RangedHand RawAction
 allin ts = tabulate (const (RawRaise x))
   where
-    x = Seq.index (stacks ts) (fromMaybe 0 $ hero ts)
+    x = stacks ts List.!! fromMaybe 0 (cursor ts)
 
 -- | Follow a betting pattern according to a strategy list, until betting is closed, or the list ends.
 --
@@ -536,12 +535,12 @@ betRanges ss t = go ss t
     go (s : ss') t =
       bool (betRanges ss' (actOn (apply s t) t)) t (closed t)
 
--- | Apply a strategy to a table, supplying the Action for the hero, if any.
+-- | Apply a strategy to a table, supplying the Action for the cursor, if any.
 --
 -- >>> apply (always RawCall) t
 -- RawCall
 apply :: RangedHand RawAction -> Table -> RawAction
-apply s t = fromMaybe RawFold $ case hero t of
+apply s t = fromMaybe RawFold $ case cursor t of
   Nothing -> error "bad juju"
   Just i -> Just $ index s (from shapedHandS $ fromHand (playerCards (cards t) List.!! i))
 
@@ -570,7 +569,7 @@ dealShapedHand b n =
 -- AcAd Ah7s|Tc5s6d|7c|6s,hero: 0,o o,9.5 9,0.5 1,0,
 dealTableHand :: (RandomGen g) => TableConfig -> Int -> ShapedHand -> State g Table
 dealTableHand cfg i b = do
-  (CardsS xs) <- dealShapedHand b (5 + (numPlayers cfg - 1) * 2)
+  (CardsS xs) <- dealShapedHand b (5 + (tableSize cfg - 1) * 2)
   pure $
     makeTableS cfg $
       CardsS $
@@ -589,6 +588,6 @@ tablesB p b k n =
   evalState
     ( replicateM
         n
-        (dealTableHand (defaultTableConfig {numPlayers = p}) k b)
+        (dealTableHand (defaultTableConfig {tableSize = p}) k b)
     )
     (mkStdGen 42)
