@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
@@ -208,8 +209,8 @@ toHands (MkOffsuit r0 r1) =
 
 -- | a representative pair of cards for a B, arbitrarily choosing Club and Diamond.
 --
--- >>> toRepHand (Offsuit Ace Two)
---
+-- >>> pretty $ toRepHand (MkOffsuit Ace Two)
+-- Ac2d
 toRepHand :: ShapedHand -> Hand
 toRepHand (MkPair r) = MkHand (Card r Club) (Card r Diamond)
 toRepHand (MkSuited r0 r1) = MkHand (Card r0 Club) (Card r1 Club)
@@ -242,6 +243,10 @@ instance (Read a) => Read (RangedHand a) where
 
 instance Functor RangedHand where
   fmap f (RangedHand a) = RangedHand (fmap f a)
+
+instance Applicative RangedHand where
+  pure a = tabulate (const a)
+  (<*>) f a = tabulate (\i -> index f i (index a i))
 
 instance Data.Distributive.Distributive RangedHand where
   distribute = distributeRep
@@ -349,19 +354,19 @@ enumShapedHands =
 --
 -- >>> import Prettyprinter.Render.Text (renderStrict)
 -- >>> pretty $ (lpad 4 . renderStrict . layoutCompact . pretty) <$> handTypeCount
--- 12.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0
---  8.0 12.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0
---  8.0  8.0 12.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0
---  8.0  8.0  8.0 12.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0
---  8.0  8.0  8.0  8.0 12.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0
---  8.0  8.0  8.0  8.0  8.0 12.0 24.0 24.0 24.0 24.0 24.0 24.0 24.0
---  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0 24.0 24.0 24.0 24.0 24.0
---  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0 24.0 24.0 24.0 24.0
---  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0 24.0 24.0 24.0
---  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0 24.0 24.0
---  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0 24.0
---  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0 24.0
---  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0  8.0 12.0
+--   12   24   24   24   24   24   24   24   24   24   24   24   24
+--    8   12   24   24   24   24   24   24   24   24   24   24   24
+--    8    8   12   24   24   24   24   24   24   24   24   24   24
+--    8    8    8   12   24   24   24   24   24   24   24   24   24
+--    8    8    8    8   12   24   24   24   24   24   24   24   24
+--    8    8    8    8    8   12   24   24   24   24   24   24   24
+--    8    8    8    8    8    8   12   24   24   24   24   24   24
+--    8    8    8    8    8    8    8   12   24   24   24   24   24
+--    8    8    8    8    8    8    8    8   12   24   24   24   24
+--    8    8    8    8    8    8    8    8    8   12   24   24   24
+--    8    8    8    8    8    8    8    8    8    8   12   24   24
+--    8    8    8    8    8    8    8    8    8    8    8   12   24
+--    8    8    8    8    8    8    8    8    8    8    8    8   12
 handTypeCount :: RangedHand Int
 handTypeCount = tabulate $ \x -> case toShapedHand x of
   (Pair _) -> 12
@@ -370,7 +375,8 @@ handTypeCount = tabulate $ \x -> case toShapedHand x of
 
 -- | A RangedHand with no information about the Hand.
 --
--- >>> 1 == sum (array any2)
+-- >>> sum (array any2)
+-- 0.9999999999999986
 any2 :: RangedHand Double
 any2 = let xs = fromIntegral <$> handTypeCount in (/ sum xs) <$> xs
 
@@ -531,7 +537,7 @@ apply s t = fromMaybe RawFold $ case cursor t of
 
 -- | Apply a list of 'RangedHand' 'RawAction's, until betting is closed, or the list ends.
 --
--- >>> pretty $ betRanges (always (RawRaise 10) : (replicate 3 (always RawCall))) t
+-- >>> pretty $ applies (always (RawRaise 10) : (replicate 3 (always RawCall))) t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c1:9.0r0
 applies :: [RangedHand RawAction] -> Table -> Table
 applies ss t = go ss t

@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | Chart examples.
 module Poker.Charts
@@ -42,24 +43,12 @@ import Prettyprinter
 import Prettyprinter.Render.Text
 import Prelude
 
--- >>> :set -XOverloadedLabels
--- >>> :set -XOverloadedStrings
--- >>> :set -XTypeApplications
--- >>> import Lens.Micro
--- >>> import Lens.Micro
--- >>> import Poker
--- >>> import Prelude
--- >>> import qualified Data.Text as Text
--- >>> (Just m) <- readSomeRanges
--- >>> s = m Map.! "o2"
---
-
 toText_ :: (Pretty a) => a -> Text
 toText_ = renderStrict . layoutCompact . pretty
 
 -- | A grid of points on the XY plane representing translation of the basis from B ~> 13x13 XY
 sGrid :: RangedHand (Point Double)
-sGrid = RangedHand $ fromList $ fmap (\(Point x y) -> Point (-x) y) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
+sGrid = RangedHand $ fromList $ fmap (\(Point x y) -> Point (12 - y) x) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
 
 -- | A grid of rectangles on the XY plane representing translation from B ~> 13x13 squares
 sRect :: RangedHand (Rect Double)
@@ -105,11 +94,11 @@ rectChart s =
 -- | chart text in a RangedHand square format with supplied text color.
 --
 -- ![text example](other/text.svg)
-textChart :: RangedHand Colour -> RangedHand Text -> ChartSvg
-textChart sc st =
+textChart :: RangedHand (Colour, Text) -> ChartSvg
+textChart r =
   mempty & #chartList
     .~ zipWith
-      ( \(t, c) p ->
+      ( \(c,t) p ->
           Chart
             ( TextA
                 ( defaultTextStyle
@@ -120,11 +109,8 @@ textChart sc st =
             )
             [p]
       )
-      (zip (toList st :: [Text]) (toList sc))
-      ps
-  where
-    gs = grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double]
-    ps = PointXY . (\(Point x y) -> Point (-x) y) <$> gs
+      (toList r)
+      (PointXY <$> toList sGrid)
 
 -- | pixel chart of a RangedHand Double
 bPixelChart ::
@@ -147,7 +133,7 @@ bPixelChart pixelStyle plo s =
 pixelChartWith :: [Colour] -> RangedHand Double -> ChartSvg
 pixelChartWith cs xs =
   mempty & #chartList
-    .~ (textChart (tabulate $ const dark) stratText ^. #chartList)
+    .~ (textChart ((dark,) <$> stratText) ^. #chartList)
       <> bPixelChart
         (defaultSurfaceStyle & #surfaceColors .~ cs)
         ( defaultSurfaceLegendOptions (pack "")
@@ -172,12 +158,12 @@ scatterChart :: RangedHand (Point Double) -> ChartSvg
 scatterChart ps = mempty & #hudOptions .~ (defaultHudOptions & #hudCanvas .~ Nothing) & #chartList .~ [c]
   where
     c = Chart (TextA (defaultTextStyle & #size .~ 0.04 & #color %~ setOpac 0.4) ls) (toList $ fmap PointXY ps)
-    ls = renderStrict . layoutCompact . pretty <$> (toEnum <$> [0 .. 168] :: [Hand])
+    ls = toList $ array stratText
 
 rectExample :: RangedHand Double -> ChartSvg
 rectExample s =
   rectChart (fcrColours <$> rcf s 10 0.2 0.6)
-    <> textChart (setOpac 0.8 . fcrColours <$> rcf s 10 0.2 0.6) stratText
+    <> textChart ((,) <$> (setOpac 0.8 . fcrColours <$> rcf s 10 0.2 0.6) <*> stratText)
     & #hudOptions .~ (mempty & #hudAxes .~ [rankXAxis, rankYAxis])
 
 rankXAxis :: AxisOptions
@@ -192,7 +178,7 @@ writeAllCharts = do
   (Just m) <- readSomeRanges
   let s = m Map.! "o2"
   writeChartSvg "other/text.svg" $
-    textChart colourText stratText
+    textChart ((,) <$> colourText <*> stratText)
       <> rectChart colourBackground
   writeChartSvg "other/rect.svg" (rectExample s)
   writeChartSvg "other/count.svg" (pixelChart $ m Map.! "count")

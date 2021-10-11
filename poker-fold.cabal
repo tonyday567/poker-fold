@@ -93,8 +93,8 @@ executable poker-speed
     -rtsopts
     -threaded
     -O2
-executable poker-hvs7
-  main-is: hvs7.hs
+executable poker-writes
+  main-is: writes.hs
   hs-source-dirs:
     app
   build-depends:
