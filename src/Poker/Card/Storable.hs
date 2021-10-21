@@ -351,9 +351,8 @@ instance Pretty Cards2S where
 -- True
 cardsS7L :: Iso [[Card]] Cards2S
 cardsS7L =
-  Iso
-    (Cards2S . S.fromList . fmap (toEnum . fromEnum) . mconcat)
-    (V.toList . applyFlatV 7 (fmap (toEnum . fromEnum) . S.toList) . unwrapCards2)
+  Iso (Cards2S . S.fromList . fmap (unwrapCard . fromCard) . mconcat)
+      (fmap (fmap (toCard . CardS)) . V.toList . applyFlatV 7 S.toList . unwrapCards2)
 
 -- | Convert between a 'Cards2S' and a boxed vector of 'CardsS'.
 --

@@ -23,13 +23,13 @@ import Poker hiding (fromList)
 import Poker.Card.Storable
 import Poker.Evaluate
 import Poker.Random
-import Poker.RangedHand
+import Poker.RangedHole
 import System.Environment
 import System.Random
 import Text.Read (readMaybe)
 import Prelude
 import qualified Prelude as P
-
+import Data.Word
 --
 -- The only thing that works anymore here is:
 -- > poker-speed handRankS_
@@ -150,7 +150,7 @@ main = do
   lookupTech n r
   cardChecks n r
   winodds n r
-  handRankComponents n r
+  -- handRankComponents n r
   resolution 2 n r
   writeSome n r
   sortingChecks n r
@@ -341,11 +341,11 @@ hrlookups n t = case t of
 cardChecks :: Int -> Text -> IO ()
 cardChecks n t = case t of
   -- 0.824
-  "rvi" -> logTick "rvi * 7" (\x -> evalState (replicateM (x * 7) (rvi 52)) (mkStdGen 42)) n
+  "rvi" -> logTick "rvi * 7" (\x -> evalState (replicateM (x * 7) (rvi (52::Word8))) (mkStdGen 42)) n
   -- 1.001
-  "rvis" -> logTick "rvis" (\x -> evalState (replicateM x (rvis 52 7)) (mkStdGen 42)) n
+  "rvis" -> logTick "rvis" (\x -> evalState (replicateM x (rvis (52::Word8) 7)) (mkStdGen 42)) n
   -- 1.027
-  "rviv" -> logTick "rviv" (\x -> evalState (replicateM x (rviv 52 7)) (mkStdGen 42)) n
+  "rviv" -> logTick "rviv" (\x -> evalState (replicateM x (rviv (52::Word8) 7)) (mkStdGen 42)) n
   -- 1.873
   "card7s" -> logTick "card7s" card7s n
   -- 2.505
@@ -353,6 +353,8 @@ cardChecks n t = case t of
   -- 1.001
   "card7sSI" -> logTick "card7sSI ishuffle" (unwrapCards2 . card7sSI) n
   _ -> pure ()
+
+{-
 
 handRankComponents :: Int -> Text -> IO ()
 handRankComponents n r = case r of
@@ -363,14 +365,6 @@ handRankComponents n r = case r of
   -- flush: 0.623
   -- kind: 0.707
   --  rankCountS: 0.303
-
-  -- 0.284
-  "rank" -> do
-    let !cs = unwrapCards2 $ card7sS n
-    logTick
-      "rank for a flat"
-      (applyFlatV 7 (S.map (fromEnum . rank . toEnum . fromIntegral)))
-      cs
 
   -- 1.532
   "royals" -> do
@@ -489,14 +483,17 @@ handRankComponents n r = case r of
       cs
   _ -> pure ()
 
+
+-}
+
 resolution :: Int -> Int -> Text -> IO ()
 resolution p n r = case r of
   -- 3.941
   "tablesB" ->
     logTick "tablesB" (tablesB p (MkPair Ace) 0) n
   -- 3.964
-  "winHand" ->
-    logTick "winHand" (winHand (MkPair Ace) 2) n
+  "winHole" ->
+    logTick "winHole" (winHole (MkPair Ace) 2) n
   -- 3.769
   "winOdds" ->
     logTick "winOdds" (sum . winOdds 2) (n `div` 169)

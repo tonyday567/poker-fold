@@ -1,5 +1,8 @@
-poker-fold
+phoker
 ===
 
-A poker library exploring holdem strategy.
+A Haskell poker library exploring:
 
+- speed
+- static analysis
+- deception

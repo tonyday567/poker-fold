@@ -56,8 +56,9 @@ import Poker
 import Poker.Card.Storable
 import Poker.Evaluate
 import Poker.Table
-import System.Random (RandomGen, mkStdGen, uniformR)
+import System.Random (RandomGen, mkStdGen, uniformR, UniformRange)
 import Prelude
+import Data.Word
 
 -- $usage
 -- >>> import Control.Monad.State.Lazy
@@ -91,7 +92,7 @@ import Prelude
 --
 -- >>> pretty (toEnum $ evalState (rvi 52) (mkStdGen 42) :: Card)
 -- Ac
-rvi :: (RandomGen g) => Int -> State g Int
+rvi :: (RandomGen g, Num e, UniformRange e) => e -> State g e
 rvi n = do
   g <- get
   let (x, g') = uniformR (0, n - 1) g
@@ -106,7 +107,7 @@ rvi n = do
 -- >>> xs
 -- [48,23,31,15,16,18,17]
 --
-rvis :: (RandomGen g) => Int -> Int -> State g [Int]
+rvis :: (RandomGen g, UniformRange e, Num e, Enum e) => e -> e -> State g [e]
 rvis n k = sequence (rvi . (n -) <$> [0 .. (k - 1)])
 
 -- | Vector version of rvis
@@ -114,8 +115,8 @@ rvis n k = sequence (rvi . (n -) <$> [0 .. (k - 1)])
 -- >>> evalState (rviv 52 7) (mkStdGen 42)
 -- [48,23,31,15,16,18,17]
 --
-rviv :: (RandomGen g) => Int -> Int -> State g (S.Vector Int)
-rviv n k = S.mapM (rvi . (n -)) (S.generate k id)
+rviv :: (RandomGen g, UniformRange e, Num e, Enum e, S.Storable e) => e -> e -> State g (S.Vector e)
+rviv n k = S.mapM (rvi . (n -)) (S.generate (fromEnum k) toEnum)
 
 -- | Creates sample without replacement given an 'rvis' process.
 --
@@ -152,7 +153,7 @@ cutV v x =
 -- [48,23,32,15,17,20,19,28,11,39,5,18,41,38,37,2,12,16,44,40,29,0,21,4,6,26,22,7,45,25,33,46,14,43,9,3,30,1,13,50,10,36,31,49,35,24,51,47,34,27,8,42]
 --
 -- TODO: refactor the sort
-ishuffle :: [Int] -> [Int]
+ishuffle :: (Ord e, Num e) => [e] -> [e]
 ishuffle as = reverse $ go as []
   where
     go [] s = s
@@ -168,10 +169,10 @@ ishuffle as = reverse $ go as []
 --
 -- >>> flip evalState (mkStdGen 42) $ fmap ((==[0..51]) . S.toList . sortS . vshuffle) (rviv 52 52)
 -- True
-vshuffle :: S.Vector Int -> S.Vector Int
+vshuffle :: S.Vector Word8 -> S.Vector Word8
 vshuffle as = go as S.empty
   where
-    go :: S.Vector Int -> S.Vector Int -> S.Vector Int
+--     go :: S.Vector Int -> S.Vector Int -> S.Vector Int
     go as dealt =
       bool
         (go (S.unsafeTail as) (S.snoc dealt x1))
@@ -184,22 +185,22 @@ vshuffle as = go as S.empty
 --
 -- >>> pretty $ evalState (dealN 7) (mkStdGen 42)
 -- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
-dealN :: (RandomGen g) => Int -> State g [Card]
-dealN n = fmap toEnum . ishuffle <$> rvis 52 n
+dealN :: (RandomGen g) => Word8 -> State g [Card]
+dealN n = fmap (fmap (to cardS . CardS)) $ ishuffle <$> rvis 52 n
 
 -- | deal n cards as a CardsS
 --
 -- >>> pretty $ evalState (dealNS 7) (mkStdGen 42)
 -- Ac7sTc5s6d7c6s
-dealNS :: (RandomGen g) => Int -> State g CardsS
+dealNS :: (RandomGen g) => Word8 -> State g CardsS
 dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
 
 -- | deal n cards from a given deck
 --
 -- >>> pretty $ evalState (dealNWith 7 allCardsS) (mkStdGen 42)
 -- Ac7sTc5s6d7c6s
-dealNWith :: (RandomGen g) => Int -> CardsS -> State g CardsS
-dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.length cs) n)
+dealNWith :: (RandomGen g) => Word8 -> CardsS -> State g CardsS
+dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . S.map fromIntegral . vshuffle) (rviv (toEnum $ S.length cs) n)
 
 -- | deal a table
 --
@@ -207,7 +208,7 @@ dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . vshuffle) (rviv (S.len
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
 dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
-  cs <- dealNS (5 + tableSize cfg * 2)
+  cs <- dealNS (toEnum $ 5 + tableSize cfg * 2)
   pure $ makeTable cfg (to cardsS cs)
 
 -- | uniform random variate of HandRank
@@ -226,7 +227,7 @@ rvHandRank = do
 -- >>> pretty <$> card7s 2
 -- [[Ac, 7s, Tc, 5s, 6d, 7c, 6s],[7s, 4s, Td, 3d, 6c, Kh, Ts]]
 card7s :: Int -> [[Card]]
-card7s n = evalState (replicateM n (fmap toEnum . ishuffle <$> rvis 52 7)) (mkStdGen 42)
+card7s n = evalState (replicateM n (dealN 7)) (mkStdGen 42)
 
 -- | Flat storable vector of n 7-card sets.
 --
@@ -236,7 +237,6 @@ card7sS :: Int -> Cards2S
 card7sS n =
   Cards2S $
     S.convert $
-      S.map fromIntegral $
         mconcat $
           evalState
             (replicateM n (vshuffle <$> rviv 52 7))
@@ -247,14 +247,7 @@ card7sS n =
 -- >>> S.length $ unwrapCards2 $ card7sSI 100
 -- 700
 card7sSI :: Int -> Cards2S
-card7sSI n =
-  Cards2S $
-    S.fromList $
-      fmap fromIntegral $
-        mconcat $
-          evalState
-            (replicateM n (ishuffle <$> rvis 52 7))
-            (mkStdGen 42)
+card7sSI n = Cards2S $ S.concat $ V.toList $ evalState (V.replicateM n (unwrapCards <$> dealNS 7)) (mkStdGen 42)
 
 -- | An enumeration of 2 samples from a list without replacement
 --

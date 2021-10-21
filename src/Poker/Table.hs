@@ -33,7 +33,7 @@ module Poker.Table
     openSeats,
     nextCursor,
     closed,
-    liveHands,
+    liveHoles,
     hands,
     bbs,
 
@@ -45,7 +45,7 @@ module Poker.Table
 
     -- * Showdown
     showdown,
-    bestLiveHand,
+    bestLiveHole,
   )
 where
 
@@ -64,6 +64,7 @@ import Poker.Evaluate
 import Prettyprinter hiding (comma)
 import Prelude
 import Data.Bifunctor
+import Data.Generics.Labels ()
 
 -- $usage
 --
@@ -112,7 +113,7 @@ import Data.Bifunctor
 -- >>> pretty $ cards t
 -- Ac7s Tc5s|6d7c6s|9c|4s
 data TableCards = TableCards
-  { playerCards :: [Hand],
+  { playerCards :: [Hole],
     flopCards :: (Card, Card, Card),
     turnCard :: Card,
     riverCard :: Card
@@ -123,7 +124,7 @@ instance Pretty TableCards where
   pretty (TableCards ps (f0, f1, f2) t r) =
     concatWith
       (surround "|")
-      [ hsep $ (\(Hand x y) -> pretty x <> pretty y) <$> ps,
+      [ hsep $ (\(Hole x y) -> pretty x <> pretty y) <$> ps,
         pretty f0 <> pretty f1 <> pretty f2,
         pretty t,
         pretty r
@@ -132,13 +133,13 @@ instance Pretty TableCards where
 -- | Deal a card list to the table
 --
 -- >>> deal (to cardsS cs)
--- TableCards {playerCards = [MkHand (Card {rank = Ace, suit = Club}) (Card {rank = Seven, suit = Spade}),MkHand (Card {rank = Ten, suit = Club}) (Card {rank = Five, suit = Spade})], flopCards = (Card {rank = Six, suit = Diamond},Card {rank = Seven, suit = Club},Card {rank = Six, suit = Spade}), turnCard = Card {rank = Nine, suit = Club}, riverCard = Card {rank = Four, suit = Spade}}
+-- TableCards {playerCards = [MkHole (Card {rank = Ace, suit = Club}) (Card {rank = Seven, suit = Spade}),MkHole (Card {rank = Ten, suit = Club}) (Card {rank = Five, suit = Spade})], flopCards = (Card {rank = Six, suit = Diamond},Card {rank = Seven, suit = Club},Card {rank = Six, suit = Spade}), turnCard = Card {rank = Nine, suit = Club}, riverCard = Card {rank = Four, suit = Spade}}
 deal :: [Card] -> TableCards
 deal cs =
   TableCards
     ( fromList
         ( ( \x ->
-              MkHand (cs List.!! (2 * x)) (cs List.!! (2 * x + 1))
+              MkHole (cs List.!! (2 * x)) (cs List.!! (2 * x + 1))
           )
             <$> [0 .. n - 1]
         )
@@ -246,10 +247,10 @@ closed t =
 
 -- | Index of seat and hands still in the pot
 --
--- >>> pretty $ liveHands t
+-- >>> pretty $ liveHoles t
 -- [(0, [Ac, 7s, 6d, 7c, 6s, 9c, 4s]), (1, [Tc, 5s, 6d, 7c, 6s, 9c, 4s])]
-liveHands :: Table -> [(Int, [Card])]
-liveHands t = (\i -> hands (cards t) List.!! i) <$> liveSeats t
+liveHoles :: Table -> [(Int, [Card])]
+liveHoles t = (\i -> hands (cards t) List.!! i) <$> liveSeats t
 
 -- | Provide the player hands combined with the table cards.
 --
@@ -259,7 +260,7 @@ hands :: TableCards -> [(Int, [Card])]
 hands (TableCards ps (f0, f1, f2) t r) =
   zip
     [0 .. (length ps - 1)]
-    ((\(Hand x y) -> [x, y, f0, f1, f2, t, r]) <$> ps)
+    ((\(Hole x y) -> [x, y, f0, f1, f2, t, r]) <$> ps)
 
 -- | Static configuration for setting up a table.
 --
@@ -292,7 +293,7 @@ makeTable cfg cs = Table (deal cs) (Just 0) (replicate (tableSize cfg) BettingOp
 makeTableS :: TableConfig -> CardsS -> Table
 makeTableS cfg cs = Table (deal (to cardsS cs)) (Just 0) (replicate (tableSize cfg) BettingOpen) (zipWith (-) (stacks0 cfg) bs) bs 0 []
   where
-    bs = bbs (cfg ^. #tableSize) (cfg ^. #ante)
+    bs = bbs (tableSize cfg) (ante cfg)
 
 -- | standard blind and ante chip structure for n seats.
 --
@@ -488,7 +489,7 @@ showdown t =
     & #pot .~ 0
   where
     pot' = sum (t ^. #bets) + t ^. #pot
-    winners = bestLiveHand t
+    winners = bestLiveHole t
 
 -- | Find the (maybe multiple) best a's
 bests :: (Ord a) => [(Int, a)] -> a -> [Int] -> [Int]
@@ -501,12 +502,12 @@ bests ((i, x) : xs) x' res =
 
 -- | index of the winning hands
 --
--- >>> bestLiveHand t
+-- >>> bestLiveHole t
 -- [0]
 --
-bestLiveHand :: Table -> [Int]
-bestLiveHand t =
+bestLiveHole :: Table -> [Int]
+bestLiveHole t =
   fmap
     (\xs -> bests xs 0 [])
     (fmap (second (lookupHRUnsafe . from cardsS . List.sort)))
-    $ liveHands t
+    $ liveHoles t

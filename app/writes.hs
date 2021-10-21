@@ -2,7 +2,7 @@
 
 import Options.Applicative
 import Poker.Evaluate
-import Poker.RangedHand
+import Poker.RangedHole
 import Poker.Charts
 
 import Prelude
@@ -17,7 +17,7 @@ data Options = Options
 
 sims :: Parser Int
 sims =
-  option auto (long "sims" <> short 's' <> help "number of simulations for RangedHand maps")
+  option auto (long "sims" <> short 's' <> help "number of simulations for RangedHole maps")
     <|> pure 10000
 
 runType :: Parser RunType
@@ -36,7 +36,7 @@ opts :: ParserInfo Options
 opts =
   info
     (options <**> helper)
-    (fullDesc <> progDesc "poker-writes" <> header "Write poker-fold information to file")
+    (fullDesc <> progDesc "phoker-writes" <> header "Write phoker information to file")
 
 main :: IO ()
 main = do

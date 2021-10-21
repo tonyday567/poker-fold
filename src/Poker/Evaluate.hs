@@ -436,10 +436,10 @@ flushS cs =
 -- >>> suitRanksS (from cardsS cs)
 -- [(Club,[Six]),(Heart,[Ace,Ten,Seven]),(Spade,[Seven,Five,Six])]
 suitRanksS :: CardsS -> [(Suit, [Rank])]
-suitRanksS (CardsS cs) =
+suitRanksS cs =
   Map.toList $
     Map.fromListWith (flip (<>)) $
-      fmap (\(Card r s) -> (s, [r])) (toEnum . fromEnum <$> S.toList cs)
+      fmap (\(Card r s) -> (s, [r])) (to cardsS cs)
 
 -- | compute Kinds on storable ranks
 --
