@@ -1,4 +1,4 @@
-phoker
+poker-fold
 ===
 
 A Haskell poker library exploring:

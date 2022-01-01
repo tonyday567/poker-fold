@@ -1,5 +1,5 @@
 packages:
-  phoker.cabal
+  poker-fold.cabal
 
 source-repository-package
   type: git

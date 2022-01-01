@@ -36,7 +36,7 @@ opts :: ParserInfo Options
 opts =
   info
     (options <**> helper)
-    (fullDesc <> progDesc "phoker-writes" <> header "Write phoker information to file")
+    (fullDesc <> progDesc "poker-fold-writes" <> header "Write poker-fold information to file")
 
 main :: IO ()
 main = do
