@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 
-import Chart (fixed)
+import Data.FormatN (fixed)
 import Control.Applicative
 import Control.Monad
 import Control.Monad.State.Lazy
@@ -30,6 +30,7 @@ import Text.Read (readMaybe)
 import Prelude
 import qualified Prelude as P
 import Data.Word
+
 --
 -- The only thing that works anymore here is:
 -- > poker-speed handRankS_

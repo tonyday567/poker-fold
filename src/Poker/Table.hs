@@ -57,7 +57,7 @@ import Data.Maybe
 import Data.Text (Text)
 import GHC.Exts hiding (toList)
 import GHC.Generics hiding (from, to)
-import Lens.Micro hiding (to)
+import Optics.Core hiding (to)
 import Poker hiding (fromList)
 import Poker.Card.Storable
 import Poker.Evaluate
