@@ -209,7 +209,7 @@ writeAllCharts = do
     rhHud <>
     (mempty & #hudOptions .~ opsLegend) <>
     textChart ((,) <$> opsColourText <*> rhText)
-  writeChartSvg "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (Just 1) <$> m Map.! "o2"))
+  writeChartSvg "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (fixed (Just 1)) <$> m Map.! "o2"))
   writeChartSvg "other/fcr.svg" (fcrExample s)
   writeChartSvg
     "other/pixelo9.svg"
