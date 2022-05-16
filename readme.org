@@ -1,0 +1,397 @@
+#+TITLE: poker-fold
+#+PROPERTY: header-args :exports both
+#+PROPERTY: header-args :eval no-export
+
+A Haskell poker library exploring:
+
+- speed
+- static analysis
+- deception
+
+* Recent Research
+
+Heads-up odds versus any2
+
+[[file:other/odds2.svg]]
+
+Odds versus full table
+
+[[file:other/odds9.svg]]
+
+Tier shifts between heads-up and full table.
+
+[[file:other/compare29.svg]]
+
+top 10% range:
+
+[[file:other/top10.svg]]
+
+
+* chart references
+
+[[file:other/count.svg]]
+
+
+[[file:other/fcr.svg]]
+[[file:other/freq.svg]]
+[[file:other/o2.svg]]
+[[file:other/pixelo9.svg]]
+[[file:other/rect.svg]]
+[[file:other/text.svg]]
+
+* Setup
+
+#+begin_src elisp
+(setq haskell-process-args-cabal-repl '("poker-fold:exe:poker-fold-speed"))
+#+end_src
+
+#+RESULTS:
+| poker-fold:exe:poker-fold-speed |
+
+#+begin_src haskell :results output :exports both
+:r
+:set prompt " > "
+:set -Wno-type-defaults
+:set -Wno-name-shadowing
+:set -XOverloadedStrings
+import Perf
+import Chart
+import Data.FormatN
+import qualified Data.Text as Text
+import qualified Data.Map.Strict as Map
+import Prettyprinter
+putStrLn "ok"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Build profile: -w ghc-8.10.7 -O1
+In order, the following will be built (use -v for more details):
+ - bifunctors-5.5.12 (lib) (requires download & build)
+ - ansi-terminal-0.11.3 (lib) (requires download & build)
+ - random-1.2.1.1 (lib) (requires download & build)
+ - semigroupoids-5.3.7 (lib) (requires build)
+ - profunctors-5.6.2 (lib) (requires build)
+ - ansi-wl-pprint-0.6.9 (lib) (requires build)
+ - colourista-0.1.0.1 (lib) (requires build)
+ - QuickCheck-2.14.2 (lib) (requires build)
+ - reducers-3.12.4 (lib) (requires build)
+ - invariant-0.5.6 (lib) (requires download & build)
+ - generic-lens-2.2.1.0 (lib) (requires build)
+ - free-5.1.8 (lib) (requires download & build)
+ - foldl-1.4.12 (lib) (requires build)
+ - optparse-applicative-0.17.0.0 (lib) (requires build)
+ - safe-money-0.9.1 (lib) (requires build)
+ - formatn-0.2.1 (lib) (requires build)
+ - tdigest-0.2.1.1 (lib) (requires build)
+ - recursion-schemes-5.2.2.2 (lib) (requires build)
+ - adjunctions-4.4.1 (lib) (requires download & build)
+ - poker-base-0.1.0.0 (lib) (requires build)
+ - numhask-space-0.10.0.0 (lib) (requires build)
+ - numhask-array-0.10.0 (lib) (requires build)
+ - kan-extensions-5.2.4 (lib) (requires download & build)
+ - chart-svg-0.3.0 (lib) (requires build)
+ - box-0.8.1 (lib) (requires build)
+ - box-csv-0.2.0 (lib) (requires build)
+ - perf-0.10.0 (lib) (configuration changed)
+ - poker-fold-0.0.1 (lib) (configuration changed)
+ - poker-fold-0.0.1 (exe:poker-fold-speed) (configuration changed)
+Downloading  ansi-terminal-0.11.3
+Downloaded   ansi-terminal-0.11.3
+Downloading  random-1.2.1.1
+Starting     ansi-terminal-0.11.3 (lib)
+Downloaded   random-1.2.1.1
+Downloading  bifunctors-5.5.12
+Starting     random-1.2.1.1 (lib)
+Downloaded   bifunctors-5.5.12
+Downloading  free-5.1.8
+Starting     bifunctors-5.5.12 (lib)
+Building     ansi-terminal-0.11.3 (lib)
+Downloaded   free-5.1.8
+Downloading  adjunctions-4.4.1
+Building     random-1.2.1.1 (lib)
+Downloaded   adjunctions-4.4.1
+Downloading  invariant-0.5.6
+Downloaded   invariant-0.5.6
+Downloading  kan-extensions-5.2.4
+Downloaded   kan-extensions-5.2.4
+Building     bifunctors-5.5.12 (lib)
+Installing   ansi-terminal-0.11.3 (lib)
+Completed    ansi-terminal-0.11.3 (lib)
+Starting     ansi-wl-pprint-0.6.9 (lib)
+Starting     colourista-0.1.0.1 (lib)
+Building     ansi-wl-pprint-0.6.9 (lib)
+Building     colourista-0.1.0.1 (lib)
+Installing   ansi-wl-pprint-0.6.9 (lib)
+Installing   bifunctors-5.5.12 (lib)
+Completed    ansi-wl-pprint-0.6.9 (lib)
+Starting     optparse-applicative-0.17.0.0 (lib)
+Installing   colourista-0.1.0.1 (lib)
+Installing   random-1.2.1.1 (lib)
+Completed    bifunctors-5.5.12 (lib)
+Starting     semigroupoids-5.3.7 (lib)
+Completed    colourista-0.1.0.1 (lib)
+Starting     profunctors-5.6.2 (lib)
+Building     optparse-applicative-0.17.0.0 (lib)
+Completed    random-1.2.1.1 (lib)
+Starting     QuickCheck-2.14.2 (lib)
+Building     semigroupoids-5.3.7 (lib)
+Building     profunctors-5.6.2 (lib)
+Building     QuickCheck-2.14.2 (lib)
+Installing   optparse-applicative-0.17.0.0 (lib)
+Completed    optparse-applicative-0.17.0.0 (lib)
+Installing   profunctors-5.6.2 (lib)
+Installing   semigroupoids-5.3.7 (lib)
+Completed    profunctors-5.6.2 (lib)
+Starting     invariant-0.5.6 (lib)
+Starting     generic-lens-2.2.1.0 (lib)
+Completed    semigroupoids-5.3.7 (lib)
+Starting     reducers-3.12.4 (lib)
+Building     invariant-0.5.6 (lib)
+Building     generic-lens-2.2.1.0 (lib)
+Building     reducers-3.12.4 (lib)
+Installing   generic-lens-2.2.1.0 (lib)
+Installing   QuickCheck-2.14.2 (lib)
+Completed    generic-lens-2.2.1.0 (lib)
+Starting     free-5.1.8 (lib)
+Installing   invariant-0.5.6 (lib)
+Installing   reducers-3.12.4 (lib)
+Completed    QuickCheck-2.14.2 (lib)
+Starting     foldl-1.4.12 (lib)
+Completed    invariant-0.5.6 (lib)
+Starting     safe-money-0.9.1 (lib)
+Building     free-5.1.8 (lib)
+Completed    reducers-3.12.4 (lib)
+Starting     formatn-0.2.1 (lib)
+Building     foldl-1.4.12 (lib)
+Building     safe-money-0.9.1 (lib)
+Building     formatn-0.2.1 (lib)
+Installing   formatn-0.2.1 (lib)
+Installing   foldl-1.4.12 (lib)
+Completed    formatn-0.2.1 (lib)
+Starting     tdigest-0.2.1.1 (lib)
+Completed    foldl-1.4.12 (lib)
+Installing   safe-money-0.9.1 (lib)
+Completed    safe-money-0.9.1 (lib)
+Starting     poker-base-0.1.0.0 (lib)
+Building     tdigest-0.2.1.1 (lib)
+Installing   free-5.1.8 (lib)
+Building     poker-base-0.1.0.0 (lib)
+Completed    free-5.1.8 (lib)
+Starting     adjunctions-4.4.1 (lib)
+Starting     recursion-schemes-5.2.2.2 (lib)
+Building     adjunctions-4.4.1 (lib)
+Building     recursion-schemes-5.2.2.2 (lib)
+Installing   tdigest-0.2.1.1 (lib)
+Completed    tdigest-0.2.1.1 (lib)
+Installing   poker-base-0.1.0.0 (lib)
+Installing   adjunctions-4.4.1 (lib)
+Completed    poker-base-0.1.0.0 (lib)
+Installing   recursion-schemes-5.2.2.2 (lib)
+Completed    adjunctions-4.4.1 (lib)
+Starting     numhask-space-0.10.0.0 (lib)
+Starting     numhask-array-0.10.0 (lib)
+Starting     kan-extensions-5.2.4 (lib)
+Completed    recursion-schemes-5.2.2.2 (lib)
+Building     numhask-space-0.10.0.0 (lib)
+Building     numhask-array-0.10.0 (lib)
+Building     kan-extensions-5.2.4 (lib)
+Installing   kan-extensions-5.2.4 (lib)
+Installing   numhask-space-0.10.0.0 (lib)
+Installing   numhask-array-0.10.0 (lib)
+Completed    kan-extensions-5.2.4 (lib)
+Starting     box-0.8.1 (lib)
+Completed    numhask-space-0.10.0.0 (lib)
+Completed    numhask-array-0.10.0 (lib)
+Starting     chart-svg-0.3.0 (lib)
+Building     box-0.8.1 (lib)
+Building     chart-svg-0.3.0 (lib)
+Installing   box-0.8.1 (lib)
+Completed    box-0.8.1 (lib)
+Starting     box-csv-0.2.0 (lib)
+Building     box-csv-0.2.0 (lib)
+Installing   box-csv-0.2.0 (lib)
+Completed    box-csv-0.2.0 (lib)
+Installing   chart-svg-0.3.0 (lib)
+Completed    chart-svg-0.3.0 (lib)
+Configuring library for perf-0.10.0..
+Preprocessing library for perf-0.10.0..
+Building library for perf-0.10.0..
+[1 of 9] Compiling Perf.Report      ( src/Perf/Report.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Report.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Report.dyn_o ) [Options.Applicative changed]
+[2 of 9] Compiling Perf.Stats       ( src/Perf/Stats.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Stats.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Stats.dyn_o ) [Options.Applicative changed]
+[6 of 9] Compiling Perf.BigO        ( src/Perf/BigO.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/BigO.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/BigO.dyn_o ) [Perf.Stats changed]
+[7 of 9] Compiling Perf.Algos       ( src/Perf/Algos.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Algos.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Algos.dyn_o ) [Data.Functor.Foldable changed]
+[8 of 9] Compiling Perf.Measure     ( src/Perf/Measure.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Measure.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf/Measure.dyn_o )
+[9 of 9] Compiling Perf             ( src/Perf.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/perf-0.10.0/build/Perf.dyn_o ) [Perf.Algos changed]
+Configuring library for poker-fold-0.0.1..
+Preprocessing library for poker-fold-0.0.1..
+Building library for poker-fold-0.0.1..
+[1 of 6] Compiling Poker.Card.Storable ( src/Poker/Card/Storable.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Card/Storable.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Card/Storable.dyn_o ) [Poker changed]
+[2 of 6] Compiling Poker.Evaluate   ( src/Poker/Evaluate.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Evaluate.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Evaluate.dyn_o ) [Poker changed]
+[3 of 6] Compiling Poker.Table      ( src/Poker/Table.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Table.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Table.dyn_o ) [Data.Generics.Labels changed]
+[4 of 6] Compiling Poker.Random     ( src/Poker/Random.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Random.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Random.dyn_o ) [System.Random changed]
+[5 of 6] Compiling Poker.RangedHole ( src/Poker/RangedHole.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/RangedHole.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/RangedHole.dyn_o ) [System.Random changed]
+[6 of 6] Compiling Poker.Charts     ( src/Poker/Charts.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Charts.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Charts.dyn_o ) [Poker changed]
+Configuring executable 'poker-fold-speed' for poker-fold-0.0.1..
+Preprocessing executable 'poker-fold-speed' for poker-fold-0.0.1..
+GHCi, version 8.10.7: https://www.haskell.org/ghc/  :? for help
+Loaded GHCi configuration from /Users/tonyday/haskell/poker-fold/.ghci
+[1 of 1] Compiling Main             ( app/speed.hs, interpreted )
+
+app/speed.hs:127:7: warning: [-Wunused-local-binds]
+    Defined but not used: ‘s’
+    |
+127 |   let s = optionStatDType o
+    |       ^
+
+app/speed.hs:198:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘unfold1’
+    |
+198 | unfold1 f x = case f x of
+    | ^^^^^^^
+
+app/speed.hs:206:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘algoL’
+    |
+206 | algoL = unfold1 nextp
+    | ^^^^^
+
+app/speed.hs:231:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘sortSNoinline’
+    |
+231 | sortSNoinline xs = S.create $ do
+    | ^^^^^^^^^^^^^
+
+app/speed.hs:239:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘logTick’
+    |
+239 | logTick l x y = do
+    | ^^^^^^^
+
+app/speed.hs:244:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘logTickIO’
+    |
+244 | logTickIO l x = do
+    | ^^^^^^^^^
+
+app/speed.hs:249:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘logTicks’
+    |
+249 | logTicks n l x y = do
+    | ^^^^^^^^
+
+app/speed.hs:254:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘toSecs’
+    |
+254 | toSecs = (/ 2.2e9) . P.fromIntegral
+    | ^^^^^^
+
+app/speed.hs:257:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘oldmain’
+    |
+257 | oldmain = do
+    | ^^^^^^^
+
+app/speed.hs:288:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘sortingChecks’
+    |
+288 | sortingChecks n t = do
+    | ^^^^^^^^^^^^^
+
+app/speed.hs:303:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘algorithms’
+    |
+303 | algorithms n t =
+    | ^^^^^^^^^^
+
+app/speed.hs:314:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘winodds’
+    |
+314 | winodds n r = case r of
+    | ^^^^^^^
+
+app/speed.hs:320:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘binoms’
+    |
+320 | binoms n r = case r of
+    | ^^^^^^
+
+app/speed.hs:326:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘handRankSpeeds’
+    |
+326 | handRankSpeeds n r = case r of
+    | ^^^^^^^^^^^^^^
+
+app/speed.hs:358:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘lookupTech’
+    |
+358 | lookupTech n r = case r of
+    | ^^^^^^^^^^
+
+app/speed.hs:386:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘hrlookups’
+    |
+386 | hrlookups n t = case t of
+    | ^^^^^^^^^
+
+app/speed.hs:418:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘cardChecks’
+    |
+418 | cardChecks n t = case t of
+    | ^^^^^^^^^^
+
+app/speed.hs:566:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘resolution’
+    |
+566 | resolution p n r = case r of
+    | ^^^^^^^^^^
+
+app/speed.hs:579:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘writeSome’
+    |
+579 | writeSome n r = case r of
+    | ^^^^^^^^^
+Ok, one module loaded.
+,*Main> Ok, one module loaded.
+>  >  >  >  >  >  >  >  >  > ok
+#+end_example
+
+* handRankS
+
+#+begin_src haskell :results output
+import Data.Bifunctor
+:t count
+fmap (fmap (bimap getSum ((/10000.0) . fromIntegral))) $ execPerfT ((,) <$> count <*> time) $ handRankS_P 10000
+#+end_src
+
+#+RESULTS:
+:
+: count :: Measure IO (Sum Int)
+: fromList [("flushS",(10000,1709.5718)),("kindS",(9239,1160.7222)),("ranksSet",(9703,1324.894)),("straightS",(9703,421.3668))]
+
+
+handRankS seems bug-free
+
+#+begin_src haskell :results output
+cs = card7sS 100000
+:t cs
+:t handRankS
+V.length $ applyV handRankS cs
+#+end_src
+
+#+RESULTS:
+:
+: cs :: Cards2S
+: handRankS :: CardsS -> HandRank
+: 100000
+
+#+begin_src haskell :results output
+:t fromIntegral <$> time
+:t statify
+#+end_src
+
+#+RESULTS:
+: fromIntegral <$> time :: Num b => Measure IO b
+: statify
+:   :: Ord a =>
+:      StatDType -> Map.Map a [[Double]] -> Map.Map [a] [Double]
