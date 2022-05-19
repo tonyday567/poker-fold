@@ -13,13 +13,15 @@ import Data.Text (Text)
 import qualified Data.Vector as V
 import Perf
 import Poker.Card.Storable
-import Poker.Evaluate
+import Poker.HandRank.Storable
 import Poker.Random
 import Prelude
 import Data.Semigroup hiding (option)
 import Options.Applicative
+import qualified Poker.HandRank.List as L
+import Optics.Core
 
-data TestType = TestHandRankS deriving (Eq, Show)
+data TestType = TestHandRankSParts | TestDefault deriving (Eq, Show)
 
 data MeasureType' = MeasureTime' | MeasureSpace' | MeasureSpaceTime' | MeasureAllocation' | MeasureCount' deriving (Eq, Show)
 
@@ -42,6 +44,15 @@ measureLabels' mt =
     MeasureAllocation' -> ["allocation"]
     MeasureCount' -> ["count"]
 
+measureFinalStat :: MeasureType' -> [Double] -> Double
+measureFinalStat mt =
+  case mt of
+    MeasureTime' -> average
+    MeasureSpace' -> average
+    MeasureSpaceTime' -> average
+    MeasureAllocation' -> average
+    MeasureCount' -> sum
+
 data Options = Options
   { optionN :: Int,
     optionStatDType :: StatDType,
@@ -55,8 +66,8 @@ data Options = Options
 
 parseTestType :: Parser TestType
 parseTestType =
-  flag' TestHandRankS (long "handrankS" <> help "test handRankS speed") <|>
-  pure TestHandRankS
+  flag' TestHandRankSParts (long "handrankS" <> help "test handRankS speed") <|>
+  pure TestDefault
 
 options :: Parser Options
 options = Options <$>
@@ -79,23 +90,18 @@ count = toMeasure $ StepMeasure start stop
     start = pure ()
     stop _ = pure 1
 
-handRankS_ :: (MonadIO m, Semigroup t) => CardsS -> PerfT m t HandRank
+handRankS_ :: (MonadIO m, Semigroup t) => Cards -> PerfT m t HandRank
 handRankS_ cs = do
-  fl <- fap "flushS" flushS cs
+  fl <- fap "flushS" flush cs
   case fl of
     Just x -> pure x
     Nothing -> do
       rs <- fap "ranksSet" ranksSet cs
-      st <- fap "straightS" straightS rs
+      st <- fap "straightS" straight rs
       case st of
         Just x -> pure x
         Nothing -> do
-          fap "kindS" kindS (toRanksS cs)
-
-handRankS_P :: (MonadIO m, Semigroup t) => Int -> PerfT m t (V.Vector HandRank)
-handRankS_P n = do
-  let cs = card7sS n
-  V.sequence $ applyV handRankS_ cs
+          fap "kindS" kind (toRanks cs)
 
 -- | unification of the different measurements to being averages.
 measureD :: MeasureType' -> Measure IO [Double]
@@ -105,7 +111,7 @@ measureD mt =
     MeasureSpace' -> toMeasure $ ssToList <$> space False
     MeasureSpaceTime' -> toMeasure ((\x y -> ssToList x <> [fromIntegral y]) <$> space False <*> stepTime)
     MeasureAllocation' -> (:[]) . fromIntegral <$> toMeasure (allocation False)
-    MeasureCount' -> (:[]) . fromIntegral . getSum <$> count
+    MeasureCount' -> (:[]) . fromIntegral . sum <$> count
 
 main :: IO ()
 main = do
@@ -129,7 +135,18 @@ main = do
   let cfg = optionReportConfig o
 
   case t of
-    TestHandRankS -> do
-      m <- execPerfT (measureD mt) $ handRankS_P n
+    TestHandRankSParts -> do
+      m <- fmap (fmap (measureFinalStat mt)) $
+        execPerfT (measureD mt) $ V.sequence $ applyV handRankS_ (card7sS n)
       when w (writeFile raw (show m))
-      report cfg gold (measureLabels' mt) (Map.mapKeys (:[]) m)
+      report cfg gold (measureLabels' mt) (Map.mapKeys (:[]) (fmap (:[]) m))
+    TestDefault -> do
+      m <- fmap (fmap (measureFinalStat mt)) $
+        execPerfT (measureD mt) $ do
+          _ <- fap "storable handRank max" (V.maximum . applyV handRank) (card7sS n)
+          _ <- fap "list handRank max" (maximum . fmap L.handRank) (view (re L.cards7I) $ card7sS n)
+          _ <- fap "storable handRank" (applyV handRank) (card7sS n)
+          _ <- fap "handRank" (fmap L.handRank) (view (re L.cards7I) $ card7sS n)
+          pure ()
+      when w (writeFile raw (show m))
+      report cfg gold (measureLabels' mt) (Map.mapKeys (:[]) (fmap (:[]) m))

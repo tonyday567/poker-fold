@@ -40,7 +40,6 @@ import Data.Text (Text, pack)
 import GHC.Exts (fromList)
 import Optics.Core hiding (to)
 import Poker hiding (fromList)
-import Poker.Card.Storable
 import Poker.RangedHole
 import Poker.Table
 import Prettyprinter
@@ -63,7 +62,7 @@ opsColourText :: RangedHole Colour
 opsColourText =
   tabulate $
     fromOPS (Colour 0 0 0.4 1, Colour 0 0.4 0 1, Colour 0.4 0 0 1)
-      . to shapedHoleS
+      . view (re shapedHoleS)
 
 -- | background rectangle style for Offsuit, Pair and Suited hole hands.
 opsRectStyle :: (RectStyle, RectStyle, RectStyle)
@@ -75,7 +74,7 @@ opsRectStyle =
 
 -- | default background representing Offsuit, Pair & Suited hole cards.
 rhBackground :: RangedHole RectStyle
-rhBackground = tabulate $ fromOPS opsRectStyle . to shapedHoleS
+rhBackground = tabulate $ fromOPS opsRectStyle . view (re shapedHoleS)
 
 -- | default RangedHole Hud
 rhHud :: ChartSvg

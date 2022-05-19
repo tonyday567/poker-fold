@@ -59,8 +59,10 @@ library
     generic-lens,
   exposed-modules:
     Poker.RangedHole
-    Poker.Evaluate
     Poker.Charts
+    Poker.HandRank.List
+    Poker.HandRank.Storable
+    Poker.Lexico
     Poker.Random
     Poker.Table
     Poker.Card.Storable
@@ -82,6 +84,7 @@ executable poker-fold-speed
     random ^>= 1.2,
     text ^>= 1.2,
     vector,
+    optics-core ^>= 0.4,
     vector-algorithms,
     poker-base,
     prettyprinter,

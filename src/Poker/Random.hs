@@ -1,14 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wall #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-type-defaults #-}
 
 -- | Card entropy
 module Poker.Random
@@ -48,13 +45,11 @@ import Control.Monad.State.Lazy
   )
 import Data.Bool (bool)
 import Data.Foldable (Foldable (foldl'))
-import Data.List (sort)
 import qualified Data.List as List
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
-import Poker
 import Poker.Card.Storable
-import Poker.Evaluate
+import Poker.HandRank.Storable
 import Poker.Table
 import System.Random (RandomGen, mkStdGen, uniformR, UniformRange)
 import Prelude
@@ -128,8 +123,8 @@ rviv n k = S.mapM (rvi . (n -)) (S.generate (fromEnum k) toEnum)
 shuffle :: Int -> [Int] -> (V.Vector Int, V.Vector Int)
 shuffle n =
   foldl'
-    ( \(dealt, rem) i ->
-        let (x, rem') = cutV rem i in (V.snoc dealt x, rem')
+    ( \(dealt, r) i ->
+        let (x, rem') = cutV r i in (V.snoc dealt x, rem')
     )
     (V.empty, V.enumFromN 0 n)
 
@@ -159,7 +154,7 @@ ishuffle as = reverse $ go as []
     go [] s = s
     go (x0 : xs) s = go xs (x1 : s)
       where
-        x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) x0 (sort s)
+        x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) x0 (List.sort s)
 
 -- | Vector version of ishuffle
 --
@@ -173,34 +168,34 @@ vshuffle :: S.Vector Word8 -> S.Vector Word8
 vshuffle as = go as S.empty
   where
 --     go :: S.Vector Int -> S.Vector Int -> S.Vector Int
-    go as dealt =
+    go as' dealt =
       bool
-        (go (S.unsafeTail as) (S.snoc dealt x1))
+        (go (S.unsafeTail as') (S.snoc dealt x1))
         dealt
-        (S.null as)
+        (S.null as')
       where
-        x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) (S.unsafeHead as) (sort $ S.toList dealt)
+        x1 = S.foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) (S.unsafeHead as) (Poker.HandRank.Storable.sort dealt)
 
 -- | deal n cards from a fresh, shuffled, standard pack.
 --
 -- >>> pretty $ evalState (dealN 7) (mkStdGen 42)
 -- [Ac, 7s, Tc, 5s, 6d, 7c, 6s]
 dealN :: (RandomGen g) => Word8 -> State g [Card]
-dealN n = fmap (fmap (to cardS . CardS)) $ ishuffle <$> rvis 52 n
+dealN n = fmap (fmap Card) $ ishuffle <$> rvis 52 n
 
 -- | deal n cards as a CardsS
 --
 -- >>> pretty $ evalState (dealNS 7) (mkStdGen 42)
 -- Ac7sTc5s6d7c6s
-dealNS :: (RandomGen g) => Word8 -> State g CardsS
-dealNS n = CardsS . S.map fromIntegral . vshuffle <$> rviv 52 n
+dealNS :: (RandomGen g) => Word8 -> State g Cards
+dealNS n = Cards . S.map fromIntegral . vshuffle <$> rviv 52 n
 
 -- | deal n cards from a given deck
 --
 -- >>> pretty $ evalState (dealNWith 7 allCardsS) (mkStdGen 42)
 -- Ac7sTc5s6d7c6s
-dealNWith :: (RandomGen g) => Word8 -> CardsS -> State g CardsS
-dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . S.map fromIntegral . vshuffle) (rviv (toEnum $ S.length cs) n)
+dealNWith :: (RandomGen g) => Word8 -> Cards -> State g Cards
+dealNWith n (Cards cs) = fmap (Cards . S.map (cs S.!) . S.map fromIntegral . vshuffle) (rviv (toEnum $ S.length cs) n)
 
 -- | deal a table
 --
@@ -209,7 +204,7 @@ dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . S.map fromIntegral . v
 dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
   cs <- dealNS (toEnum $ 5 + tableSize cfg * 2)
-  pure $ makeTable cfg (to cardsS cs)
+  pure $ makeTable cfg cs
 
 -- | uniform random variate of HandRank
 --
@@ -233,9 +228,9 @@ card7s n = evalState (replicateM n (dealN 7)) (mkStdGen 42)
 --
 -- >>> S.length $ unwrapCards2 $ card7sS 100
 -- 700
-card7sS :: Int -> Cards2S
+card7sS :: Int -> Cards2
 card7sS n =
-  Cards2S $
+  Cards2 $
     S.convert $
         mconcat $
           evalState
@@ -246,8 +241,8 @@ card7sS n =
 --
 -- >>> S.length $ unwrapCards2 $ card7sSI 100
 -- 700
-card7sSI :: Int -> Cards2S
-card7sSI n = Cards2S $ S.concat $ V.toList $ evalState (V.replicateM n (unwrapCards <$> dealNS 7)) (mkStdGen 42)
+card7sSI :: Int -> Cards2
+card7sSI n = Cards2 $ S.concat $ V.toList $ evalState (V.replicateM n (unwrapCards <$> dealNS 7)) (mkStdGen 42)
 
 -- | An enumeration of 2 samples from a list without replacement
 --

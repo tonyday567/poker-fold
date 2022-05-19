@@ -28,7 +28,6 @@ module Poker.Table
     TableConfig (..),
     defaultTableConfig,
     makeTable,
-    makeTableS,
     liveSeats,
     openSeats,
     nextCursor,
@@ -57,14 +56,16 @@ import Data.Maybe
 import Data.Text (Text)
 import GHC.Exts hiding (toList)
 import GHC.Generics hiding (from, to)
-import Optics.Core hiding (to)
-import Poker hiding (fromList)
+import Poker hiding (Card, fromList)
 import Poker.Card.Storable
-import Poker.Evaluate
 import Prettyprinter hiding (comma)
 import Prelude
-import Data.Bifunctor
 import Data.Generics.Labels ()
+import Optics.Core
+import Poker.HandRank.List (cardI)
+import qualified Data.Vector.Storable as S
+import Data.Bifunctor
+import Poker.HandRank.Storable
 
 -- $usage
 --
@@ -120,6 +121,7 @@ data TableCards = TableCards
   }
   deriving (Eq, Show, Generic)
 
+{-
 instance Pretty TableCards where
   pretty (TableCards ps (f0, f1, f2) t r) =
     concatWith
@@ -130,25 +132,28 @@ instance Pretty TableCards where
         pretty r
       ]
 
+-}
+
 -- | Deal a card list to the table
 --
+-- FIXME: unwind MkHole
 -- >>> deal (to cardsS cs)
 -- TableCards {playerCards = [MkHole (Card {rank = Ace, suit = Club}) (Card {rank = Seven, suit = Spade}),MkHole (Card {rank = Ten, suit = Club}) (Card {rank = Five, suit = Spade})], flopCards = (Card {rank = Six, suit = Diamond},Card {rank = Seven, suit = Club},Card {rank = Six, suit = Spade}), turnCard = Card {rank = Nine, suit = Club}, riverCard = Card {rank = Four, suit = Spade}}
-deal :: [Card] -> TableCards
-deal cs =
+deal :: Cards -> TableCards
+deal (Cards cs) =
   TableCards
-    ( fromList
-        ( ( \x ->
-              MkHole (cs List.!! (2 * x)) (cs List.!! (2 * x + 1))
+    (
+        ( \x ->
+              MkHole (review cardI $ cs' List.!! (2 * x)) (review cardI $ cs' List.!! (2 * x + 1))
           )
             <$> [0 .. n - 1]
-        )
     )
-    (cs List.!! (n * 2), cs List.!! (1 + n * 2), cs List.!! (2 + n * 2))
-    (cs List.!! (3 + n * 2))
-    (cs List.!! (4 + n * 2))
+    (cs' List.!! (n * 2), cs' List.!! (1 + n * 2), cs' List.!! (2 + n * 2))
+    (cs' List.!! (3 + n * 2))
+    (cs' List.!! (4 + n * 2))
   where
-    n = (length cs - 5) `div` 2
+    n = (length cs' - 5) `div` 2
+    cs' = Card <$> S.toList cs
 
 -- | For each seat, the betting can be open (can re-raise), closed (has called and cannot re-raise). A raise at the table re-opens the betting for all live seats.
 --
@@ -183,6 +188,7 @@ data Table = Table
   }
   deriving (Eq, Show, Generic)
 
+{-
 instance Pretty Table where
   pretty (Table cs n s st bs p h) =
     concatWith
@@ -196,6 +202,8 @@ instance Pretty Table where
         concatWith (surround ":") $ (\(a, p) -> pretty a <> pretty p) <$> h
       ]
 
+
+-}
 -- | number of seats at the table
 --
 -- >>> numSeats t
@@ -258,9 +266,10 @@ liveHoles t = (\i -> hands (cards t) List.!! i) <$> liveSeats t
 -- [(0, [Ac, 7s, 6d, 7c, 6s, 9c, 4s]), (1, [Tc, 5s, 6d, 7c, 6s, 9c, 4s])]
 hands :: TableCards -> [(Int, [Card])]
 hands (TableCards ps (f0, f1, f2) t r) =
+  fmap (fmap (view cardI)) <$>
   zip
     [0 .. (length ps - 1)]
-    ((\(Hole x y) -> [x, y, f0, f1, f2, t, r]) <$> ps)
+    ((\(Hole x y) -> [x, y, review cardI f0, review cardI f1, review cardI f2, review cardI t, review cardI r]) <$> ps)
 
 -- | Static configuration for setting up a table.
 --
@@ -281,17 +290,9 @@ defaultTableConfig = TableConfig 2 0 (replicate 2 10)
 --
 -- >>> pretty $ makeTable defaultTableConfig (to cardsS cs)
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
-makeTable :: TableConfig -> [Card] -> Table
-makeTable cfg cs = Table (deal cs) (Just 0) (replicate (tableSize cfg) BettingOpen) (zipWith (-) (stacks0 cfg) bs) bs 0 []
-  where
-    bs = bbs (tableSize cfg) (ante cfg)
-
--- | Construct a Table with the supplied cards.
---
--- >>> pretty $ makeTableS defaultTableConfig cs
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
-makeTableS :: TableConfig -> CardsS -> Table
-makeTableS cfg cs = Table (deal (to cardsS cs)) (Just 0) (replicate (tableSize cfg) BettingOpen) (zipWith (-) (stacks0 cfg) bs) bs 0 []
+makeTable :: TableConfig -> Cards -> Table
+makeTable cfg cs =
+  Table (deal cs) (Just 0) (replicate (tableSize cfg) BettingOpen) (zipWith (-) (stacks0 cfg) bs) bs 0 []
   where
     bs = bbs (tableSize cfg) (ante cfg)
 
@@ -507,7 +508,5 @@ bests ((i, x) : xs) x' res =
 --
 bestLiveHole :: Table -> [Int]
 bestLiveHole t =
-  fmap
     (\xs -> bests xs 0 [])
-    (fmap (second (lookupHRUnsafe . from cardsS . List.sort)))
-    $ liveHoles t
+    (fmap (second (lookupHRUnsafe . Cards . S.fromList . fmap unwrapCard . List.sort)) (liveHoles t))

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 
 import Options.Applicative
-import Poker.Evaluate
+import Poker.HandRank.Storable
 import Poker.RangedHole
 import Poker.Charts
 
