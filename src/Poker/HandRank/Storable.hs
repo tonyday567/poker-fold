@@ -411,7 +411,7 @@ mapValueHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
 -- TwoPair Seven Six Ace
 --
 lookupHR :: S.Vector Word16 -> Cards -> Word16
-lookupHR s (Cards v) = s S.! Poker.Lexico.toLexiPosRS 52 7 (S.map fromIntegral v)
+lookupHR s (Cards v) = s S.! fromIntegral (toLexiPosR 52 7 v)
 
 -- | sort a 'Storable' 'Vector.Storable.Vector'
 sort :: (Ord a, Storable a) => S.Vector a -> S.Vector a
@@ -425,7 +425,7 @@ sort xs = S.create $ do
 -- >>> (Map.!) mapValueHR . lookupHRUnsorted s . from cards <$> css
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
 lookupHRUnsorted :: S.Vector Word16 -> Cards -> Word16
-lookupHRUnsorted s (Cards v) = s S.! toLexiPosR 52 7 (S.toList $ S.map fromIntegral $ sort v)
+lookupHRUnsorted s (Cards v) = s S.! fromIntegral (toLexiPosR 52 7 (sort v))
 
 -- | version hiding the IO call for hvs7
 --

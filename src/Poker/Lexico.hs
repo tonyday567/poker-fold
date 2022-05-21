@@ -19,7 +19,7 @@ module Poker.Lexico
   ( combinations,
     combinationsR,
     toLexiPosR,
-    toLexiPosRS,
+    toLexiPosRList,
     fromLexiPosR,
     binom,
     binomR
@@ -66,8 +66,8 @@ combinationsR m l = reverse <$> combinations m (reverse l)
 --
 -- >>> toLexiPosR 5 2 <$> combinationsR 2 [0..4]
 -- [0,1,2,3,4,5,6,7,8,9]
-toLexiPosR :: Int -> Int -> [Int] -> Int
-toLexiPosR n k xs = binom n k - 1 - sum (zipWith binom xs [1 ..])
+toLexiPosRList :: Int -> Int -> [Int] -> Int
+toLexiPosRList n k xs = binom n k - 1 - sum (zipWith binom xs [1 ..])
 
 -- | Given a reverse lexicographic position, what was the combination?
 --
@@ -95,7 +95,7 @@ fromLexiPosR n k p = go (n - 1) k (binom n k - 1 - p) []
 --
 -- >>> binom 52 7
 -- 133784560
-binom :: Int -> Int -> Int
+binom :: (Integral a) => a -> a -> a
 binom _ 0 = 1
 binom 0 _ = 0
 binom n k = product [(n - k + 1) .. n] `div` product [1 .. k]
@@ -104,7 +104,7 @@ binom n k = product [(n - k + 1) .. n] `div` product [1 .. k]
 --
 -- >>> binomR 52 7
 -- 133784560
-binomR :: Int -> Int -> Int
+binomR :: (Integral a) => a -> a -> a
 binomR _ 0 = 1
 binomR 0 _ = 0
 binomR n k = binomR (n - 1) (k - 1) * n `div` k
@@ -116,5 +116,6 @@ binomR n k = binomR (n - 1) (k - 1) * n `div` k
 --
 -- >>> toLexiPosR 5 2 <$> S.fromList <$> combinationsR 2 [0..4]
 -- [0,1,2,3,4,5,6,7,8,9]
-toLexiPosRS :: Int -> Int -> S.Vector Int -> Int
-toLexiPosRS n k s = binom n k - 1 - S.sum (S.imap (\i a -> binom a (1 + i)) s)
+toLexiPosR :: (Integral a, S.Storable a) => a -> a -> S.Vector a -> a
+toLexiPosR n k s =
+  binom n k - 1 - S.sum (S.imap (\i a -> fromIntegral $ binom (fromIntegral a) (1 + i)) s)

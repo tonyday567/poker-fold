@@ -346,7 +346,7 @@ toRank (PCS.Rank 9) = Jack
 toRank (PCS.Rank 10) = Queen
 toRank (PCS.Rank 11) = King
 toRank (PCS.Rank 12) = Ace
-toRank _ = undefined
+toRank _ = error "bad Rank value"
 
 fromRank :: Rank -> PCS.Rank
 fromRank Two = PCS.Rank 0
@@ -381,7 +381,7 @@ toSuit (PCS.Suit 0) = Club
 toSuit (PCS.Suit 1) = Diamond
 toSuit (PCS.Suit 2) = Heart
 toSuit (PCS.Suit 3) = Spade
-toSuit _ = undefined
+toSuit _ = error "bad Suit value"
 
 fromSuit :: Poker.Suit -> PCS.Suit
 fromSuit Club = PCS.Suit 0

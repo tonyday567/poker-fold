@@ -70,6 +70,92 @@ putStrLn "ok"
 : *Main> Ok, one module loaded.
 : >  >  >  >  >  >  >  >  >  > ok
 
+* shuffling
+
+#+begin_src sh :results output
+poker-fold-speed --shuffle -n 100000
+#+end_src
+
+#+RESULTS:
+#+begin_example
+label1              label2              results
+
+rvi - list          time                2.40e-1
+rvi - list f        time                1.87e2
+rvi - single        time                5.43e1
+rvi - single f      time                5.53e1
+rvil - single       time                2.78e3
+rviv - list         time                6.00e-4
+rviv - list f       time                1.04e4
+rviv - single       time                1.58e3
+rviv - single f     time                2.75e3
+#+end_example
+
+#+begin_src sh :results output
+poker-fold-speed --shuffle -n 10000
+#+end_src
+
+#+RESULTS:
+#+begin_example
+label1              label2              results
+
+rvi - list          time                2.46e-1
+rvi - list f        time                2.01e2
+rvi - single        time                5.54e1
+rvi - single f      time                5.41e1
+rvil - single       time                3.03e3
+rviv - list         time                6.00e-4
+rviv - list f       time                1.36e4
+rviv - single       time                2.95e3
+rviv - single f     time                4.10e3
+#+end_example
+
+
+Creating a list of random variates stays lazy as perf is WHNF in the output. Forcing the list fixes this. For a single rvi, the output is computed, and force being added is probably creating an intermediary.
+
+rvil is a list version of rviv.
+
+#+begin_src sh :results output
+poker-fold-speed --shuffle -n 10000 --allocation +RTS -T -RTS
+#+end_src
+
+#+RESULTS:
+#+begin_example
+label1              label2              results
+
+rvi - list          allocation          0
+rvi - list f        allocation          5.21e2
+rvi - single        allocation          0
+rvi - single f      allocation          0
+rvil - single       allocation          3.39e3
+rviv - list         allocation          0
+rviv - list f       allocation          4.13e4
+rviv - single       allocation          7.69e3
+rviv - single f     allocation          7.68e3
+#+end_example
+
+#+begin_src sh :results output
+poker-fold-speed --shuffle -n 100000 --allocation +RTS -T -RTS
+#+end_src
+
+#+RESULTS:
+#+begin_example
+label1              label2              results
+
+rvi - list          allocation          0
+rvi - list f        allocation          5.43e2
+rvi - single        allocation          0
+rvi - single f      allocation          1.88e1
+rvil - single       allocation          3.49e3
+rviv - list         allocation          0
+rviv - list f       allocation          4.13e4
+rviv - single       allocation          7.60e3
+rviv - single f     allocation          7.60e3
+#+end_example
+
+Something allocated to the heap for rvi - single, forced, harming performance.
+
+
 * handRankS
 
 #+begin_src haskell :results output

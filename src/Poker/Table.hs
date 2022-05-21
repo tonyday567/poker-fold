@@ -81,7 +81,7 @@ import Poker.HandRank.Storable
 -- >>> pretty t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
 --
--- >>> cs = evalState (dealNS 9) (mkStdGen 42)
+-- >>> cs = evalState (dealN 9) (mkStdGen 42)
 -- >>> t' = makeTable defaultTableConfig (to cardsS cs)
 -- >>> pretty t'
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
@@ -100,7 +100,7 @@ import Poker.HandRank.Storable
 -- >>> pretty t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
 --
--- >>> cs = evalState (dealNS 9) (mkStdGen 42)
+-- >>> cs = evalState (dealN 9) (mkStdGen 42)
 -- >>> t' = makeTable defaultTableConfig (to cardsS cs)
 -- >>> pretty t'
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,

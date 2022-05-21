@@ -85,6 +85,7 @@ executable poker-fold-speed
     text ^>= 1.2,
     vector,
     optics-core ^>= 0.4,
+    deepseq,
     vector-algorithms,
     poker-base,
     prettyprinter,

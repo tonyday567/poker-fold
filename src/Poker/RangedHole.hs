@@ -505,7 +505,7 @@ evTables :: Int -> Int -> [RangedHole RawAction] -> [Table]
 evTables n sims acts =
   showdown . applies acts <$> tables
   where
-    cards = Cards . S.fromList . fmap unwrapCard <$> evalState (replicateM sims (dealN (5 + 2 * toEnum n))) (mkStdGen 42)
+    cards = evalState (replicateM sims (dealN (5 + 2 * toEnum n))) (mkStdGen 42)
     tables = makeTable (defaultTableConfig {tableSize = n}) <$> cards
 
 -- | Simulate the expected value of a 2 seat game, given the 5 decision point cuts of headsup flop-only holdem described in 'actOn'.
