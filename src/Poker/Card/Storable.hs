@@ -11,6 +11,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Storable version of 'Poker.Card' and related types contained in "Poker".
 --
@@ -60,6 +61,7 @@ import Poker hiding (allCards, Suit, Card, Rank, fromList)
 import Prettyprinter hiding (comma)
 import Prelude
 import Optics.Core
+import Control.DeepSeq
 
 -- $usage
 --
@@ -111,7 +113,7 @@ import Optics.Core
 -- Two
 -- >>> to rank $ Rank 12
 -- Ace
-newtype Rank = Rank {unwrapRank :: Word8} deriving (Eq, Show, Ord)
+newtype Rank = Rank {unwrapRank :: Word8} deriving (Eq, Show, Ord, NFData)
 
 -- | Storable representation of 'Rank'
 --
@@ -120,7 +122,7 @@ newtype Rank = Rank {unwrapRank :: Word8} deriving (Eq, Show, Ord)
 --
 -- >>> pretty $ from ranks allRanks
 -- 23456789TJQKA
-newtype Ranks = Ranks {unwrapRanks :: S.Vector Word8} deriving (Eq, Show, Ord)
+newtype Ranks = Ranks {unwrapRanks :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
 
 -- | Storable representation of 'Suit'
 --
@@ -128,7 +130,7 @@ newtype Ranks = Ranks {unwrapRanks :: S.Vector Word8} deriving (Eq, Show, Ord)
 -- Club
 -- >>> to suit $ Suit 3
 -- Spade
-newtype Suit = Suit {unwrapSuit :: Word8} deriving (Eq, Show, Ord)
+newtype Suit = Suit {unwrapSuit :: Word8} deriving (Eq, Show, Ord, NFData)
 
 -- | Storable representation of 'Suit'
 --
@@ -137,7 +139,7 @@ newtype Suit = Suit {unwrapSuit :: Word8} deriving (Eq, Show, Ord)
 --
 -- >>> pretty $ from ranks allRanks
 -- 23456789TJQKA
-newtype Suits = Suits {unwrapSuits :: S.Vector Word8} deriving (Eq, Show, Ord)
+newtype Suits = Suits {unwrapSuits :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
 
 -- | Storable representation of a 'Card'
 --
@@ -151,7 +153,7 @@ newtype Card = Card {unwrapCard :: Word8} deriving (Eq, Show, Ord)
 --
 -- >>> pretty $ from cards cs
 -- Ah7sTh5s6c7h6s
-newtype Cards = Cards {unwrapCards :: S.Vector Word8} deriving (Eq, Show, Ord)
+newtype Cards = Cards {unwrapCards :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
 
 -- | a standard 52 card deck (in ascending order).
 --
@@ -198,7 +200,7 @@ toRanks cs = Ranks $ S.map (unwrapRank . toRank . Card) $ unwrapCards cs
 --
 -- >>> pretty $ from cardsS7L css
 -- [Ah7sTh5s6c7h6s, Tc5sTh5s6c7h6s]
-newtype Cards2 = Cards2 {unwrapCards2 :: S.Vector Word8} deriving (Eq, Show, Ord)
+newtype Cards2 = Cards2 {unwrapCards2 :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
 
 instance Semigroup Cards2 where
   (<>) (Cards2 x) (Cards2 x') = Cards2 (x <> x')
@@ -239,6 +241,7 @@ applyFlat k f s = S.generate n (\i -> f (S.slice (k * i) k s))
 -- [AT765,T765]
 applyV :: (Cards -> a) -> Cards2 -> V.Vector a
 applyV f (Cards2 s) = applyFlatV 7 (f . Cards) s
+{-# Inline applyV #-}
 
 -- | apply a function to a cards vector, returning a storable vector of the results.
 --

@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 -- | Evaluation of a standard holdem poker hand. The evaluators work for 5 and 7 card hands.
 --
@@ -78,7 +79,7 @@ import GHC.Generics
 import qualified Data.Vector as V
 import Optics.Core
 import Poker.HandRank.List (rankI, cardsI, suitI)
-
+import Control.DeepSeq
 
 -- $usage
 --
@@ -140,7 +141,7 @@ data HandRank
   | FullHouse Rank Rank
   | FourOfAKind Rank Rank
   | StraightFlush Rank
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 -- | CardsS version of handRank
 --
@@ -153,6 +154,7 @@ handRank cs =
     ( flush cs
         <|> straight (ranksSet cs)
     )
+{-# Inline handRank #-}
 
 -- | enumeration of all possible HandRanks, in ascending order.
 --
@@ -322,8 +324,8 @@ kind rs =
 --
 -- >>> rankCountS' (from ranks $ rank <$> cs)
 -- [0,0,0,1,2,2,0,0,1,0,0,0,1]
-rankCountS' :: Ranks -> S.Vector Word8
-rankCountS' (Ranks rs) = S.create $ do
+rankCountV :: Ranks -> S.Vector Word8
+rankCountV (Ranks rs) = S.create $ do
   v <- SM.replicate 13 (0 :: Word8)
   S.mapM_ (SM.modify v (+ 1)) (S.map fromEnum rs)
   pure v
@@ -334,7 +336,7 @@ rankCountS' (Ranks rs) = S.create $ do
 -- [(Seven,2),(Six,2),(Ace,1),(Ten,1),(Five,1)]
 rankCount :: Ranks -> [(Rank, Word8)]
 rankCount rs =
-  fmap (first (Rank . fromIntegral)) $ sortOn (Down . swap) $ toList $ V.imapMaybe (\i a -> bool Nothing (Just (i, a)) (a /= 0)) (S.convert $ rankCountS' rs)
+  fmap (first (Rank . fromIntegral)) $ sortOn (Down . swap) $ toList $ V.imapMaybe (\i a -> bool Nothing (Just (i, a)) (a /= 0)) (S.convert $ rankCountV rs)
 
 -- | vector of hand values indexed by lexigraphic order for n-card combinations.
 --

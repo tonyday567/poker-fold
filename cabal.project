@@ -1,6 +1,5 @@
 packages:
   poker-fold.cabal
-  ../perf/perf.cabal
 
 source-repository-package
   type: git

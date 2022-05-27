@@ -43,6 +43,7 @@ library
     chart-svg ^>= 0.3.0,
     containers >= 0.6 && < 0.7,
     distributive >= 0.6 && < 0.7,
+    deepseq,
     formatn ^>= 0.2.1,
     mtl >= 2.2.2 && < 2.3,
     numhask-array ^>= 0.10,

@@ -15,6 +15,7 @@ module Poker.Random
     -- * Sampling
     rvi,
     rviv,
+    rvis,
     cutShuffle,
     indexShuffle,
 
@@ -93,6 +94,10 @@ rvi n = do
 rviv :: (RandomGen g, UniformRange e, Integral e, S.Storable e) => e -> e -> State g (S.Vector e)
 rviv n k = S.mapM (rvi . (n -)) (S.generate (fromIntegral k) fromIntegral)
 {-# Inline rviv #-}
+
+rvis :: (RandomGen g, UniformRange e, Num e, Enum e) => e -> e -> State g [e]
+rvis n k = sequence (rvi . (n -) <$> [0 .. (k - 1)])
+{-# Inline rvis #-}
 
 -- | Creates sample without replacement given an 'rvis' process.
 --

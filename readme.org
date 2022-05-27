@@ -64,11 +64,55 @@ putStrLn "ok"
 #+end_src
 
 #+RESULTS:
-: Loaded GHCi configuration from /Users/tonyday/haskell/poker-fold/.ghci
-: [1 of 1] Compiling Main             ( app/speed.hs, interpreted )
-: Ok, one module loaded.
-: *Main> Ok, one module loaded.
-: >  >  >  >  >  >  >  >  >  > ok
+#+begin_example
+Build profile: -w ghc-8.10.7 -O1
+In order, the following will be built (use -v for more details):
+ - poker-fold-0.0.1 (lib) (configuration changed)
+ - poker-fold-0.0.1 (exe:poker-fold-speed) (configuration changed)
+Configuring library for poker-fold-0.0.1..
+Preprocessing library for poker-fold-0.0.1..
+Building library for poker-fold-0.0.1..
+[2 of 8] Compiling Poker.Card.Storable ( src/Poker/Card/Storable.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Card/Storable.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Card/Storable.dyn_o )
+[3 of 8] Compiling Poker.HandRank.List ( src/Poker/HandRank/List.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/List.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/List.dyn_o )
+[4 of 8] Compiling Poker.HandRank.Storable ( src/Poker/HandRank/Storable.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/Storable.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/Storable.dyn_o )
+[5 of 8] Compiling Poker.Table      ( src/Poker/Table.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Table.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Table.dyn_o ) [Poker.Card.Storable changed]
+[6 of 8] Compiling Poker.Random     ( src/Poker/Random.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Random.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Random.dyn_o )
+[7 of 8] Compiling Poker.RangedHole ( src/Poker/RangedHole.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/RangedHole.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/RangedHole.dyn_o ) [Poker.Card.Storable changed]
+[8 of 8] Compiling Poker.Charts     ( src/Poker/Charts.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Charts.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Charts.dyn_o ) [Poker.RangedHole changed]
+Configuring executable 'poker-fold-speed' for poker-fold-0.0.1..
+Preprocessing executable 'poker-fold-speed' for poker-fold-0.0.1..
+GHCi, version 8.10.7: https://www.haskell.org/ghc/  :? for help
+Loaded GHCi configuration from /Users/tonyday/haskell/poker-fold/.ghci
+[1 of 1] Compiling Main             ( app/speed.hs, interpreted )
+
+app/speed.hs:28:1: warning: [-Wunused-imports]
+    The import of ‘Data.Bifunctor’ is redundant
+      except perhaps to import instances from ‘Data.Bifunctor’
+    To import instances alone, use: import Data.Bifunctor()
+   |
+28 | import Data.Bifunctor
+   | ^^^^^^^^^^^^^^^^^^^^^
+Ok, one module loaded.
+,*Main> Ok, one module loaded.
+>  >  >  >  >  >  >  >  >  > ok
+#+end_example
+
+* hand evaluation speed
+
+#+begin_src sh :results output
+poker-fold-speed
+#+end_src
+
+#+RESULTS:
+: label1              label2              results
+:
+: handRank            time                1.44e4
+: handRank afap       time                1.33e4
+: handRank ffap       time                5.23e6
+: handRank f|         time                5.35e6
+: handRank |f         time                1.36e4
+: handRank |f|        time                6.46e6
+
 
 * shuffling
 

@@ -200,6 +200,7 @@ handRank cs =
     )
   where
     cs' = sortOn Down cs
+{-# Inline handRank #-}
 
 -- | 5 consecutive card check
 --
