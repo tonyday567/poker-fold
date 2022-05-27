@@ -99,7 +99,7 @@ Ok, one module loaded.
 
 * hand evaluation speed
 
-#+begin_src sh :results output
+#+begin_src sh  :results output :exports both
 poker-fold-speed
 #+end_src
 
@@ -116,7 +116,7 @@ poker-fold-speed
 
 * shuffling
 
-#+begin_src sh :results output
+#+begin_src sh :results output :exports both
 poker-fold-speed --shuffle -n 100000
 #+end_src
 
@@ -135,7 +135,7 @@ rviv - single       time                1.58e3
 rviv - single f     time                2.75e3
 #+end_example
 
-#+begin_src sh :results output
+#+begin_src sh :results output :exports both
 poker-fold-speed --shuffle -n 10000
 #+end_src
 
@@ -159,7 +159,7 @@ Creating a list of random variates stays lazy as perf is WHNF in the output. For
 
 rvil is a list version of rviv.
 
-#+begin_src sh :results output
+#+begin_src sh :results output :exports both
 poker-fold-speed --shuffle -n 10000 --allocation +RTS -T -RTS
 #+end_src
 
@@ -178,7 +178,7 @@ rviv - single       allocation          7.69e3
 rviv - single f     allocation          7.68e3
 #+end_example
 
-#+begin_src sh :results output
+#+begin_src sh :results output :exports both
 poker-fold-speed --shuffle -n 100000 --allocation +RTS -T -RTS
 #+end_src
 
@@ -202,7 +202,7 @@ Something allocated to the heap for rvi - single, forced, harming performance.
 
 * handRankS
 
-#+begin_src haskell :results output
+#+begin_src haskell :results output :exports both
 import Data.Bifunctor
 :t count
 fmap (fmap (bimap getSum ((/10000.0) . fromIntegral))) $ execPerfT ((,) <$> count <*> time) $ handRankS_P 10000
@@ -216,7 +216,7 @@ fmap (fmap (bimap getSum ((/10000.0) . fromIntegral))) $ execPerfT ((,) <$> coun
 
 handRankS seems bug-free
 
-#+begin_src haskell :results output
+#+begin_src haskell :results output :exports both
 cs = card7sS 100000
 :t cs
 :t handRankS
@@ -229,7 +229,7 @@ V.length $ applyV handRankS cs
 : handRankS :: CardsS -> HandRank
 : 100000
 
-#+begin_src haskell :results output
+#+begin_src haskell :results output :exports both
 :t fromIntegral <$> time
 :t statify
 #+end_src
