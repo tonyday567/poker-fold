@@ -8,6 +8,15 @@ A Haskell poker library exploring:
 - static analysis
 - deception
 
+* Development
+
+To create the 7-card lookup table, run
+
+#+begin_src shell
+cabal install
+poker-fold-writes --hsv7
+#+end_src
+
 * Recent Research
 
 Heads-up odds versus any2
@@ -25,7 +34,6 @@ Tier shifts between heads-up and full table.
 top 10% range:
 
 [[file:other/top10.svg]]
-
 
 * chart references
 
