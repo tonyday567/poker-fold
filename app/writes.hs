@@ -24,6 +24,7 @@ runType :: Parser RunType
 runType =
   flag' RunHvs7 (long "hvs7" <> help "write hvs7.vec file") <|>
   flag' RunCharts (long "charts" <> help "write charts") <|>
+  flag' RunSomeRanges (long "some" <> help "write some ranges") <|>
   pure RunSomeRanges
 
 options :: Parser Options

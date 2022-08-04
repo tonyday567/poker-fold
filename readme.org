@@ -247,3 +247,30 @@ V.length $ applyV handRankS cs
 : statify
 :   :: Ord a =>
 :      StatDType -> Map.Map a [[Double]] -> Map.Map [a] [Double]
+
+
+* evTables
+
+
+#+begin_src haskell :results output
+:set -Xnowarn-type-defaults
+(Just m) <- readSomeRanges
+s = m Map.! "o2"
+ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
+#+end_src
+
+#+RESULTS:
+: <interactive>:56:7: warning: [-Wname-shadowing]
+:     This binding for ‘m’ shadows the existing binding
+:       defined at <interactive>:52:7
+: <interactive>:57:1: warning: [-Wname-shadowing]
+:     This binding for ‘s’ shadows the existing binding
+:       defined at <interactive>:53:1
+: Just (-0.14000000000000057)
+
+#+begin_src haskell :results output
+ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
+#+end_src
+
+#+RESULTS:
+: Just (-0.14000000000000057)
