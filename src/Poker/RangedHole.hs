@@ -3,6 +3,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLabels #-}
+
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -11,6 +13,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | __A Shaped Hole__
 --
@@ -75,7 +78,7 @@ module Poker.RangedHole
     topBs,
     ev,
     evs,
-    ev2Ranges,
+    result2,
     rcf,
 
     -- * Table Interaction
@@ -92,7 +95,7 @@ module Poker.RangedHole
 
     -- * lpad
     lpad,
-  )
+  sharingDistance)
 where
 
 import Control.Monad.State.Lazy
@@ -112,7 +115,7 @@ import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
 import GHC.Read
 import GHC.Word
-import NumHask.Array (Array)
+import NumHask.Array (Array, Vector)
 import Poker hiding (allCards, fromList)
 import Poker.Card.Storable hiding (apply)
 import Poker.Random
@@ -125,6 +128,9 @@ import Prelude
 import Optics.Core
 import Poker.HandRank.List (cardsI, rankI, cardI)
 import Poker.Cards (allCards)
+import GHC.Generics
+import Moo.GeneticAlgorithm.Continuous
+import GHC.TypeLits
 
 -- $setup
 --
@@ -486,19 +492,17 @@ rcf s r x y =
 --
 -- >>> ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
 -- Just 2.999999999999936e-2
-ev :: Int -> Int -> [RangedHole RawAction] -> Maybe Double
-ev n sims acts =
-  listToMaybe $
-    fmap ((+ negate 10) . (/ fromIntegral sims) . sum) $
-      List.transpose $
+ev :: Int -> Int -> Vector 2 (Vector 5 (RangedHole RawAction)) -> Vector 2 Double
+ev n sims acts = fromList $
+    (+ negate 10) . (/ fromIntegral sims) . sum <$>
         evs n sims acts
 
 -- | Simulate winnings for each seat.
 --
 -- >>> all (==20.0) $ sum <$> evs 2 100 [rcf s 1 0 0.9, rcf s 1 0.3 0.9, rcf s 1 0.1 0.5, rcf s 1 0.6 0.8]
 -- True
-evs :: Int -> Int -> [RangedHole RawAction] -> [[Double]]
-evs n sims acts = fmap (toList . stacks) (evTables n sims acts)
+evs :: Int -> Int -> Vector 2 (Vector 5 (RangedHole RawAction)) -> [[Double]]
+evs n sims actss = fmap stacks (evTables n sims (toList $ blend actss))
 
 -- | Simulate end state of tables given strategies.
 evTables :: Int -> Int -> [RangedHole RawAction] -> [Table]
@@ -539,10 +543,69 @@ evTables n sims acts =
 --
 -- >>> ev2Ranges s 100 [0,1,0,1,1]
 -- Just (-0.125)
-ev2Ranges :: RangedHole Double -> Int -> [Double] -> Maybe Double
-ev2Ranges s sims (s0r : s0c : s1r : s2r : s3r : _) =
-  ev 2 sims [rcf s 10 s0r s0c, rcf s 10 s1r 1, rcf s 10 0 s2r, rcf s 10 0 s3r]
-ev2Ranges _ _ _ = Nothing
+result2 :: RangedHole Double -> Int -> Vector 2 (Vector 5 Double) -> Vector 2 Double
+result2 s sims as =
+  ev 2 sims (toAction s <$> as)
+
+result2List :: RangedHole Double -> Int -> [[Double]] -> [Double]
+result2List s sims act = toList $ result2 s sims (fromList . fmap fromList $ act)
+
+toAction :: (KnownNat n) => RangedHole Double -> Vector n Double -> Vector 5 (RangedHole RawAction)
+toAction s a = fromList [rcf s 10 (index a [0]) (index a [1]), rcf s 10 (index a [2]) 1, rcf s 10 0 (index a [3]), rcf s 10 0 (index a [4])]
+
+blend :: Vector 2 (Vector 5 a) -> Vector 5 a
+blend hs =
+  fromList
+  [ index (index hs [0]) [0],
+    index (index hs [0]) [1],
+    index (index hs [1]) [2],
+    index (index hs [0]) [3],
+    index (index hs [1]) [4]
+  ]
+
+-- obj :: [Genome Double] -> [Double]
+-- obj gs = blend (fromList <$> fromList gs)
+
+data SharingConfig = SharingConfig
+  { nicheRadius :: Double,
+    nicheAlpha :: Double,
+    direction :: ProblemType,
+    distanceWeight :: Double,
+    sizeTable :: Int,
+    numSims :: Int,
+    elites :: Int
+  } deriving (Eq, Show, Generic)
+
+defaultSharingConfig :: SharingConfig
+defaultSharingConfig = SharingConfig 0.1 1 Maximizing 1 2 100 0
+
+sharingDistance :: SharingConfig -> ([Double], Double) -> ([Double], Double) -> Double
+sharingDistance cfg (xs,r) (xs',r') =
+  ((view #distanceWeight cfg *) . sum $ fmap abs (zipWith (-) xs xs')) +
+  (1 - cfg ^. #distanceWeight) * abs (r - r')
+
+initPop :: Int -> [Genome Double]
+initPop popsize = uniformGenomes popsize (replicate 5 (0,1))
+
+select :: SharingConfig -> SelectionOp Double
+select cfg = withFitnessSharing (sharingDistance cfg) (view #nicheRadius cfg) (view #nicheAlpha cfg) (view #direction cfg) (tournamentSelect (view #direction cfg) (view #sizeTable cfg) (view #numSims cfg))
+
+step :: ObjectiveFunction objectivefn Double => SharingConfig -> objectivefn -> StepGA Rand Double
+step cfg f = nextGeneration (view #direction cfg) f (select cfg) (view #elites cfg) (simulatedBinaryCrossover 0.5) (gaussianMutate 0.05 0.025)
+
+run :: ObjectiveFunction objectivefn Double => SharingConfig -> objectivefn -> IO (Population Double)
+run cfg f = runGA (pure $ initPop 100) (loop (Generations 100) (step cfg f))
+
+-- obj gs = result2 s 100 -> Vector 5 Double -> Vector 2 Double
+
+t1 :: RangedHole Double -> IO (Population Double)
+t1 s = run defaultSharingConfig (result2List s 100)
+
+t2 :: IO (Population Double)
+t2 = do
+  (Just m) <- readSomeRanges
+  let s = m Map.! "o2"
+  t1 s
 
 -- | Apply a 'RangedHole' 'RawAction', supplying a RawAction for the cursor.
 --
