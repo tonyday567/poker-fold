@@ -48,25 +48,25 @@ module Poker.Table
   )
 where
 
+import Data.Bifunctor
 import Data.Bool
 import Data.Foldable
 import Data.FormatN
+import Data.Generics.Labels ()
 import qualified Data.List as List
 import Data.Maybe
 import Data.Text (Text)
+import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
 import GHC.Generics hiding (from, to)
+import Optics.Core
 import Poker hiding (Card, fromList)
-import qualified Poker.Cards as P
 import Poker.Card.Storable
+import qualified Poker.Cards as P
+import Poker.HandRank.List (cardI)
+import Poker.HandRank.Storable
 import Prettyprinter hiding (comma)
 import Prelude
-import Data.Generics.Labels ()
-import Optics.Core
-import Poker.HandRank.List (cardI)
-import qualified Data.Vector.Storable as S
-import Data.Bifunctor
-import Poker.HandRank.Storable
 
 -- $usage
 --
@@ -143,11 +143,10 @@ instance Pretty TableCards where
 deal :: Cards -> TableCards
 deal (Cards cs) =
   TableCards
-    (
-        ( \x ->
-              MkHole (review cardI $ cs' List.!! (2 * x)) (review cardI $ cs' List.!! (2 * x + 1))
-          )
-            <$> [0 .. n - 1]
+    ( ( \x ->
+          MkHole (review cardI $ cs' List.!! (2 * x)) (review cardI $ cs' List.!! (2 * x + 1))
+      )
+        <$> [0 .. n - 1]
     )
     (cs' List.!! (n * 2), cs' List.!! (1 + n * 2), cs' List.!! (2 + n * 2))
     (cs' List.!! (3 + n * 2))
@@ -176,16 +175,16 @@ instance Pretty SeatState where
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
 data Table = Table
   { cards :: TableCards,
+    -- | position of the next seat to act
     cursor :: Maybe Int,
-    -- ^ position of the next seat to act
     seats :: [SeatState],
     stacks :: [Double],
+    -- | bets made where seat is in pot.
     bets :: [Double],
-    -- ^ bets made where seat is in pot.
+    -- | bets from folded seats
     pot :: Double,
-    -- ^ bets from folded seats
+    -- | betting history
     history :: [(RawAction, Int)]
-    -- ^ betting history
   }
   deriving (Eq, Show, Generic)
 
@@ -203,8 +202,8 @@ instance Pretty Table where
         concatWith (surround ":") $ (\(a, p) -> pretty a <> pretty p) <$> h
       ]
 
-
 -}
+
 -- | number of seats at the table
 --
 -- >>> numSeats t
@@ -267,10 +266,10 @@ liveHoles t = (\i -> hands (cards t) List.!! i) <$> liveSeats t
 -- [(0, [Ac, 7s, 6d, 7c, 6s, 9c, 4s]), (1, [Tc, 5s, 6d, 7c, 6s, 9c, 4s])]
 hands :: TableCards -> [(Int, [Card])]
 hands (TableCards ps (f0, f1, f2) t r) =
-  fmap (fmap (view cardI)) <$>
-  zip
-    [0 .. (length ps - 1)]
-    ((\(P.Hole x y) -> [x, y, review cardI f0, review cardI f1, review cardI f2, review cardI t, review cardI r]) <$> ps)
+  fmap (fmap (view cardI))
+    <$> zip
+      [0 .. (length ps - 1)]
+      ((\(P.Hole x y) -> [x, y, review cardI f0, review cardI f1, review cardI f2, review cardI t, review cardI r]) <$> ps)
 
 -- | Static configuration for setting up a table.
 --
@@ -302,7 +301,7 @@ makeTable cfg cs =
 -- >>> bbs 4 1
 -- [1.0,1.0,1.5,2.0]
 bbs :: Int -> Double -> [Double]
-bbs n ante =  reverse $ [1 + ante, 0.5 + ante] <> replicate (n - 2) ante
+bbs n ante = reverse $ [1 + ante, 0.5 + ante] <> replicate (n - 2) ante
 
 -- | There are three primitive actions that seats *must* perform when they are the cursor:
 --
@@ -347,10 +346,10 @@ fromRawActionType (_, _, a) (RawRaise _) = a
 
 -- Is this evil?
 update :: Int -> a -> [a] -> [a]
-update x a xs = List.take x xs <> [a] <> List.drop (x+1) xs
+update x a xs = List.take x xs <> [a] <> List.drop (x + 1) xs
 
 adjust :: Int -> (a -> a) -> [a] -> [a]
-adjust x f xs = List.take x xs <> [f (xs List.!! x)] <> List.drop (x+1) xs
+adjust x f xs = List.take x xs <> [f (xs List.!! x)] <> List.drop (x + 1) xs
 
 -- | A game progresses by seats acting which alters the state of the table.
 --
@@ -418,7 +417,6 @@ adjust x f xs = List.take x xs <> [f (xs List.!! x)] <> List.drop (x+1) xs
 --
 -- >>> pretty $ actOn RawCall $ actOn (RawRaise 10) t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c1:9.0r0
---
 actOn :: RawAction -> Table -> Table
 actOn RawFold t = case cursor t of
   Nothing -> t
@@ -435,7 +433,7 @@ actOn RawFold t = case cursor t of
           (length (liveSeats t) > 1)
       -- cursor calculation needs to take into account updated seat status
       & (\x -> x & #cursor .~ nextCursor x)
-      & #history %~ ((bool RawCall RawFold (length (liveSeats t) > 1), p):)
+      & #history %~ ((bool RawCall RawFold (length (liveSeats t) > 1), p) :)
 actOn RawCall t = case cursor t of
   Nothing -> t
   Just p ->
@@ -444,7 +442,7 @@ actOn RawCall t = case cursor t of
       & #stacks %~ adjust p (\x -> x - bet)
       & #seats %~ update p BettingClosed
       & (\t -> t & #cursor .~ nextCursor t)
-      & #history %~ ((RawCall, p):)
+      & #history %~ ((RawCall, p) :)
     where
       gap = maximum (t ^. #bets) - (t ^. #bets) List.!! p
       st = (t ^. #stacks) List.!! p
@@ -471,7 +469,7 @@ actOn (RawRaise r) t = case cursor t of
                 (r' > 0)
         )
       & (\x -> x & #cursor .~ nextCursor x)
-      & #history %~ ((bool RawCall (RawRaise r') (r' > 0), p):)
+      & #history %~ ((bool RawCall (RawRaise r') (r' > 0), p) :)
     where
       gap = maximum (t ^. #bets) - (t ^. #bets) List.!! p
       st = (t ^. #stacks) List.!! p
@@ -506,8 +504,7 @@ bests ((i, x) : xs) x' res =
 --
 -- >>> bestLiveHole t
 -- [0]
---
 bestLiveHole :: Table -> [Int]
 bestLiveHole t =
-    (\xs -> bests xs 0 [])
+  (\xs -> bests xs 0 [])
     (fmap (second (lookupHRUnsafe . Cards . S.fromList . fmap unwrapCard . List.sort)) (liveHoles t))

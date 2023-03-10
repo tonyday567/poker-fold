@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -7,10 +8,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wall #-}
-{-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-type-defaults #-}
 
 -- | __A Shaped Hole__
 --
@@ -47,7 +47,6 @@
 -- - "I always lose with Jacks."
 --
 -- A statement that can be verified by examining a hand history of the player and dividing up profit and loss into starting hand HoleRanges.
---
 module Poker.RangedHole
   ( -- * Storable ShapedHole
     ShapedHoleS (..),
@@ -113,8 +112,11 @@ import GHC.Exts hiding (toList)
 import GHC.Read
 import GHC.Word
 import NumHask.Array (Array)
+import Optics.Core
 import Poker hiding (allCards, fromList)
 import Poker.Card.Storable hiding (apply)
+import Poker.Cards (allCards)
+import Poker.HandRank.List (cardI, cardsI, rankI)
 import Poker.Random
 import Poker.Table
 import Prettyprinter
@@ -122,9 +124,6 @@ import Prettyprinter.Render.Text (renderStrict)
 import System.Random
 import Text.Read (readMaybe)
 import Prelude
-import Optics.Core
-import Poker.HandRank.List (cardsI, rankI, cardI)
-import Poker.Cards (allCards)
 
 -- $setup
 --
@@ -217,7 +216,8 @@ fromHole'' (Hole (Poker.Card r s) (Poker.Card r' s')) =
     EQ -> MkPair r
     GT -> mk r r'
     LT -> mk r' r
-  where mk = if s == s' then MkSuited else MkOffsuit
+  where
+    mk = if s == s' then MkSuited else MkOffsuit
 
 -- | Enumeration of the iso-equivalence classes of 'Hole' that a 'ShapedHole' represents.
 --
@@ -320,7 +320,7 @@ instance Representable RangedHole where
 --
 -- See 'rhText' for an example of this.
 toGridTextual :: RangedHole a -> [[a]]
-toGridTextual s = (\x -> (\y -> index s (ShapedHoleS $ 13 * (12 - x) + (12 - y))) <$> [0 .. 12] ) <$> [0 .. 12]
+toGridTextual s = (\x -> (\y -> index s (ShapedHoleS $ 13 * (12 - x) + (12 - y))) <$> [0 .. 12]) <$> [0 .. 12]
 
 instance Pretty (RangedHole Text) where
   pretty s = vsep $ hsep . fmap pretty <$> toGridTextual s
@@ -354,7 +354,6 @@ lpad n t = pack (replicate (n - Text.length t) ' ') <> t
 -- | enumerate card pairs from a fresh deck and count the ShapedHoles
 --
 -- handTypeCount == enumShapedHoles
---
 enumShapedHoles :: RangedHole Int
 enumShapedHoles =
   tabulate
@@ -400,7 +399,7 @@ always a = tabulate (const a)
 
 -- | Convert from magnitude to order
 ordered :: RangedHole Double -> RangedHole Int
-ordered r = RangedHole $ fromList $ fmap fst $ List.sortOn snd $ zip [0..] (fmap fst $ List.sortOn snd $ zip [0..] (toList r))
+ordered r = RangedHole $ fromList $ fmap fst $ List.sortOn snd $ zip [0 ..] (fmap fst $ List.sortOn snd $ zip [0 ..] (toList r))
 
 -- | Raise to the cursor's stack size.
 allin :: Table -> RangedHole RawAction

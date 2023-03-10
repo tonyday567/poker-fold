@@ -2,7 +2,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData #-}
@@ -13,8 +12,6 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 
 -- | Lexicographic routines
---
---
 module Poker.Lexico
   ( combinations,
     combinationsR,
@@ -22,7 +19,7 @@ module Poker.Lexico
     toLexiPosRList,
     fromLexiPosR,
     binom,
-    binomR
+    binomR,
   )
 where
 
@@ -31,9 +28,9 @@ import Data.Bool
 import Data.Foldable
 import qualified Data.List as List
 import Data.Ord
+import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
 import Prelude
-import qualified Data.Vector.Storable as S
 
 -- | @combinations k xs@ generates a list of k-combinations from xs
 --

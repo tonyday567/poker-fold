@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -12,15 +13,12 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 -- | Evaluation of a standard holdem poker hand. The evaluators work for 5 and 7 card hands.
 --
 -- The module supplies 'handRank' and helpers for evaluation of a ['Card']
---
 module Poker.HandRank.List
   ( -- * Usage
-
     -- $usage
 
     -- * ['Card'] Hand Ranking
@@ -32,13 +30,10 @@ module Poker.HandRank.List
     kind,
     rankCount,
     suitRanks,
-
     rankI,
     suitI,
-
     ranks,
     suits,
-
     cardI,
     cardsI,
     cards7I,
@@ -54,15 +49,15 @@ import Data.Maybe
 import Data.Ord
 import qualified Data.Set as Set
 import Data.Tuple
+import qualified Data.Vector as V
+import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
+import GHC.Generics
+import GHC.Word
+import Optics.Core
+import Poker
 import qualified Poker.Card.Storable as PCS
 import Prelude
-import Optics.Core
-import qualified Data.Vector.Storable as S
-import qualified Data.Vector as V
-import GHC.Word
-import Poker
-import GHC.Generics
 
 -- $usage
 --
@@ -113,6 +108,7 @@ import GHC.Generics
 --
 -- >>> handRank <$> css
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Five]
+
 data HandRank
   = HighCard Rank Rank Rank Rank Rank
   | OnePair Rank Rank Rank Rank
@@ -129,7 +125,6 @@ data HandRank
 --
 -- >>> length allHandRanks
 -- 7462
---
 allHandRanks :: [HandRank]
 allHandRanks =
   [ HighCard a b c d e
@@ -200,7 +195,7 @@ handRank cs =
     )
   where
     cs' = sortOn Down cs
-{-# Inline handRank #-}
+{-# INLINE handRank #-}
 
 -- | 5 consecutive card check
 --
@@ -329,7 +324,6 @@ kind cs = case rankCount cs of
   _ -> error ("bad Rank list: " <> show cs)
 
 -- | isomorphism between 'Poker.Rank' and 'Poker.Card.Storable.Rank'
---
 rankI :: Iso' PCS.Rank Rank
 rankI = iso toRank fromRank
 
@@ -373,7 +367,6 @@ fromRank Ace = PCS.Rank 12
 newtype Suit = Suit {unwrapSuit :: Word8} deriving (Eq, Show, Ord)
 
 -- | isomorphism between 'Suit' and 'SuitS'
---
 suitI :: Iso' PCS.Suit Poker.Suit
 suitI = iso toSuit fromSuit
 
@@ -436,5 +429,6 @@ cardsI =
 -- True
 cards7I :: Iso' [[Poker.Card]] PCS.Cards2
 cards7I =
-  iso (PCS.Cards2 . S.fromList . fmap (PCS.unwrapCard . fromCard) . mconcat)
-      (fmap (fmap (toCard . PCS.Card)) . V.toList . PCS.applyFlatV 7 S.toList . PCS.unwrapCards2)
+  iso
+    (PCS.Cards2 . S.fromList . fmap (PCS.unwrapCard . fromCard) . mconcat)
+    (fmap (fmap (toCard . PCS.Card)) . V.toList . PCS.applyFlatV 7 S.toList . PCS.unwrapCards2)

@@ -2,8 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -51,7 +51,7 @@ toText_ = renderStrict . layoutCompact . pretty
 
 -- | A grid of points on the XY plane representing a 'RangedHole'
 sGrid :: RangedHole (Point Double)
-sGrid = RangedHole $ fromList $ fmap (\(Point x y) -> Point (- y) x) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
+sGrid = RangedHole $ fromList $ fmap (\(Point x y) -> Point (-y) x) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
 
 -- | A grid of rectangles on the XY plane representing a 'RangedHole'
 sRect :: RangedHole (Rect Double)
@@ -67,10 +67,13 @@ opsColourText =
 -- | background rectangle style for Offsuit, Pair and Suited hole hands.
 opsRectStyle :: (RectStyle, RectStyle, RectStyle)
 opsRectStyle =
-      (defaultRectStyle & #color .~ Colour 0.4 0.4 0.4 0.2 & #borderSize .~ 0,
-       defaultRectStyle & #color .~ Colour 0.2 0.2 0.8 0.2 &
-       #borderColor .~ dark & #borderSize .~ 0.001,
-       defaultRectStyle & #color .~ Colour 0.8 0.2 0.2 0.2 & #borderSize .~ 0)
+  ( defaultRectStyle & #color .~ Colour 0.4 0.4 0.4 0.2 & #borderSize .~ 0,
+    defaultRectStyle
+      & #color .~ Colour 0.2 0.2 0.8 0.2
+      & #borderColor .~ dark
+      & #borderSize .~ 0.001,
+    defaultRectStyle & #color .~ Colour 0.8 0.2 0.2 0.2 & #borderSize .~ 0
+  )
 
 -- | default background representing Offsuit, Pair & Suited hole cards.
 rhBackground :: RangedHole RectStyle
@@ -79,16 +82,16 @@ rhBackground = tabulate $ fromOPS opsRectStyle . view (re shapedHoleS)
 -- | default RangedHole Hud
 rhHud :: ChartSvg
 rhHud =
-  mempty &
-  #charts .~ unnamed [] &
-  #hudOptions .~
-    (mempty &
-     #axes .~ [(5, rankXAxis), (5, rankYAxis)] &
-     #titles .~
-     [(10, defaultTitle "Suited" & #style % #size .~ 0.06 & #style % #color % opac' %~ 0.7),
-      (10, defaultTitle "Offsuit" & #style % #size .~ 0.06 & #style % #color % opac' %~ 0.7 & #buffer .~ 0.08 & #place .~ PlaceLeft)
-     ]
-    )
+  mempty
+    & #charts .~ unnamed []
+    & #hudOptions
+      .~ ( mempty
+             & #axes .~ [(5, rankXAxis), (5, rankYAxis)]
+             & #titles
+               .~ [ (10, defaultTitle "Suited" & #style % #size .~ 0.06 & #style % #color % opac' %~ 0.7),
+                    (10, defaultTitle "Offsuit" & #style % #size .~ 0.06 & #style % #color % opac' %~ 0.7 & #buffer .~ 0.08 & #place .~ PlaceLeft)
+                  ]
+         )
 
 -- | default X-Axis
 rankXAxis :: AxisOptions
@@ -101,14 +104,18 @@ rankYAxis = defaultAxisOptions & #bar .~ Nothing & #place .~ PlaceLeft & #ticks 
 -- | default Offsuit-Pair-Suited legend.
 opsLegend :: HudOptions
 opsLegend =
-  mempty &
-  #legends .~ [(12, defaultLegendOptions & #content .~
-                      let (o,p,s) = opsRectStyle in
-                        [("Offsuit", RectChart o [one]),
-                         ("Pair", RectChart p [one]),
-                         ("Suited", RectChart s [one])]
-               )]
-
+  mempty
+    & #legends
+      .~ [ ( 12,
+             defaultLegendOptions
+               & #content
+                 .~ let (o, p, s) = opsRectStyle
+                     in [ ("Offsuit", RectChart o [one]),
+                          ("Pair", RectChart p [one]),
+                          ("Suited", RectChart s [one])
+                        ]
+           )
+         ]
 
 -- | Rectangles in the RangedHole square with supplied fill color.
 --
@@ -128,27 +135,31 @@ rectChart s = mempty & #charts .~ unnamed (toList $ liftR2 (\r s -> RectChart s 
 -- ![text example](other/o2.svg)
 textChart :: RangedHole (Colour, Text) -> ChartSvg
 textChart r =
-  mempty & #charts
-    .~ named "any2" (zipWith
-      ( \(c,t) p ->
-          TextChart
-            (defaultTextStyle
-                    & #size .~ 0.03
-                    & #color .~ c
+  mempty
+    & #charts
+      .~ named
+        "any2"
+        ( zipWith
+            ( \(c, t) p ->
+                TextChart
+                  ( defaultTextStyle
+                      & #size .~ 0.03
+                      & #color .~ c
+                  )
+                  [(t, p)]
             )
-            [(t,p)]
-      )
-      (toList r)
-      (toList sGrid))
+            (toList r)
+            (toList sGrid)
+        )
 
 -- | The example chart below can be interpreted as raising with the top 20% of hands (blue), calling with the next 40% of hands (green) and folding the bottom 40% of hands (red).
 --
 -- ![fcr example](other/fcr.svg)
 fcrExample :: RangedHole Double -> ChartSvg
 fcrExample s =
-  rectChart ((\b c -> b & #color .~ c) <$> rhBackground <*> (fcrBColour <$> rcf')) <>
-  rhHud <>
-  textChart ((\x -> (fcrTColour x, fcrText x)) <$> rcf')
+  rectChart ((\b c -> b & #color .~ c) <$> rhBackground <*> (fcrBColour <$> rcf'))
+    <> rhHud
+    <> textChart ((\x -> (fcrTColour x, fcrText x)) <$> rcf')
   where
     rcf' = rcf s 10 0.2 0.6
     fcrBColour = fromRawActionType (Colour 1 0 0 0.2, Colour 0 1 0 0.2, Colour 0 0 1 0.2)
@@ -179,14 +190,14 @@ bPixelChart pixelStyle plo s = mempty & #charts .~ unnamed cs1 & #extraHuds .~ h
 pixelChart :: [Colour] -> RangedHole Double -> ChartSvg
 pixelChart cs xs =
   bPixelChart
-        (defaultSurfaceStyle & #surfaceColors .~ fromList cs)
-        ( defaultSurfaceLegendOptions dark (pack "")
-            & #sloStyle % #surfaceColors .~ fromList cs
-        )
-        xs
+    (defaultSurfaceStyle & #surfaceColors .~ fromList cs)
+    ( defaultSurfaceLegendOptions dark (pack "")
+        & #sloStyle % #surfaceColors .~ fromList cs
+    )
+    xs
 
 orderedScatterHud :: HudOptions
-orderedScatterHud = defaultHudOptions & #axes .~ fmap (second (#ticks % #style .~ TickPlaced [(0, "worst"), (84.5, "median"), (168, "best")])) [ (5, defaultAxisOptions), (5, defaultAxisOptions & #place .~ PlaceLeft)] & #titles .~ [ (8, defaultTitle "Heads Up" & #place .~ PlaceTop & #style % #size .~ 0.08), (8, defaultTitle "Full Table" & #place .~ PlaceRight & #style % #size .~ 0.08)]
+orderedScatterHud = defaultHudOptions & #axes .~ fmap (second (#ticks % #style .~ TickPlaced [(0, "worst"), (84.5, "median"), (168, "best")])) [(5, defaultAxisOptions), (5, defaultAxisOptions & #place .~ PlaceLeft)] & #titles .~ [(8, defaultTitle "Heads Up" & #place .~ PlaceTop & #style % #size .~ 0.08), (8, defaultTitle "Full Table" & #place .~ PlaceRight & #style % #size .~ 0.08)]
 
 -- | draw text hole ranges in the XY-plane
 --
@@ -204,10 +215,10 @@ writeAllCharts = do
   (Just m) <- readSomeRanges
   let s = m Map.! "o2"
   writeChartSvg "other/rect.svg" $
-    rectChart rhBackground <>
-    rhHud <>
-    (mempty & #hudOptions .~ opsLegend) <>
-    textChart ((,) <$> opsColourText <*> rhText)
+    rectChart rhBackground
+      <> rhHud
+      <> (mempty & #hudOptions .~ opsLegend)
+      <> textChart ((,) <$> opsColourText <*> rhText)
   writeChartSvg "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (fixedSF (Just 1)) (Just 1) <$> m Map.! "o2"))
   writeChartSvg "other/fcr.svg" (fcrExample s)
   writeChartSvg

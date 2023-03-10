@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -8,8 +10,6 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
 -- | Evaluation of a standard holdem poker hand. The evaluators work for 5 and 7 card hands.
 --
@@ -20,7 +20,6 @@
 -- - 'handRankS' and helpers for evaluation of a 'CardsS'
 --
 -- - 'handRankL' and helpers for lookup of a pre-evaluated vector of the ranking of all possible 7 card hands.
---
 module Poker.HandRank.Storable
   ( -- * Usage
     -- $usage
@@ -44,18 +43,17 @@ module Poker.HandRank.Storable
     handValues,
     hvs7Write,
     hvs7,
-
     lookupHR,
     lookupHRUnsorted,
     lookupHRUnsafe,
     lookupHRs,
     lookupHRsUnsafe,
-
     sort,
   )
 where
 
 import Control.Applicative
+import Control.DeepSeq
 import Data.Bifunctor
 import Data.Bool
 import Data.Foldable
@@ -64,6 +62,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe
 import Data.Ord
 import Data.Tuple
+import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as Intro
 import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as S
@@ -71,15 +70,13 @@ import Data.Vector.Storable.MMap
 import qualified Data.Vector.Storable.Mutable as SM
 import Data.Word
 import GHC.Exts hiding (toList)
+import GHC.Generics
+import Optics.Core
 import Poker.Card.Storable
+import Poker.HandRank.List (cardsI, rankI, suitI)
+import Poker.Lexico
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude
-import Poker.Lexico
-import GHC.Generics
-import qualified Data.Vector as V
-import Optics.Core
-import Poker.HandRank.List (rankI, cardsI, suitI)
-import Control.DeepSeq
 
 -- $usage
 --
@@ -154,13 +151,12 @@ handRank cs =
     ( flush cs
         <|> straight (ranksSet cs)
     )
-{-# Inline handRank #-}
+{-# INLINE handRank #-}
 
 -- | enumeration of all possible HandRanks, in ascending order.
 --
 -- >>> length allHandRanks
 -- 7462
---
 allHandRanks :: [HandRank]
 allHandRanks =
   [ HighCard a b c d e
@@ -210,11 +206,11 @@ allHandRanks =
     ++ [StraightFlush f | f <- ranksGE (Rank 3)]
   where
     s (Rank 12) = Rank 0
-    s (Rank x) = Rank (x+1)
+    s (Rank x) = Rank (x + 1)
     ranks = Rank <$> [0 .. 12]
     ranksLT (Rank 0) = []
     ranksLT (Rank x) = Rank <$> [0 .. (x - 1)]
-    ranksGE (Rank x) = Rank <$> reverse (12:[x .. 11])
+    ranksGE (Rank x) = Rank <$> reverse (12 : [x .. 11])
     succ' (Rank 0) = Rank 0
     succ' (Rank x) = Rank (x - 1)
 
@@ -282,9 +278,9 @@ flush cs =
 suitRanks :: Cards -> [(Suit, [Rank])]
 suitRanks cs =
   fmap (bimap (review suitI) (fmap (review rankI))) $
-  Map.toList $
-   Map.fromListWith (flip (<>)) $
-      fmap (\x -> (suit x, [rank x])) (review cardsI cs)
+    Map.toList $
+      Map.fromListWith (flip (<>)) $
+        fmap (\x -> (suit x, [rank x])) (review cardsI cs)
 
 -- | compute Kinds on storable ranks
 --
@@ -411,7 +407,6 @@ mapValueHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
 -- >>> s <- hvs7
 -- >>> ((Map.!) mapValueHR) $ lookupHR s (Cards $ S.fromList xs)
 -- TwoPair Seven Six Ace
---
 lookupHR :: S.Vector Word16 -> Cards -> Word16
 lookupHR s (Cards v) = s S.! fromIntegral (toLexiPosR 52 7 v)
 
@@ -449,4 +444,3 @@ lookupHRs s = apply (lookupHR s)
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
 lookupHRsUnsafe :: Cards2 -> S.Vector Word16
 lookupHRsUnsafe = lookupHRs (unsafePerformIO hvs7)
-

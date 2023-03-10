@@ -1,50 +1,50 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# LANGUAGE StrictData #-}
 
 import Control.Applicative
+import Control.DeepSeq
 import Control.Monad
 import Control.Monad.State.Lazy
 import Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import Data.Maybe
+import Data.Semigroup
 import Data.Text (Text)
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as S
+import GHC.Word
+import Optics.Core
+import Options.Applicative
 import Perf
 import Poker.Card.Storable
+import qualified Poker.HandRank.List as L
 import Poker.HandRank.Storable
 import Poker.Random
-import Prelude
-import Data.Semigroup hiding (option)
-import Options.Applicative
 import System.Random
-import GHC.Word
-import qualified Data.Vector.Storable as S
-import Control.DeepSeq
-import qualified Poker.HandRank.List as L
-import Optics.Core
+import Prelude
 
 data TestType = TestHandRankSParts | TestHandRankList | TestShuffle | TestDefault deriving (Eq, Show)
 
 parseTestType :: Parser TestType
 parseTestType =
-  flag' TestHandRankSParts (long "handrankS" <> help "test handRankS speed") <|>
-  flag' TestShuffle (long "shuffle" <> help "test shuffling") <|>
-  pure TestDefault
+  flag' TestHandRankSParts (long "handrankS" <> help "test handRankS speed")
+    <|> flag' TestShuffle (long "shuffle" <> help "test shuffling")
+    <|> pure TestDefault
 
 data MeasureType' = MeasureTime' | MeasureSpace' | MeasureSpaceTime' | MeasureAllocation' | MeasureCount' deriving (Eq, Show)
 
 parseMeasure' :: Parser MeasureType'
 parseMeasure' =
-  flag' MeasureTime' (long "time" <> help "measure time performance") <|>
-  flag' MeasureSpace' (long "space" <> help "measure space performance") <|>
-  flag' MeasureSpaceTime' (long "spacetime" <> help "measure both space and time performance") <|>
-  flag' MeasureAllocation' (long "allocation" <> help "measure bytes allocated") <|>
-  flag' MeasureCount' (long "count" <> help "measure count") <|>
-  pure MeasureTime'
+  flag' MeasureTime' (long "time" <> help "measure time performance")
+    <|> flag' MeasureSpace' (long "space" <> help "measure space performance")
+    <|> flag' MeasureSpaceTime' (long "spacetime" <> help "measure both space and time performance")
+    <|> flag' MeasureAllocation' (long "allocation" <> help "measure bytes allocated")
+    <|> flag' MeasureCount' (long "count" <> help "measure count")
+    <|> pure MeasureTime'
 
 -- | unification of the different measurements to being a list of doubles.
 measureLabels' :: MeasureType' -> [Text]
@@ -74,22 +74,26 @@ data Options = Options
     optionGolden :: Golden,
     optionReportConfig :: ReportConfig,
     optionRawStats :: Bool
-  } deriving (Eq, Show)
+  }
+  deriving (Eq, Show)
 
 options :: Parser Options
-options = Options <$>
-  option auto (value 1000 <> long "runs" <> short 'n' <> help "number of tests to perform") <*>
-  parseStatD <*>
-  parseTestType <*>
-  parseMeasure' <*>
-  parseExample <*>
-  parseGolden "golden" <*>
-  parseReportConfig defaultReportConfig <*>
-  switch (long "raw" <> short 'w' <> help "write raw statistics to file")
+options =
+  Options
+    <$> option auto (value 1000 <> long "runs" <> short 'n' <> help "number of tests to perform")
+    <*> parseStatD
+    <*> parseTestType
+    <*> parseMeasure'
+    <*> parseExample
+    <*> parseGolden "golden"
+    <*> parseReportConfig defaultReportConfig
+    <*> switch (long "raw" <> short 'w' <> help "write raw statistics to file")
 
 opts :: ParserInfo Options
-opts = info (options <**> helper)
-  (fullDesc <> progDesc "poker-fold benchmarking" <> header "speed performance")
+opts =
+  info
+    (options <**> helper)
+    (fullDesc <> progDesc "poker-fold benchmarking" <> header "speed performance")
 
 count :: Measure IO (Sum Int)
 count = toMeasure $ StepMeasure start stop
@@ -120,11 +124,11 @@ handRankS_ cs = do
 measureD :: MeasureType' -> Measure IO [Double]
 measureD mt =
   case mt of
-    MeasureTime' -> (:[]) . fromIntegral <$> time
+    MeasureTime' -> (: []) . fromIntegral <$> time
     MeasureSpace' -> toMeasure $ ssToList <$> space False
     MeasureSpaceTime' -> toMeasure ((\x y -> ssToList x <> [fromIntegral y]) <$> space False <*> stepTime)
-    MeasureAllocation' -> (:[]) . fromIntegral <$> toMeasure (allocation False)
-    MeasureCount' -> (:[]) . fromIntegral . sum <$> count
+    MeasureAllocation' -> (: []) . fromIntegral <$> toMeasure (allocation False)
+    MeasureCount' -> (: []) . fromIntegral . sum <$> count
 
 -- | unification of the different measurements to being averages.
 measureDN :: MeasureType' -> Int -> Measure IO (Sum Double)
@@ -132,7 +136,7 @@ measureDN mt n = fmap (Sum . average) $
   case mt of
     MeasureTime' -> fmap fromIntegral <$> times n
     MeasureAllocation' -> fmap fromIntegral <$> toMeasureN n (allocation False)
-    MeasureCount' -> (:[]) . fromIntegral <$> countN n
+    MeasureCount' -> (: []) . fromIntegral <$> countN n
     x -> error (show x <> " NYI")
 
 -- | unification of the different measurements to being averages.
@@ -155,14 +159,17 @@ main = do
         case golden gold' of
           "other/golden.csv" ->
             gold'
-            { golden = "other/" <>
-              intercalate "-" [show t, show n, show mt] <>
-              ".csv" }
+              { golden =
+                  "other/"
+                    <> intercalate "-" [show t, show n, show mt]
+                    <> ".csv"
+              }
           _ -> gold'
   let w = optionRawStats o
-  let raw = "other/" <>
-              intercalate "-" [show t, show n, show mt] <>
-              ".map"
+  let raw =
+        "other/"
+          <> intercalate "-" [show t, show n, show mt]
+          <> ".map"
   let cfg = optionReportConfig o
 
   let eval = flip evalState (mkStdGen 69)
@@ -180,16 +187,19 @@ main = do
         ffap "dealN" (eval . dealN :: Word8 -> Cards) shuffleN
         ffap "card7sS" card7sS (fromIntegral shuffleN)
         ffap "card7sSI" card7sSI (fromIntegral shuffleN)
-      m' <- fmap (fmap (fmap (/fromIntegral n))) $ execPerfT (measureD' mt) $ do
+      m' <- fmap (fmap (fmap (/ fromIntegral n))) $ execPerfT (measureD' mt) $ do
         ffap "rvi - list" (eval . replicateM n . rvi :: Word8 -> [Word8]) shuffleN
         ffap "rviv - list" (eval . replicateM n . rviv shuffleN :: Word8 -> [S.Vector Word8]) shuffleN
 
-      report cfg gold (measureLabels' mt) (Map.mapKeys (:[]) (fmap ((:[]) . getSum) (m <> m')))
+      report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap ((: []) . getSum) (m <> m')))
     TestHandRankSParts -> do
-      m <- fmap (fmap (measureFinalStat mt)) $
-        execPerfT (measureD mt) $ V.sequence $ applyV handRankS_ (card7sS n)
+      m <-
+        fmap (fmap (measureFinalStat mt)) $
+          execPerfT (measureD mt) $
+            V.sequence $
+              applyV handRankS_ (card7sS n)
       when w (writeFile raw (show m))
-      report cfg gold (measureLabels' mt) (Map.mapKeys (:[]) (fmap (:[]) m))
+      report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap (: []) m))
     TestHandRankList -> do
       m <- fmap (fmap (measureFinalStat mt)) $
         execPerfT (measureD mt) $ do
@@ -199,7 +209,7 @@ main = do
           _ <- fap "handRank list max |f" (maximum . fmap L.handRank) (view (re L.cards7I) $ force $ card7sS n)
           pure ()
       when w (writeFile raw (show m))
-      report cfg gold (measureLabels' mt) (Map.mapKeys (:[]) (fmap (:[]) m))
+      report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap (: []) m))
     TestDefault -> do
       m <- fmap (fmap (measureFinalStat mt)) $
         execPerfT (measureD mt) $ do
@@ -211,5 +221,4 @@ main = do
           _ <- afap "handRank afap" (applyV handRank) (card7sS n)
           pure ()
       when w (writeFile raw (show m))
-      report cfg gold (measureLabels' mt) (Map.mapKeys (:[]) (fmap (:[]) m))
-
+      report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap (: []) m))

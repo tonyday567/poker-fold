@@ -1,10 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 
 import Options.Applicative
+import Poker.Charts
 import Poker.HandRank.Storable
 import Poker.RangedHole
-import Poker.Charts
-
 import Prelude
 
 data RunType = RunHvs7 | RunSomeRanges | RunCharts deriving (Eq, Show)
@@ -22,9 +21,9 @@ sims =
 
 runType :: Parser RunType
 runType =
-  flag' RunHvs7 (long "hvs7" <> help "write hvs7.vec file") <|>
-  flag' RunCharts (long "charts" <> help "write charts") <|>
-  pure RunSomeRanges
+  flag' RunHvs7 (long "hvs7" <> help "write hvs7.vec file")
+    <|> flag' RunCharts (long "charts" <> help "write charts")
+    <|> pure RunSomeRanges
 
 options :: Parser Options
 options =

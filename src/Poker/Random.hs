@@ -45,12 +45,12 @@ import Data.Foldable (Foldable (foldl'))
 import qualified Data.List as List
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
+import Data.Word
 import Poker.Card.Storable
 import Poker.HandRank.Storable
 import Poker.Table
-import System.Random (RandomGen, mkStdGen, uniformR, UniformRange)
+import System.Random (RandomGen, UniformRange, mkStdGen, uniformR)
 import Prelude
-import Data.Word
 
 -- $setup
 -- >>> import Control.Monad.State.Lazy
@@ -80,7 +80,7 @@ rvi n = do
   let (x, g') = uniformR (0, n - 1) g
   put g'
   pure x
-{-# Inline rvi #-}
+{-# INLINE rvi #-}
 
 -- | reducing finite population n samples
 --
@@ -88,16 +88,13 @@ rvi n = do
 --
 -- >>> eval $ rviv 52 7 :: S.Vector Word8
 -- [36,20,11,33,43,13,34]
---
---
---
 rviv :: (RandomGen g, UniformRange e, Integral e, S.Storable e) => e -> e -> State g (S.Vector e)
 rviv n k = S.mapM (rvi . (n -)) (S.generate (fromIntegral k) fromIntegral)
-{-# Inline rviv #-}
+{-# INLINE rviv #-}
 
 rvis :: (RandomGen g, UniformRange e, Num e, Enum e) => e -> e -> State g [e]
-rvis n k = sequence (rvi . (n -) <$> [0 .. (k - 1)])
-{-# Inline rvis #-}
+rvis n k = mapM (rvi . (n -)) [0 .. (k - 1)]
+{-# INLINE rvis #-}
 
 -- | Creates sample without replacement given an 'rvis' process.
 --
@@ -112,7 +109,7 @@ cutShuffle n =
         let (x, rem') = cutV r i in (V.snoc dealt x, rem')
     )
     (V.empty, V.enumFromN 0 n)
-{-# Inline cutShuffle #-}
+{-# INLINE cutShuffle #-}
 
 -- | cut a vector at n, returning the n'th element, and the truncated vector
 cutV :: V.Vector a -> Int -> (a, V.Vector a)
@@ -122,7 +119,7 @@ cutV v x =
   )
   where
     n = V.length v
-{-# Inline cutV #-}
+{-# INLINE cutV #-}
 
 -- | Creates sample without replacement given an 'rvis' process.
 --
@@ -142,7 +139,7 @@ indexShuffle as = reverse $ go as []
     go (x0 : xs) s = go xs (x1 : s)
       where
         x1 = foldl' (\acc d -> bool acc (acc + 1) (d <= acc)) x0 (List.sort s)
-{-# Inline indexShuffle #-}
+{-# INLINE indexShuffle #-}
 
 -- | deal n cards as a CardsS
 --
@@ -150,7 +147,7 @@ indexShuffle as = reverse $ go as []
 -- Ac7sTc5s6d7c6s
 dealN :: (RandomGen g) => Word8 -> State g Cards
 dealN n = Cards . S.fromList . indexShuffle . S.toList <$> rviv 52 n
-{-# Inline dealN #-}
+{-# INLINE dealN #-}
 
 -- | deal n cards from a given deck
 --
@@ -158,7 +155,7 @@ dealN n = Cards . S.fromList . indexShuffle . S.toList <$> rviv 52 n
 -- Ac7sTc5s6d7c6s
 dealNWith :: (RandomGen g) => Word8 -> Cards -> State g Cards
 dealNWith n (Cards cs) = fmap (Cards . S.map (cs S.!) . S.fromList . fmap fromIntegral . indexShuffle . S.toList) (rviv (fromIntegral $ S.length cs) n)
-{-# Inline dealNWith #-}
+{-# INLINE dealNWith #-}
 
 -- | deal a table
 --
@@ -168,7 +165,7 @@ dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
   cs <- dealN (toEnum $ 5 + tableSize cfg * 2)
   pure $ makeTable cfg cs
-{-# Inline dealTable #-}
+{-# INLINE dealTable #-}
 
 -- | uniform random variate of HandRank
 --
@@ -189,11 +186,11 @@ card7sS :: Int -> Cards2
 card7sS n =
   Cards2 $
     S.convert $
-        mconcat $
-          evalState
-            (replicateM n (S.fromList . indexShuffle . S.toList <$> rviv 52 7))
-            (mkStdGen 42)
-{-# Inline card7sS #-}
+      mconcat $
+        evalState
+          (replicateM n (S.fromList . indexShuffle . S.toList <$> rviv 52 7))
+          (mkStdGen 42)
+{-# INLINE card7sS #-}
 
 -- | flat storable vector of ints, representing n 7-card sets using ishuffle
 --
@@ -201,7 +198,7 @@ card7sS n =
 -- 700
 card7sSI :: Int -> Cards2
 card7sSI n = Cards2 $ S.concat $ V.toList $ evalState (V.replicateM n (unwrapCards <$> dealN 7)) (mkStdGen 42)
-{-# Inline card7sSI #-}
+{-# INLINE card7sSI #-}
 
 -- | An enumeration of 2 samples from a list without replacement
 --
@@ -213,4 +210,4 @@ enum2 xs = fmap (p . fmap toEnum) . (\x y -> indexShuffle [x, y]) <$> [0 .. (n -
     n = length xs
     p (x : y : _) = (xs List.!! x, xs List.!! y)
     p _ = error "list too short"
-{-# Inline enum2 #-}
+{-# INLINE enum2 #-}

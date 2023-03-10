@@ -2,7 +2,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData #-}
@@ -11,7 +11,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Storable version of 'Poker.Card' and related types contained in "Poker".
 --
@@ -20,10 +19,8 @@
 -- - 'Storable' and 'Vector' versions of types in poker-base
 --
 -- - an 'Iso' conversion, named after the type and suffixed with an S.
---
 module Poker.Card.Storable
-  (
-    -- * Usage
+  ( -- * Usage
     -- $usage
 
     -- * Card
@@ -51,17 +48,17 @@ module Poker.Card.Storable
   )
 where
 
+import Control.DeepSeq
 import Data.Foldable
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as S
 import Data.Word
-import Poker hiding (allCards, Suit, Card, Rank, fromList)
+import Optics.Core
+import Poker hiding (Card, Rank, Suit, allCards, fromList)
 import Prettyprinter hiding (comma)
 import Prelude
-import Optics.Core
-import Control.DeepSeq
 
 -- $usage
 --
@@ -104,9 +101,9 @@ import Control.DeepSeq
 -- [Ah7sTh5s6c7h6s, Tc5sTh5s6c7h6s]
 
 -- | Type to support bidirectional conversion between poker-base data structures and 'Data.Vector.Storable' types.
---
 
 --
+
 -- | Storable representation of 'Rank'
 --
 -- >>> to rank $ Rank 0
@@ -241,7 +238,7 @@ applyFlat k f s = S.generate n (\i -> f (S.slice (k * i) k s))
 -- [AT765,T765]
 applyV :: (Cards -> a) -> Cards2 -> V.Vector a
 applyV f (Cards2 s) = applyFlatV 7 (f . Cards) s
-{-# Inline applyV #-}
+{-# INLINE applyV #-}
 
 -- | apply a function to a cards vector, returning a storable vector of the results.
 --
