@@ -80,7 +80,7 @@ rhBackground :: RangedHole RectStyle
 rhBackground = tabulate $ fromOPS opsRectStyle . view (re shapedHoleS)
 
 -- | default RangedHole Hud
-rhHud :: ChartSvg
+rhHud :: ChartOptions
 rhHud =
   mempty
     & #charts .~ unnamed []
@@ -119,10 +119,10 @@ opsLegend =
 
 -- | Rectangles in the RangedHole square with supplied fill color.
 --
--- > writeChartSvg "other/rect.svg" $ rectChart rhBackground <> rhHud <> (mempty & #hudOptions .~ opsLegend) <> textChart ((,) <$> opsColourText <*> rhText)
+-- > writeChartOptions "other/rect.svg" $ rectChart rhBackground <> rhHud <> (mempty & #hudOptions .~ opsLegend) <> textChart ((,) <$> opsColourText <*> rhText)
 --
 -- ![rect example](other/rect.svg)
-rectChart :: RangedHole RectStyle -> ChartSvg
+rectChart :: RangedHole RectStyle -> ChartOptions
 rectChart s = mempty & #charts .~ unnamed (toList $ liftR2 (\r s -> RectChart s [r]) sRect s)
 
 -- | Chart text with supplied text & colour.
@@ -130,10 +130,10 @@ rectChart s = mempty & #charts .~ unnamed (toList $ liftR2 (\r s -> RectChart s 
 -- The example below shows the winning chance headsup against any 2 cards.
 --
 -- > (Just m) <- readSomeRanges
--- > writeChartSvg "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (Just 1) <$> m Map.! "o2"))
+-- > writeChartOptions "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (Just 1) <$> m Map.! "o2"))
 --
 -- ![text example](other/o2.svg)
-textChart :: RangedHole (Colour, Text) -> ChartSvg
+textChart :: RangedHole (Colour, Text) -> ChartOptions
 textChart r =
   mempty
     & #charts
@@ -155,7 +155,7 @@ textChart r =
 -- | The example chart below can be interpreted as raising with the top 20% of hands (blue), calling with the next 40% of hands (green) and folding the bottom 40% of hands (red).
 --
 -- ![fcr example](other/fcr.svg)
-fcrExample :: RangedHole Double -> ChartSvg
+fcrExample :: RangedHole Double -> ChartOptions
 fcrExample s =
   rectChart ((\b c -> b & #color .~ c) <$> rhBackground <*> (fcrBColour <$> rcf'))
     <> rhHud
@@ -171,8 +171,8 @@ bPixelChart ::
   SurfaceStyle ->
   SurfaceLegendOptions ->
   RangedHole Double ->
-  ChartSvg
-bPixelChart pixelStyle plo s = mempty & #charts .~ unnamed cs1 & #extraHuds .~ hs1
+  ChartOptions
+bPixelChart pixelStyle plo s = mempty & #charts .~ runHud (aspect 1) hs1 (unnamed cs1)
   where
     f :: Point Double -> Double
     f (Point x y) = index s (ShapedHoleS $ (12 - floor x) + 13 * floor y)
@@ -187,7 +187,7 @@ bPixelChart pixelStyle plo s = mempty & #charts .~ unnamed cs1 & #extraHuds .~ h
 -- Odds of winning a showdown against 8 other hands
 --
 -- ![pixel example](other/odds9.svg)
-pixelChart :: [Colour] -> RangedHole Double -> ChartSvg
+pixelChart :: [Colour] -> RangedHole Double -> ChartOptions
 pixelChart cs xs =
   bPixelChart
     (defaultSurfaceStyle & #surfaceColors .~ fromList cs)
@@ -204,7 +204,7 @@ orderedScatterHud = defaultHudOptions & #axes .~ fmap (second (#ticks % #style .
 -- The scatter chart example compares the ordering of hole cards given headsup versus a full table.
 --
 -- ![scatter example](other/compare29.svg)
-scatterChart :: RangedHole (Point Double) -> ChartSvg
+scatterChart :: RangedHole (Point Double) -> ChartOptions
 scatterChart ps = mempty & #hudOptions .~ (defaultHudOptions & #frames .~ []) & #charts .~ unnamed [c]
   where
     c = TextChart (defaultTextStyle & #size .~ 0.04 & #color % opac' %~ 0.4) (fromList $ toList $ (,) <$> rhText <*> ps)
@@ -214,16 +214,16 @@ writeAllCharts :: IO ()
 writeAllCharts = do
   (Just m) <- readSomeRanges
   let s = m Map.! "o2"
-  writeChartSvg "other/rect.svg" $
+  writeChartOptions "other/rect.svg" $
     rectChart rhBackground
       <> rhHud
       <> (mempty & #hudOptions .~ opsLegend)
       <> textChart ((,) <$> opsColourText <*> rhText)
-  writeChartSvg "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (fixedSF (Just 1)) (Just 1) <$> m Map.! "o2"))
-  writeChartSvg "other/fcr.svg" (fcrExample s)
-  writeChartSvg
+  writeChartOptions "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (fixedSF (Just 1)) (Just 1) <$> m Map.! "o2"))
+  writeChartOptions "other/fcr.svg" (fcrExample s)
+  writeChartOptions
     "other/pixelo9.svg"
     (rhHud <> pixelChart [Colour 0.8 0.8 0.8 0.3, Colour 0 0.4 0.8 0.8, Colour 0 0.4 0.8 1] (m Map.! "o9"))
-  writeChartSvg
+  writeChartOptions
     "other/compare29.svg"
     (scatterChart (liftR2 (\x y -> Point (fromIntegral x) (fromIntegral y)) (ordered $ m Map.! "o2") (ordered $ m Map.! "o9")) & #hudOptions .~ orderedScatterHud)

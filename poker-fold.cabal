@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name:          poker-fold
-version:       0.0.1
+version:       0.1.0
 synopsis: A poker (haskell) library
 description: An experimental poker library building on poker-base, focused on
     .
@@ -40,11 +40,11 @@ library
   build-depends:
     adjunctions >= 4.4 && < 4.5,
     base >=4.7 && <5,
-    chart-svg ^>= 0.3.0,
+    chart-svg >= 0.4 && < 0.5,
     containers >= 0.6 && < 0.7,
     distributive >= 0.6 && < 0.7,
     deepseq,
-    formatn >= 0.2.1 && <0.3,
+    formatn >= 0.3 && <0.4,
     mtl >= 2.2.2 && < 2.4,
     numhask-array ^>= 0.10,
     numhask-space ^>= 0.10,
@@ -79,8 +79,8 @@ executable poker-fold-speed
     poker-fold,
     perf ^>= 0.10,
     containers,
-    chart-svg,
-    formatn ^>= 0.2,
+    chart-svg >= 0.4,
+    formatn >= 0.3,
     mtl >= 2.2.2 && <2.4,
     random ^>= 1.2,
     text >= 1.2 && <2.1,
