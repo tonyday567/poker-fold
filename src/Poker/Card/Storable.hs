@@ -25,10 +25,8 @@ module Poker.Card.Storable
 
     -- * Card
     Rank (..),
-    rank,
     Ranks (..),
     Suit (..),
-    suit,
     Suits (..),
     Card (..),
     allCards,
@@ -56,7 +54,6 @@ import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as S
 import Data.Word
 import Optics.Core
-import Poker hiding (Card, Rank, Suit, allCards, fromList)
 import Prettyprinter hiding (comma)
 import Prelude
 

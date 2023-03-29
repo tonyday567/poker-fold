@@ -39,12 +39,14 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text, pack)
 import GHC.Exts (fromList)
 import Optics.Core hiding (to)
-import Poker hiding (fromList)
 import Poker.RangedHole
 import Poker.Table
 import Prettyprinter
 import Prettyprinter.Render.Text
 import Prelude
+import Poker.Card as C ( Rank(Ace, Two) )
+
+
 
 toText_ :: (Pretty a) => a -> Text
 toText_ = renderStrict . layoutCompact . pretty

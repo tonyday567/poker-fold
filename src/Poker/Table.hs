@@ -13,6 +13,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | Representation of a holdem table
 module Poker.Table
@@ -60,13 +61,14 @@ import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
 import GHC.Generics hiding (from, to)
 import Optics.Core
-import Poker hiding (Card, fromList)
+-- import Poker hiding (Card, fromList)
 import Poker.Card.Storable
-import qualified Poker.Cards as P
-import Poker.HandRank.List (cardI)
+-- import Poker.HandRank.List (cardI)
 import Poker.HandRank.Storable
 import Prettyprinter hiding (comma)
 import Prelude
+import Poker.Card (Hole(..), pattern Hole)
+import Poker.Card.Iso (cardI)
 
 -- $usage
 --
@@ -269,7 +271,7 @@ hands (TableCards ps (f0, f1, f2) t r) =
   fmap (fmap (view cardI))
     <$> zip
       [0 .. (length ps - 1)]
-      ((\(P.Hole x y) -> [x, y, review cardI f0, review cardI f1, review cardI f2, review cardI t, review cardI r]) <$> ps)
+      ((\(Hole x y) -> [x, y, review cardI f0, review cardI f1, review cardI f2, review cardI t, review cardI r]) <$> ps)
 
 -- | Static configuration for setting up a table.
 --

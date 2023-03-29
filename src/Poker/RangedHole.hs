@@ -6,11 +6,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | __A Shaped Hole__
 --
@@ -51,17 +51,12 @@ module Poker.RangedHole
   ( -- * Storable ShapedHole
     ShapedHoleS (..),
     shapedHoleS,
-    fromHole,
-    fromHole',
-    fromHole'',
-    toHoles,
     toRepHole,
     fromOPS,
 
     -- * RangedHole
     RangedHole (..),
     rhText,
-    enumShapedHoles,
     handTypeCount,
     any2,
     always,
@@ -91,7 +86,12 @@ module Poker.RangedHole
 
     -- * lpad
     lpad,
-  )
+
+    fromHole',
+    fromHole'',
+    fromHole,
+    toHoles,
+    )
 where
 
 import Control.Monad.State.Lazy
@@ -113,17 +113,18 @@ import GHC.Read
 import GHC.Word
 import NumHask.Array (Array)
 import Optics.Core
-import Poker hiding (allCards, fromList)
 import Poker.Card.Storable hiding (apply)
-import Poker.Cards (allCards)
-import Poker.HandRank.List (cardI, cardsI, rankI)
 import Poker.Random
 import Poker.Table
 import Prettyprinter
-import Prettyprinter.Render.Text (renderStrict)
 import System.Random
 import Text.Read (readMaybe)
 import Prelude
+import Poker.Card (ShapedHole(..), Hole(..), pattern Hole, Suit(..), allSuits)
+import qualified Poker.Card as C
+import qualified Poker.Card.Iso as I
+import Prettyprinter.Render.Text
+import Poker.Card.Iso (cardI)
 
 -- $setup
 --
@@ -161,9 +162,6 @@ import Prelude
 -- | Storable, Indexable version of ShapedHole
 newtype ShapedHoleS = ShapedHoleS {unShapedHoleS :: Word8} deriving (Eq, Show, Ord)
 
-instance Pretty ShapedHoleS where
-  pretty = pretty . view (re shapedHoleS)
-
 -- | Isomorphism between shapedHole and shapedHoleS
 shapedHoleS :: Iso' ShapedHole ShapedHoleS
 shapedHoleS =
@@ -171,17 +169,17 @@ shapedHoleS =
 
 fromShapedHole :: ShapedHole -> ShapedHoleS
 fromShapedHole (MkOffsuit r0 r1) =
-  ShapedHoleS $ unwrapRank (view (re rankI) r1) * 13 + unwrapRank (view (re rankI) r0)
+  ShapedHoleS $ unwrapRank (view (re I.rankI) r1) * 13 + unwrapRank (view (re I.rankI) r0)
 fromShapedHole (MkPair p) =
-  ShapedHoleS $ let p' = unwrapRank (view (re rankI) p) in p' * 13 + p'
+  ShapedHoleS $ let p' = unwrapRank (view (re I.rankI) p) in p' * 13 + p'
 fromShapedHole (MkSuited r0 r1) =
-  ShapedHoleS $ unwrapRank (view (re rankI) r0) * 13 + unwrapRank (view (re rankI) r1)
+  ShapedHoleS $ unwrapRank (view (re I.rankI) r0) * 13 + unwrapRank (view (re I.rankI) r1)
 
 toShapedHole :: ShapedHoleS -> ShapedHole
 toShapedHole (ShapedHoleS x) = case compare d m of
-  EQ -> MkPair $ view rankI . Rank $ d
-  LT -> MkOffsuit (view rankI . Rank $ m) (view rankI . Rank $ d)
-  GT -> MkSuited (view rankI . Rank $ d) (view rankI . Rank $ m)
+  EQ -> MkPair $ view I.rankI . Rank $ d
+  LT -> MkOffsuit (view I.rankI . Rank $ m) (view I.rankI . Rank $ d)
+  GT -> MkSuited (view I.rankI . Rank $ d) (view I.rankI . Rank $ m)
   where
     (d, m) = x `divMod` 13
 
@@ -197,13 +195,13 @@ toShapedHole (ShapedHoleS x) = case compare d m of
 -- >>> fromHole (MkHole (Card Two Heart) (Card Ace Spade))
 -- MkOffsuit Ace Two
 fromHole :: Hole -> ShapedHole
-fromHole (Hole (Poker.Card r s) (Poker.Card r' s'))
+fromHole (Hole (C.Card r s) (C.Card r' s'))
   | r == r' = MkPair r
   | s == s' = MkSuited (max r r') (min r r')
   | otherwise = MkOffsuit (max r r') (min r r')
 
 fromHole' :: Hole -> ShapedHole
-fromHole' (Hole (Poker.Card r s) (Poker.Card r' s'))
+fromHole' (Hole (C.Card r s) (C.Card r' s'))
   | r == r' = MkPair r
   | s == s' && r > r' = MkSuited r r'
   | s == s' && r < r' = MkSuited r' r
@@ -211,7 +209,7 @@ fromHole' (Hole (Poker.Card r s) (Poker.Card r' s'))
   | otherwise = MkOffsuit r' r
 
 fromHole'' :: Hole -> ShapedHole
-fromHole'' (Hole (Poker.Card r s) (Poker.Card r' s')) =
+fromHole'' (Hole (C.Card r s) (C.Card r' s')) =
   case compare r r' of
     EQ -> MkPair r
     GT -> mk r r'
@@ -224,22 +222,23 @@ fromHole'' (Hole (Poker.Card r s) (Poker.Card r' s')) =
 -- >>> pretty $ toHoles (MkPair Ace)
 -- [AcAd, AcAh, AcAs, AdAc, AdAh, AdAs, AhAc, AhAd, AhAs, AsAc, AsAd, AsAh]
 toHoles :: ShapedHole -> [Hole]
-toHoles (MkPair r) = (\(x, y) -> MkHole (Poker.Card r x) (Poker.Card r y)) <$> enum2 allSuits
+toHoles (MkPair r) =
+  (\(x, y) -> MkHole (C.Card r x) (C.Card r y)) <$> enum2 allSuits
 toHoles (MkSuited r0 r1) =
-  ((\x -> MkHole (Poker.Card r0 x) (Poker.Card r1 x)) <$> allSuits)
-    <> ((\x -> MkHole (Poker.Card r1 x) (Poker.Card r0 x)) <$> allSuits)
+  ((\x -> MkHole (C.Card r0 x) (C.Card r1 x)) <$> allSuits)
+    <> ((\x -> MkHole (C.Card r1 x) (C.Card r0 x)) <$> allSuits)
 toHoles (MkOffsuit r0 r1) =
-  ((\(x, y) -> MkHole (Poker.Card r0 x) (Poker.Card r1 y)) <$> enum2 allSuits)
-    <> ((\(x, y) -> MkHole (Poker.Card r0 y) (Poker.Card r1 x)) <$> enum2 allSuits)
+  ((\(x, y) -> MkHole (C.Card r0 x) (C.Card r1 y)) <$> enum2 allSuits)
+    <> ((\(x, y) -> MkHole (C.Card r0 y) (C.Card r1 x)) <$> enum2 allSuits)
 
 -- | a representative pair of cards for a B, arbitrarily choosing Club and Diamond.
 --
 -- >>> pretty $ toRepHole (MkOffsuit Ace Two)
 -- Ac2d
 toRepHole :: ShapedHole -> Hole
-toRepHole (MkPair r) = MkHole (Poker.Card r Club) (Poker.Card r Diamond)
-toRepHole (MkSuited r0 r1) = MkHole (Poker.Card r0 Club) (Poker.Card r1 Club)
-toRepHole (MkOffsuit r0 r1) = MkHole (Poker.Card r0 Club) (Poker.Card r1 Diamond)
+toRepHole (MkPair r) = MkHole (C.Card r Club) (C.Card r Diamond)
+toRepHole (MkSuited r0 r1) = MkHole (C.Card r0 Club) (C.Card r1 Club)
+toRepHole (MkOffsuit r0 r1) = MkHole (C.Card r0 Club) (C.Card r1 Diamond)
 
 -- | Convert a ShapedHole based on it's type (Offsuit, Pair or Suited).
 --
@@ -350,20 +349,6 @@ rhText = renderStrict . layoutCompact . pretty <$> tabulate toShapedHole
 -- | left pad some text
 lpad :: Int -> Text -> Text
 lpad n t = pack (replicate (n - Text.length t) ' ') <> t
-
--- | enumerate card pairs from a fresh deck and count the ShapedHoles
---
--- handTypeCount == enumShapedHoles
-enumShapedHoles :: RangedHole Int
-enumShapedHoles =
-  tabulate
-    ( Map.fromListWith
-        (+)
-        ( (,1) . view shapedHoleS . fromHole . uncurry MkHole
-            <$> enum2 Poker.Cards.allCards
-        )
-        Map.!
-    )
 
 -- | The combinatorial count for each ShapedHole
 --
@@ -593,7 +578,7 @@ dealTableHole cfg i b = do
     makeTable cfg $
       Cards $
         S.take (2 * i) xs
-          <> (\(Hole x y) -> unwrapCards $ view cardsI [x, y]) (toRepHole b)
+          <> (\(Hole x y) -> unwrapCards $ view I.cardsI [x, y]) (toRepHole b)
           <> S.drop (2 * i) xs
 
 -- | create a list of n dealt tables, with p players, where b is dealt to player k

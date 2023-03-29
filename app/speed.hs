@@ -17,17 +17,15 @@ import Data.Text (Text)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import GHC.Word
-import Optics.Core
 import Options.Applicative
 import Perf
 import Poker.Card.Storable
-import qualified Poker.HandRank.List as L
 import Poker.HandRank.Storable
 import Poker.Random
 import System.Random
 import Prelude
 
-data TestType = TestHandRankSParts | TestHandRankList | TestShuffle | TestDefault deriving (Eq, Show)
+data TestType = TestHandRankSParts | TestShuffle | TestDefault deriving (Eq, Show)
 
 parseTestType :: Parser TestType
 parseTestType =
@@ -198,16 +196,6 @@ main = do
           execPerfT (measureD mt) $
             V.sequence $
               applyV handRankS_ (card7sS n)
-      when w (writeFile raw (show m))
-      report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap (: []) m))
-    TestHandRankList -> do
-      m <- fmap (fmap (measureFinalStat mt)) $
-        execPerfT (measureD mt) $ do
-          _ <- fap "handRank list" (fmap L.handRank) (view (re L.cards7I) $ card7sS n)
-          _ <- fap "handRank list |f" (fmap L.handRank) (view (re L.cards7I) $ force $ card7sS n)
-          _ <- fap "handRank list max" (maximum . fmap L.handRank) (view (re L.cards7I) $ card7sS n)
-          _ <- fap "handRank list max |f" (maximum . fmap L.handRank) (view (re L.cards7I) $ force $ card7sS n)
-          pure ()
       when w (writeFile raw (show m))
       report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap (: []) m))
     TestDefault -> do

@@ -55,7 +55,6 @@ import Prelude
 -- $setup
 -- >>> import Control.Monad.State.Lazy
 -- >>> import Lens.Micro hiding (to)
--- >>> import Poker
 -- >>> import Poker.Card.Storable
 -- >>> import Poker.Evaluate
 -- >>> import Poker.Random

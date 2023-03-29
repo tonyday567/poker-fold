@@ -71,12 +71,14 @@ import qualified Data.Vector.Storable.Mutable as SM
 import Data.Word
 import GHC.Exts hiding (toList)
 import GHC.Generics
-import Optics.Core
 import Poker.Card.Storable
-import Poker.HandRank.List (cardsI, rankI, suitI)
+-- import Poker.HandRank.List (cardsI, rankI, suitI)
 import Poker.Lexico
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude
+import Poker.Card.Iso (rankI, suitI, cardsI)
+import Optics.Core
+import Poker.Card (rank, suit)
 
 -- $usage
 --
@@ -277,7 +279,7 @@ flush cs =
 -- [(Club,[Six]),(Heart,[Ace,Ten,Seven]),(Spade,[Seven,Five,Six])]
 suitRanks :: Cards -> [(Suit, [Rank])]
 suitRanks cs =
-  fmap (bimap (review suitI) (fmap (review rankI))) $
+   fmap (bimap (review suitI) (fmap (review rankI))) $
     Map.toList $
       Map.fromListWith (flip (<>)) $
         fmap (\x -> (suit x, [rank x])) (review cardsI cs)
