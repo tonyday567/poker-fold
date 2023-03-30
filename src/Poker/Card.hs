@@ -1,8 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Poker.Card
   ( Rank (..),
@@ -14,31 +11,19 @@ module Poker.Card
     Card (..),
     allCards,
     Hole (..),
-    pattern Hole,
-    mkHole,
     allHoles,
-    ShapedHole (..),
-    pattern Offsuit,
-    pattern Pair,
-    pattern Suited,
-    mkPair,
-    mkOffsuit,
-    mkSuited,
-    Deck (..),
-    pattern Deck,
-    freshDeck,
-    unsafeMkDeck,
-    shapedHoleToHoles,
     rankToChr,
     chrToRank,
     suitToChr,
     chrToSuit,
     cardToShortTxt,
     cardFromShortTxt,
+    ranks,
+    suits,
   )
 where
 
-import Control.Monad (join, liftM2)
+import Control.Monad (liftM2)
 import Data.Bifunctor (Bifunctor (second))
 import Data.Maybe
 import Data.String (IsString (fromString))
@@ -46,6 +31,25 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Prettyprinter
 import Prettyprinter.Internal
+import qualified Data.Set as Set
+
+-- $setup
+--
+-- >>> :set -XOverloadedLabels
+-- >>> :set -XOverloadedStrings
+-- >>> :set -XTypeApplications
+-- >>> import Poker.Card
+-- >>> import Data.Maybe
+-- >>> import Control.Monad.State.Lazy
+-- >>> import Data.Bool
+-- >>> import Data.Functor.Rep
+-- >>> import Prelude
+-- >>> import Prettyprinter
+-- >>> import qualified Data.Map.Strict as Map
+-- >>> import qualified Data.Text as Text
+-- >>> let cs = [Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
+-- >>> :t cs
+-- cs :: [Card]
 
 -- | The 'Rank' of a playing 'Card'
 data Rank
@@ -67,12 +71,14 @@ data Rank
 instance Pretty Rank where
   pretty = unsafeTextWithoutNewlines . T.singleton . rankToChr
 
--- | >>> allRanks
+-- |
+-- >>> allRanks
 -- [Two,Three,Four,Five,Six,Seven,Eight,Nine,Ten,Jack,Queen,King,Ace]
 allRanks :: [Rank]
 allRanks = [minBound .. maxBound]
 
--- | >>> rankToChr <$> allRanks
+-- |
+-- >>> rankToChr <$> allRanks
 -- "23456789TJQKA"
 rankToChr :: Rank -> Char
 rankToChr = \case
@@ -90,11 +96,13 @@ rankToChr = \case
   King -> 'K'
   Ace -> 'A'
 
--- | >>> map (fromJust . chrToRank) "23456789TJQKA"
+-- |
+-- >>> catMaybes $ chrToRank <$> "23456789TJQKA"
 -- [Two,Three,Four,Five,Six,Seven,Eight,Nine,Ten,Jack,Queen,King,Ace]
+--
 -- >>> chrToRank 'f'
 -- Nothing
--- prop> chrToRank (rankToChr r) == Just r
+--
 chrToRank :: Char -> Maybe Rank
 chrToRank = \case
   '2' -> pure Two
@@ -113,58 +121,63 @@ chrToRank = \case
   _ -> Nothing
 
 -- | The 'Suit' of a playing 'Card'
-data Suit = Club | Diamond | Heart | Spade
+data Suit = Clubs | Diamonds | Hearts | Spades
   deriving (Enum, Bounded, Eq, Ord, Show, Read)
 
 instance Pretty Suit where
   pretty = Char . suitToChr
 
--- | >>> allSuits
--- [Club,Diamond,Heart,Spade]
+-- |
+-- >>> allSuits
+-- [Clubs,Diamonds,Hearts,Spades]
 allSuits :: [Suit]
 allSuits = [minBound .. maxBound]
 
--- | >>> suitToChr <$> allSuits
+-- |
+-- >>> suitToChr <$> allSuits
 -- "cdhs"
 suitToChr :: Suit -> Char
 suitToChr = \case
-  Club -> 'c'
-  Diamond -> 'd'
-  Heart -> 'h'
-  Spade -> 's'
+  Clubs -> 'c'
+  Diamonds -> 'd'
+  Hearts -> 'h'
+  Spades -> 's'
 
--- | >>> map (fromJust . chrToSuit) "cdhs"
--- [Club,Diamond,Heart,Spade]
+-- |
+-- >>> map (fromJust . chrToSuit) "cdhs"
+-- [Clubs,Diamonds,Hearts,Spades]
 -- >>> chrToSuit '1'
 -- Nothing
--- prop> chrToSuit (suitToChr s) == Just s
+--
 chrToSuit :: Char -> Maybe Suit
 chrToSuit = \case
-  'c' -> pure Club
-  'd' -> pure Diamond
-  'h' -> pure Heart
-  's' -> pure Spade
+  'c' -> pure Clubs
+  'd' -> pure Diamonds
+  'h' -> pure Hearts
+  's' -> pure Spades
   _ -> Nothing
 
--- | >>> suitToUnicode <$> [Club, Diamond, Heart, Spade]
+-- |
+-- >>> suitToUnicode <$> [Clubs, Diamonds, Hearts, Spades]
 -- "\9827\9830\9829\9824"
--- >>> fromJust . suitFromUnicode . suitToUnicode <$> [Club, Diamond, Heart, Spade]
--- [Club,Diamond,Heart,Spade]
+-- >>> fromJust . suitFromUnicode . suitToUnicode <$> [Clubs, Diamonds, Hearts, Spades]
+-- [Clubs,Diamonds,Hearts,Spades]
 suitToUnicode :: Suit -> Char
 suitToUnicode = \case
-  Club -> '♣'
-  Diamond -> '♦'
-  Heart -> '♥'
-  Spade -> '♠'
+  Clubs -> '♣'
+  Diamonds -> '♦'
+  Hearts -> '♥'
+  Spades -> '♠'
 
+-- |
 -- >>> suitFromUnicode <$> ['♣', '♦', '♥', '♠']
--- [Just Club,Just Diamond,Just Heart,Just Spade]
+-- [Just Clubs,Just Diamonds,Just Hearts,Just Spades]
 suitFromUnicode :: Char -> Maybe Suit
 suitFromUnicode = \case
-  '♣' -> Just Club
-  '♦' -> Just Diamond
-  '♥' -> Just Heart
-  '♠' -> Just Spade
+  '♣' -> Just Clubs
+  '♦' -> Just Diamonds
+  '♥' -> Just Hearts
+  '♠' -> Just Spades
   _ -> Nothing
 
 -- | Representation of a playing card.
@@ -193,41 +206,18 @@ cardFromShortTxt cs = case second T.uncons <$> T.uncons cs of
   _ -> Nothing
 
 -- | 'Hole' represents a player's hole cards in a game of Texas Hold\'Em
-data Hole = MkHole !Card !Card
+--
+-- >>> pretty $ Hole (Card Ace Hearts) (Card King Spades)
+-- AhKs
+data Hole = Hole !Card !Card
   deriving (Eq, Ord, Show)
 
-instance IsString Hole where
-  fromString str = case str of
-    [r1, s1, r2, s2] ->
-      fromMaybe invalidHole . join $
-        mkHole <$> (cardFromShortTxt . T.pack) [r1, s1] <*> (cardFromShortTxt . T.pack) [r2, s2]
-    _ -> invalidHole
-    where
-      invalidHole = error $ "Invalid Hole: " <> str
 
--- >>> pretty $ Hole (Card Ace Heart) (Card King Spade)
--- AhKs
 instance Pretty Hole where
   pretty (Hole c1 c2) = pretty c1 <> pretty c2
 
-{-# COMPLETE Hole #-}
-
-pattern Hole :: Card -> Card -> Hole
-pattern Hole c1 c2 <- MkHole c1 c2
-
--- | Returns a 'Hole' if the incoming 'Card's are unique, else 'Nothing'.
--- Note that the internal representation of 'Hole' is normalised:
---
--- prop> mkHand c1 c2 == mkHand c2 c1
-mkHole :: Card -> Card -> Maybe Hole
-mkHole c1 c2 =
-  if c1 /= c2
-    then Just $ if c1 > c2 then MkHole c1 c2 else MkHole c2 c1
-    else Nothing
-
 -- | All possible Hold'Em poker 'Hole's
 --
--- TODO add tests
 allHoles :: [Hole]
 allHoles = reverse $ do
   r1 <- [minBound .. maxBound]
@@ -236,133 +226,19 @@ allHoles = reverse $ do
     if r1 == r2
       then [(s1, s2) | s1 <- [minBound .. maxBound] , s2 <- drop 1 (enumFrom s1)]
       else liftM2 (,) [minBound .. maxBound] [minBound .. maxBound]
-  pure $ MkHole (Card r1 s1) (Card r2 s2)
+  pure $ Hole (Card r1 s1) (Card r2 s2)
 
--- |
--- A 'ShapedHole' is the 'Suit'-normalised representation of a
--- poker 'Hole'. For example, the 'Hole' "King of Diamonds, 5 of Hearts" is often referred
--- to as "King-5 offsuit".
+
+-- | Set of ranks in a ['Card'] (with no duplicates)
 --
--- >>> pretty $ mkPair Two
--- 22p
+-- >>> ranks cs
+-- fromList [Five,Six,Seven,Ten,Ace]
+ranks :: [Card] -> Set.Set Rank
+ranks cs = Set.fromList $ rank <$> cs
+
+-- | Set of suits in a hand (with no duplicates)
 --
--- pair : 22p
--- offsuit : 24o
--- suited : 24s
---
--- >>> import Poker.ParsePretty
--- >>> parsePretty @ShapedHole "22p"
--- Just (MkPair Two)
--- >>> parsePretty @ShapedHole "24o"
--- Just (MkOffsuit Four Two)
--- >>> parsePretty @ShapedHole "24s"
--- Just (MkSuited Four Two)
---
--- TODO Make patterns uni-directional (don't expose constructors)
-data ShapedHole = MkPair !Rank | MkOffsuit !Rank !Rank | MkSuited !Rank !Rank
-  deriving (Eq, Ord, Show, Read)
-
-{-# COMPLETE Pair, Offsuit, Suited #-}
-
-pattern Pair :: Rank -> ShapedHole
-pattern Pair r <- MkPair r
-
-pattern Offsuit :: Rank -> Rank -> ShapedHole
-pattern Offsuit r1 r2 <- MkOffsuit r1 r2
-
-pattern Suited :: Rank -> Rank -> ShapedHole
-pattern Suited r1 r2 <- MkSuited r1 r2
-
-instance IsString ShapedHole where
-  fromString str = case str of
-    [r1, r2, s] ->
-      fromMaybe invalidShapedHole $ do
-        r1' <- chrToRank r1
-        r2' <- chrToRank r2
-        case s of
-          'p' -> if r1' == r2' then Just $ mkPair r1' else Nothing
-          'o' -> mkOffsuit r1' r2'
-          's' -> mkSuited r1' r2'
-          _ -> Nothing
-    _ -> invalidShapedHole
-    where
-      invalidShapedHole = error $ "Invalid ShapedHole: " <> str
-
-mkPair :: Rank -> ShapedHole
-mkPair = MkPair
-
-mkSuited :: Rank -> Rank -> Maybe ShapedHole
-mkSuited r1 r2 =
-  if r1 /= r2
-    then Just $ if r1 > r2 then MkSuited r1 r2 else MkSuited r2 r1
-    else Nothing
-
-mkOffsuit :: Rank -> Rank -> Maybe ShapedHole
-mkOffsuit r1 r2 =
-  if r1 /= r2
-    then Just $ if r1 > r2 then MkOffsuit r1 r2 else MkOffsuit r2 r1
-    else Nothing
-
-{-
-allShapedHoles :: [ShapedHole]
-allShapedHoles = reverse $ do
-  rank1 <- allRanks
-  rank2 <- allRanks
-  return $ case compare rank1 rank2 of
-    GT -> unsafeMkSuited rank1 rank2
-    EQ -> mkPair rank1
-    LT -> unsafeMkOffsuit rank1 rank2
--}
-
--- | >>> import Poker.ParsePretty
--- >>> pretty . shapedHoleToHoles $ unsafeParsePretty "55p"
--- [5d5c, 5h5c, 5s5c, 5h5d, 5s5d, 5s5h]
--- >>> pretty . shapedHoleToHoles $ unsafeParsePretty "97o"
--- [9c7d, 9c7h, 9c7s, 9d7c, 9d7h, 9d7s, 9h7c, 9h7d, 9h7s, 9s7c, 9s7d, 9s7h]
--- >>> pretty . shapedHoleToHoles $ unsafeParsePretty "QTs"
--- [QcTc, QdTd, QhTh, QsTs]
-shapedHoleToHoles :: ShapedHole -> [Hole]
-shapedHoleToHoles = \case
-  Pair r -> do
-    s1 <- allSuits
-    s2 <- drop (fromEnum s1 + 1) allSuits
-    pure . fromJust $ mkHole (Card r s1) (Card r s2)
-  Offsuit r1 r2 -> do
-    s1 <- allSuits
-    s2 <- filter (s1 /=) allSuits
-    pure . fromJust $ mkHole (Card r1 s1) (Card r2 s2)
-  Suited r1 r2 -> do
-    s <- allSuits
-    pure . fromJust $ mkHole (Card r1 s) (Card r2 s)
-
--- TODO needs tests
-{-
-
-holeToShapedHole :: Hole -> ShapedHole
-holeToShapedHole (Hole (Card r1 s1) (Card r2 s2))
-  | r1 == r2 = mkPair r1
-  | s1 == s2 = unsafeMkSuited r1 r2
-  | otherwise = unsafeMkOffsuit r1 r2
--}
-
-instance Pretty ShapedHole where
-  pretty (Offsuit r1 r2) = pretty r1 <> pretty r2 <> "o"
-  pretty (Suited r1 r2) = pretty r1 <> pretty r2 <> "s"
-  pretty (Pair r) = pretty r <> pretty r <> "p"
-
-newtype Deck = UnsafeMkDeck [Card] deriving (Read, Show, Eq)
-
-{-# COMPLETE Deck #-}
-
-pattern Deck :: [Card] -> Deck
-pattern Deck c1 <- UnsafeMkDeck c1
-
--- | A full deck with all cards
---
--- TODO use template haskell to evaluate at compile time
-freshDeck :: Deck
-freshDeck = UnsafeMkDeck allCards
-
--- | The input cards are not checked in any way.
-unsafeMkDeck :: [Card] -> Deck
-unsafeMkDeck = UnsafeMkDeck
+-- >>> suits cs
+-- fromList [Clubs,Hearts,Spades]
+suits :: [Card] -> Set.Set Suit
+suits cs = Set.fromList $ suit <$> cs

@@ -2,8 +2,8 @@
 
 import Options.Applicative
 import Poker.Charts
-import Poker.HandRank.Storable
-import Poker.RangedHole
+import Poker.HandRank
+import Poker.Range
 import Prelude
 
 data RunType = RunHvs7 | RunSomeRanges | RunCharts deriving (Eq, Show)
@@ -16,7 +16,7 @@ data Options = Options
 
 sims :: Parser Int
 sims =
-  option auto (long "sims" <> short 's' <> help "number of simulations for RangedHole maps")
+  option auto (long "sims" <> short 's' <> help "number of simulations for Range maps")
     <|> pure 10000
 
 runType :: Parser RunType

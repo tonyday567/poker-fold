@@ -12,30 +12,37 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 
--- | Storable version of 'Poker.Card' and related types contained in "Poker".
+-- | Storable version of 'Poker.Card' and related types.
 --
 -- In general, this module provides:
 --
--- - 'Storable' and 'Vector' versions of types in poker-base
+-- - 'Storable' 'Vector' versions of types in Poker.Card, suffixed withan 'S'
 --
--- - an 'Iso' conversion, named after the type and suffixed with an S.
+-- - an 'Iso' conversion, named after the type and suffixed with an I.
 module Poker.Card.Storable
   ( -- * Usage
     -- $usage
 
     -- * Card
-    Rank (..),
-    Ranks (..),
-    Suit (..),
-    Suits (..),
-    Card (..),
-    allCards,
-    toRank,
-    toSuit,
-    Cards (..),
-    ranksSet,
-    toRanks,
-    Cards2 (..),
+    RankS (..),
+    rankI,
+    RanksS (..),
+    ranksI,
+    SuitS (..),
+    suitI,
+    SuitsS (..),
+    suitsI,
+    CardS (..),
+    cardI,
+    cardRankS,
+    cardSuitS,
+    CardsS (..),
+    cardsI,
+    allCardsS,
+    cardRanksS,
+    cardRanksSWithDups,
+    Cards2S (..),
+    cards2I,
     cardsS7V,
 
     -- * Vector application
@@ -43,6 +50,7 @@ module Poker.Card.Storable
     applyFlatV,
     apply,
     applyV,
+
   )
 where
 
@@ -54,167 +62,252 @@ import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as S
 import Data.Word
 import Optics.Core
-import Prettyprinter hiding (comma)
 import Prelude
-
--- $usage
---
--- >>> import Poker
--- >>> import Poker.Card.Storable
--- >>> import Prettyprinter
--- >>> import qualified Data.Vector as V
--- >>> import qualified Data.Vector.Storable as S
--- >>> let cs = [Card Ace Heart,Card Seven Spade,Card Ten Heart,Card Five Spade,Card Six Club, Card Seven Heart,Card Six Spade]
--- >>> :t from cards cs
--- from cards cs :: CardsS
---
--- >>> pretty $ from cards cs
--- Ah7sTh5s6c7h6s
---
--- >>> let cs' = [Card Ten Club, Card Five Spade,Card Ten Heart,Card Five Spade,Card Six Club, Card Seven Heart,Card Six Spade]
--- >>> let css = [cs, cs']
---
--- >>> pretty $ from cardsS7L css
--- [Ah7sTh5s6c7h6s, Tc5sTh5s6c7h6s]
+import Poker.Card
+import Prettyprinter ( Pretty(pretty) )
+import Control.Category ( (>>>) )
 
 -- $setup
 --
--- >>> import Poker
+-- >>> import Poker.Card
 -- >>> import Poker.Card.Storable
+-- >>> import Optics.Core
 -- >>> import Prettyprinter
 -- >>> import qualified Data.Vector as V
 -- >>> import qualified Data.Vector.Storable as S
--- >>> let cs = [Card Ace Heart,Card Seven Spade,Card Ten Heart,Card Five Spade,Card Six Club, Card Seven Heart,Card Six Spade]
--- >>> :t from cards cs
--- from cards cs :: CardsS
---
--- >>> pretty $ from cards cs
+-- >>> cs' = [Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
+-- >>> cs = review cardsI cs'
+-- >>> cs
+-- CardsS {unwrapCardsS = [50,23,34,15,16,22,19]}
+-- >>> pretty cs
 -- Ah7sTh5s6c7h6s
 --
--- >>> let cs' = [Card Ten Club, Card Five Spade,Card Ten Heart,Card Five Spade,Card Six Club, Card Seven Heart,Card Six Spade]
--- >>> let css = [cs, cs']
+-- >>> let cs2' = [Card Ten Clubs, Card Five Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
+-- >>> let css' = [cs', cs2']
 --
--- >>> pretty $ from cardsS7L css
--- [Ah7sTh5s6c7h6s, Tc5sTh5s6c7h6s]
-
--- | Type to support bidirectional conversion between poker-base data structures and 'Data.Vector.Storable' types.
-
---
+-- >>> css = review cards2I css'
+-- >>> css
+-- Cards2S {unwrapCards2S = [50,23,34,15,16,22,19,32,15,34,15,16,22,19]}
 
 -- | Storable representation of 'Rank'
 --
--- >>> to rank $ Rank 0
+-- >>> view rankI $ RankS 0
 -- Two
--- >>> to rank $ Rank 12
+-- >>> view rankI $ RankS 12
 -- Ace
-newtype Rank = Rank {unwrapRank :: Word8} deriving (Eq, Show, Ord, NFData)
+--
+-- >>> pretty $ RankS 12
+-- A
+newtype RankS = RankS {unwrapRankS :: Word8} deriving (Eq, Show, Ord, NFData)
+
+instance Pretty RankS where
+  pretty = pretty . view rankI
+
+-- | isomorphism between 'Poker.Rank' and 'Poker.Card.Storable.RankS'
+rankI :: Iso' RankS Rank
+rankI = iso toRank fromRank
+
+toRank :: RankS -> Rank
+toRank (RankS 0) = Two
+toRank (RankS 1) = Three
+toRank (RankS 2) = Four
+toRank (RankS 3) = Five
+toRank (RankS 4) = Six
+toRank (RankS 5) = Seven
+toRank (RankS 6) = Eight
+toRank (RankS 7) = Nine
+toRank (RankS 8) = Ten
+toRank (RankS 9) = Jack
+toRank (RankS 10) = Queen
+toRank (RankS 11) = King
+toRank (RankS 12) = Ace
+toRank _ = error "bad Rank value"
+
+fromRank :: Rank -> RankS
+fromRank Two = RankS 0
+fromRank Three = RankS 1
+fromRank Four = RankS 2
+fromRank Five = RankS 3
+fromRank Six = RankS 4
+fromRank Seven = RankS 5
+fromRank Eight = RankS 6
+fromRank Nine = RankS 7
+fromRank Ten = RankS 8
+fromRank Jack = RankS 9
+fromRank Queen = RankS 10
+fromRank King = RankS 11
+fromRank Ace = RankS 12
 
 -- | Storable representation of 'Rank'
 --
--- >>> from ranks allRanks
--- Ranks {unwrapRanks = [0,1,2,3,4,5,6,7,8,9,10,11,12]}
---
--- >>> pretty $ from ranks allRanks
+-- >>> pretty $ RanksS (S.fromList [0..12])
 -- 23456789TJQKA
-newtype Ranks = Ranks {unwrapRanks :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
+newtype RanksS = RanksS {unwrapRanksS :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
+
+instance Pretty RanksS where
+  pretty rs = rs & unwrapRanksS & S.toList & fmap (RankS >>> view rankI >>> pretty) & mconcat
+
+-- | isomorphism between 'RanksS' and [Rank]
+ranksI :: Iso' RanksS [Rank]
+ranksI = iso
+  (\x -> x & unwrapRanksS & S.toList & fmap (RankS >>> view rankI))
+  (\xs -> xs & fmap (review rankI >>> unwrapRankS) & S.fromList & RanksS)
 
 -- | Storable representation of 'Suit'
 --
--- >>> to suit $ Suit 0
--- Club
--- >>> to suit $ Suit 3
--- Spade
-newtype Suit = Suit {unwrapSuit :: Word8} deriving (Eq, Show, Ord, NFData)
+-- >>> view suitI $ SuitS 0
+-- Clubs
+-- >>> view suitI $ SuitS 3
+-- Spades
+--
+-- >>> pretty $ SuitS 0
+-- c
+newtype SuitS = SuitS {unwrapSuitS :: Word8} deriving (Eq, Show, Ord, NFData)
+
+instance Pretty SuitS where
+  pretty = pretty . view suitI
+
+-- | isomorphism between 'Suit' and 'SuitS'
+suitI :: Iso' SuitS Suit
+suitI = iso toSuit fromSuit
+
+toSuit :: SuitS -> Suit
+toSuit (SuitS 0) = Clubs
+toSuit (SuitS 1) = Diamonds
+toSuit (SuitS 2) = Hearts
+toSuit (SuitS 3) = Spades
+toSuit _ = error "bad Suit value"
+
+fromSuit :: Suit -> SuitS
+fromSuit Clubs = SuitS 0
+fromSuit Diamonds = SuitS 1
+fromSuit Hearts = SuitS 2
+fromSuit Spades = SuitS 3
 
 -- | Storable representation of 'Suit'
 --
--- >>> from suits allSuits
--- Ranks {unwrapRanks = [0,1,2,3,4,5,6,7,8,9,10,11,12]}
---
--- >>> pretty $ from ranks allRanks
--- 23456789TJQKA
-newtype Suits = Suits {unwrapSuits :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
+-- >>> pretty $ SuitsS (S.fromList [0..3])
+-- cdhs
+newtype SuitsS = SuitsS {unwrapSuitsS :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
+
+instance Pretty SuitsS where
+  pretty rs = rs & unwrapSuitsS & S.toList & fmap (SuitS >>> view suitI >>> pretty) & mconcat
+
+-- | isomorphism between 'SuitsS' and [Suit]
+suitsI :: Iso' SuitsS [Suit]
+suitsI = iso
+  (\x -> x & unwrapSuitsS & S.toList & fmap (SuitS >>> view suitI))
+  (\xs -> xs & fmap (review suitI >>> unwrapSuitS) & S.fromList & SuitsS)
 
 -- | Storable representation of a 'Card'
 --
--- >>> to card $ Card 0
--- Card {rank = Two, suit = Club}
--- >>> to card $ Card 51
--- Card {rank = Ace, suit = Spade}
-newtype Card = Card {unwrapCard :: Word8} deriving (Eq, Show, Ord)
+-- >>> view cardI $ CardS 0
+-- Card {rank = Two, suit = Clubs}
+-- >>> view cardI $ CardS 51
+-- Card {rank = Ace, suit = Spades}
+-- >>> pretty $ CardS 51
+-- As
+newtype CardS = CardS {unwrapCardS :: Word8} deriving (Eq, Show, Ord)
+
+instance Pretty CardS where
+  pretty = pretty . view cardI
+
+-- | card conversion
+cardI :: Iso' CardS Card
+cardI = iso toCard fromCard
+
+toCard :: CardS -> Card
+toCard (CardS x) = let (r, s) = x `divMod` 4 in Card (toRank (RankS r)) (toSuit (SuitS s))
+
+fromCard :: Card -> CardS
+fromCard (Card r s) = CardS $ unwrapRankS (fromRank r) * 4 + unwrapSuitS (fromSuit s)
 
 -- | Storable representation of ['Card'].
 --
--- >>> pretty $ from cards cs
--- Ah7sTh5s6c7h6s
-newtype Cards = Cards {unwrapCards :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
+-- >>> pretty $ view cardsI cs
+-- [Ah, 7s, Th, 5s, 6c, 7h, 6s]
+newtype CardsS = CardsS {unwrapCardsS :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
+
+instance Pretty CardsS where
+  pretty cs = cs & view cardsI & fmap pretty & mconcat
 
 -- | a standard 52 card deck (in ascending order).
 --
 -- >>> pretty allCardsS
 -- 2c2d2h2s3c3d3h3s4c4d4h4s5c5d5h5s6c6d6h6s7c7d7h7s8c8d8h8s9c9d9h9sTcTdThTsJcJdJhJsQcQdQhQsKcKdKhKsAcAdAhAs
-allCards :: Cards
-allCards = Cards $ S.fromList [0 .. 51]
+allCardsS :: CardsS
+allCardsS = CardsS $ S.fromList [0 .. 51]
+
+-- | Conversion between traversable card types
+cardsI :: Iso' CardsS [Card]
+cardsI =
+  iso
+    (fmap (view cardI . CardS) . S.toList . unwrapCardsS)
+    (CardsS . S.fromList . fmap (unwrapCardS . review cardI))
 
 -- | Extract rank from a CardS.
 --
--- >>> pretty $ toRank (Card 0)
--- 2
-toRank :: Card -> Rank
-toRank (Card c) = Rank $ c `div` 4
+-- >>> Card Two Spades & review cardI & cardRankS & view rankI
+-- Two
+cardRankS :: CardS -> RankS
+cardRankS (CardS c) = RankS $ c `div` 4
 
 -- | Extract suit from a CardS.
 --
--- >>> pretty $ toSuit (Card 0)
--- c
-toSuit :: Card -> Suit
-toSuit (Card c) = Suit $ c `mod` 4
+-- >>> Card Two Spades & review cardI & cardSuitS & view suitI
+-- Spades
+cardSuitS :: CardS -> SuitS
+cardSuitS (CardS c) = SuitS $ c `mod` 4
 
--- | Ranks in a hand (with no duplicates)
+-- | Ranks in a hand (CardsS) (with no duplicates)
 --
--- >>> pretty $ ranksSet (from cards cs)
+-- >>> pretty $ cardRanksS cs
 -- AT765
-ranksSet :: Cards -> Ranks
-ranksSet (Cards xs) =
-  Ranks $
+cardRanksS :: CardsS -> RanksS
+cardRanksS (CardsS xs) =
+  RanksS $
     S.fromList $
       Set.toDescList $
         Set.fromList $
           S.toList $
-            S.map (unwrapRank . toRank . Card) xs
+            S.map (unwrapRankS . cardRankS . CardS) xs
 
--- | Ranks of a hand (with duplicates)
+-- | RanksS of a hand (CardsS) (with duplicates)
 --
--- >>> pretty $ toRanks (from cards cs)
+-- >>> pretty $ cardRanksSWithDups cs
 -- A7T5676
-toRanks :: Cards -> Ranks
-toRanks cs = Ranks $ S.map (unwrapRank . toRank . Card) $ unwrapCards cs
+cardRanksSWithDups :: CardsS -> RanksS
+cardRanksSWithDups cs = RanksS $ S.map (unwrapRankS . cardRankS . CardS) $ unwrapCardsS cs
 
--- | Storable representation of a [['Card']]
+-- | Storable representation of a [['Card']], where the length of each inner list is 7.
 --
--- >>> pretty $ from cardsS7L css
--- [Ah7sTh5s6c7h6s, Tc5sTh5s6c7h6s]
-newtype Cards2 = Cards2 {unwrapCards2 :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
+-- >>> pretty $ view cards2I css
+-- [[Ah, 7s, Th, 5s, 6c, 7h, 6s], [Tc, 5s, Th, 5s, 6c, 7h, 6s]]
+newtype Cards2S = Cards2S {unwrapCards2S :: S.Vector Word8} deriving (Eq, Show, Ord, NFData)
 
-instance Semigroup Cards2 where
-  (<>) (Cards2 x) (Cards2 x') = Cards2 (x <> x')
+instance Semigroup Cards2S where
+  (<>) (Cards2S x) (Cards2S x') = Cards2S (x <> x')
 
-instance Monoid Cards2 where
-  mempty = Cards2 S.empty
+instance Monoid Cards2S where
+  mempty = Cards2S S.empty
+
+-- | Convert between a list of 7 card lists and a 'Cards2SS'
+--
+cards2I :: Iso' Cards2S [[Card]]
+cards2I =
+  iso
+    (fmap (fmap (toCard . CardS)) . V.toList . applyFlatV 7 S.toList . unwrapCards2S)
+    (Cards2S . S.fromList . fmap (unwrapCardS . fromCard) . mconcat)
 
 -- | Convert between a 'Cards2S' and a boxed vector of 'CardsS'.
 --
 -- The main purpose of this representation is to access vector operations for things that aren't storable.
 --
--- >>> (\x -> (to cardsS7V $ from cardsS7V x) == x) (from cardsS7L css)
--- True
-cardsS7V :: Iso' Cards2 (V.Vector Cards)
-cardsS7V = iso (applyFlatV 7 Cards . unwrapCards2) (Cards2 . fold . V.map unwrapCards)
+cardsS7V :: Iso' Cards2S (V.Vector CardsS)
+cardsS7V = iso (applyFlatV 7 CardsS . unwrapCards2S) (Cards2S . fold . V.map unwrapCardsS)
 
 -- | Apply a function that takes a vector by slicing the supplied main vector n times.
 --
--- >>> V.toList $ applyFlatV 7 (pretty . CardsS) (unwrapCards2 $ (from cardsS7L css))
--- [Ah7sTh5s6c7h6s,Tc5sTh5s6c7h6s]
 applyFlatV :: (Storable s) => Int -> (S.Vector s -> a) -> S.Vector s -> V.Vector a
 applyFlatV k f s = V.generate n (\i -> f (S.slice (k * i) k s))
   where
@@ -222,8 +315,6 @@ applyFlatV k f s = V.generate n (\i -> f (S.slice (k * i) k s))
 
 -- | Apply a function that takes a vector by slicing the supplied main vector n times, and providing a Storable for each slice.
 --
--- >>> applyFlat 7 S.length (unwrapCards2 $ (from cardsS7L css))
--- [7,7]
 applyFlat :: (Storable s, Storable a) => Int -> (S.Vector s -> a) -> S.Vector s -> S.Vector a
 applyFlat k f s = S.generate n (\i -> f (S.slice (k * i) k s))
   where
@@ -231,15 +322,11 @@ applyFlat k f s = S.generate n (\i -> f (S.slice (k * i) k s))
 
 -- | apply a function to a cards vector, returning a boxed vector of the results.
 --
--- >>> applyV (pretty . ranksSet) (from cardsS7L css)
--- [AT765,T765]
-applyV :: (Cards -> a) -> Cards2 -> V.Vector a
-applyV f (Cards2 s) = applyFlatV 7 (f . Cards) s
+applyV :: (CardsS -> a) -> Cards2S -> V.Vector a
+applyV f (Cards2S s) = applyFlatV 7 (f . CardsS) s
 {-# INLINE applyV #-}
 
 -- | apply a function to a cards vector, returning a storable vector of the results.
 --
--- >>> apply (S.length . unwrapCards) (from cardsS7L css)
--- [7,7]
-apply :: (Storable a) => (Cards -> a) -> Cards2 -> S.Vector a
-apply f (Cards2 s) = applyFlat 7 (f . Cards) s
+apply :: (Storable a) => (CardsS -> a) -> Cards2S -> S.Vector a
+apply f (Cards2S s) = applyFlat 7 (f . CardsS) s

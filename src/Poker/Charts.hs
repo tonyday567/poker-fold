@@ -31,7 +31,7 @@ module Poker.Charts
   )
 where
 
-import Chart hiding (shape)
+import Chart hiding (shape, Range)
 import Data.Bifunctor
 import Data.Foldable
 import Data.Functor.Rep
@@ -39,7 +39,7 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text, pack)
 import GHC.Exts (fromList)
 import Optics.Core hiding (to)
-import Poker.RangedHole
+import Poker.Range
 import Poker.Table
 import Prettyprinter
 import Prettyprinter.Render.Text
@@ -51,20 +51,20 @@ import Poker.Card as C ( Rank(Ace, Two) )
 toText_ :: (Pretty a) => a -> Text
 toText_ = renderStrict . layoutCompact . pretty
 
--- | A grid of points on the XY plane representing a 'RangedHole'
-sGrid :: RangedHole (Point Double)
-sGrid = RangedHole $ fromList $ fmap (\(Point x y) -> Point (-y) x) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
+-- | A grid of points on the XY plane representing a 'Range'
+sGrid :: Range (Point Double)
+sGrid = Range $ fromList $ fmap (\(Point x y) -> Point (-y) x) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
 
--- | A grid of rectangles on the XY plane representing a 'RangedHole'
-sRect :: RangedHole (Rect Double)
+-- | A grid of rectangles on the XY plane representing a 'Range'
+sRect :: Range (Rect Double)
 sRect = (`addPoint` ((/ 13.0) <$> Rect (-0.5) 0.5 (-0.5) 0.5)) <$> sGrid
 
 -- | text colour variation for Offsuit, Pair and Suited hole hands.
-opsColourText :: RangedHole Colour
+opsColourText :: Range Colour
 opsColourText =
   tabulate $
     fromOPS (Colour 0 0 0.4 1, Colour 0 0.4 0 1, Colour 0.4 0 0 1)
-      . view (re shapedHoleS)
+      . view (re startingHandI)
 
 -- | background rectangle style for Offsuit, Pair and Suited hole hands.
 opsRectStyle :: (RectStyle, RectStyle, RectStyle)
@@ -78,10 +78,10 @@ opsRectStyle =
   )
 
 -- | default background representing Offsuit, Pair & Suited hole cards.
-rhBackground :: RangedHole RectStyle
-rhBackground = tabulate $ fromOPS opsRectStyle . view (re shapedHoleS)
+rhBackground :: Range RectStyle
+rhBackground = tabulate $ fromOPS opsRectStyle . view (re startingHandI)
 
--- | default RangedHole Hud
+-- | default Chart.Range Hud
 rhHud :: ChartOptions
 rhHud =
   mempty
@@ -91,7 +91,7 @@ rhHud =
              & #axes .~ [(5, rankXAxis), (5, rankYAxis)]
              & #titles
                .~ [ (10, defaultTitle "Suited" & #style % #size .~ 0.06 & #style % #color % opac' %~ 0.7),
-                    (10, defaultTitle "Offsuit" & #style % #size .~ 0.06 & #style % #color % opac' %~ 0.7 & #buffer .~ 0.08 & #place .~ PlaceLeft)
+                    (10, defaultTitle "Offsuited" & #style % #size .~ 0.06 & #style % #color % opac' %~ 0.7 & #buffer .~ 0.08 & #place .~ PlaceLeft)
                   ]
          )
 
@@ -112,19 +112,19 @@ opsLegend =
              defaultLegendOptions
                & #content
                  .~ let (o, p, s) = opsRectStyle
-                     in [ ("Offsuit", RectChart o [one]),
+                     in [ ("Offsuited", RectChart o [one]),
                           ("Pair", RectChart p [one]),
                           ("Suited", RectChart s [one])
                         ]
            )
          ]
 
--- | Rectangles in the RangedHole square with supplied fill color.
+-- | Rectangles in the Chart.Range square with supplied fill color.
 --
 -- > writeChartOptions "other/rect.svg" $ rectChart rhBackground <> rhHud <> (mempty & #hudOptions .~ opsLegend) <> textChart ((,) <$> opsColourText <*> rhText)
 --
 -- ![rect example](other/rect.svg)
-rectChart :: RangedHole RectStyle -> ChartOptions
+rectChart :: Range RectStyle -> ChartOptions
 rectChart s = mempty & #charts .~ unnamed (toList $ liftR2 (\r s -> RectChart s [r]) sRect s)
 
 -- | Chart text with supplied text & colour.
@@ -135,7 +135,7 @@ rectChart s = mempty & #charts .~ unnamed (toList $ liftR2 (\r s -> RectChart s 
 -- > writeChartOptions "other/o2.svg" $ rectChart rhBackground <> rhHud <> textChart ((,) <$> opsColourText <*> (percent (Just 1) <$> m Map.! "o2"))
 --
 -- ![text example](other/o2.svg)
-textChart :: RangedHole (Colour, Text) -> ChartOptions
+textChart :: Range (Colour, Text) -> ChartOptions
 textChart r =
   mempty
     & #charts
@@ -157,7 +157,7 @@ textChart r =
 -- | The example chart below can be interpreted as raising with the top 20% of hands (blue), calling with the next 40% of hands (green) and folding the bottom 40% of hands (red).
 --
 -- ![fcr example](other/fcr.svg)
-fcrExample :: RangedHole Double -> ChartOptions
+fcrExample :: Range Double -> ChartOptions
 fcrExample s =
   rectChart ((\b c -> b & #color .~ c) <$> rhBackground <*> (fcrBColour <$> rcf'))
     <> rhHud
@@ -168,28 +168,28 @@ fcrExample s =
     fcrTColour = fromRawActionType (Colour 1 0 0 1, Colour 0.33 0.63 0.33 1, Colour 0 0 1 1)
     fcrText = fromRawActionType ("fold", "call", "raise")
 
--- | basic pixel chart of a RangedHole Double
+-- | basic pixel chart of a Range Double
 bPixelChart ::
   SurfaceStyle ->
   SurfaceLegendOptions ->
-  RangedHole Double ->
+  Range Double ->
   ChartOptions
 bPixelChart pixelStyle plo s = mempty & #charts .~ runHud (aspect 1) hs1 (unnamed cs1)
   where
     f :: Point Double -> Double
-    f (Point x y) = index s (ShapedHoleS $ (12 - floor x) + 13 * floor y)
+    f (Point x y) = index s (StartingHandS $ (12 - floor x) + 13 * floor y)
     (cs1, hs1) =
       surfacefl
         f
         (SurfaceOptions pixelStyle (Point 13 13) (Rect 0 13 0 13))
         plo
 
--- | Pixel chart of a RangedHole Double using supplied colour gradient.
+-- | Pixel chart of a Range Double using supplied colour gradient.
 --
 -- Odds of winning a showdown against 8 other hands
 --
 -- ![pixel example](other/odds9.svg)
-pixelChart :: [Colour] -> RangedHole Double -> ChartOptions
+pixelChart :: [Colour] -> Range Double -> ChartOptions
 pixelChart cs xs =
   bPixelChart
     (defaultSurfaceStyle & #surfaceColors .~ fromList cs)
@@ -206,7 +206,7 @@ orderedScatterHud = defaultHudOptions & #axes .~ fmap (second (#ticks % #style .
 -- The scatter chart example compares the ordering of hole cards given headsup versus a full table.
 --
 -- ![scatter example](other/compare29.svg)
-scatterChart :: RangedHole (Point Double) -> ChartOptions
+scatterChart :: Range (Point Double) -> ChartOptions
 scatterChart ps = mempty & #hudOptions .~ (defaultHudOptions & #frames .~ []) & #charts .~ unnamed [c]
   where
     c = TextChart (defaultTextStyle & #size .~ 0.04 & #color % opac' %~ 0.4) (fromList $ toList $ (,) <$> rhText <*> ps)

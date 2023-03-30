@@ -59,10 +59,9 @@ library
     generic-lens,
   exposed-modules:
     Poker.Card
-    Poker.Card.Iso
-    Poker.RangedHole
+    Poker.Range
     Poker.Charts
-    Poker.HandRank.Storable
+    Poker.HandRank
     Poker.Lexico
     Poker.Random
     Poker.Table
