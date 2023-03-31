@@ -17,28 +17,193 @@ A Haskell poker library exploring:
 :set -Wno-name-shadowing
 :set -XOverloadedStrings
 import Poker.Card
+import Poker.Card.Storable
+import Poker.HandRank
 import Perf
 import Chart
 import Data.FormatN
 import Optics.Core
 import qualified Data.Text as Text
 import qualified Data.Map.Strict as Map
+import qualified Data.Vector.Storable as S
 import Prettyprinter
 putStrLn "ok"
 #+end_src
 
 #+RESULTS:
-: Ok, 8 modules loaded.
-: >
-: ok
+#+begin_example
+Loaded GHCi configuration from /Users/tonyday/haskell/poker-fold/.ghci
+[1 of 8] Compiling Poker.Card       ( src/Poker/Card.hs, interpreted )
+[2 of 8] Compiling Poker.Card.Storable ( src/Poker/Card/Storable.hs, interpreted )
+[3 of 8] Compiling Poker.Lexico     ( src/Poker/Lexico.hs, interpreted )
+[4 of 8] Compiling Poker.HandRank   ( src/Poker/HandRank.hs, interpreted )
+[5 of 8] Compiling Poker.Table      ( src/Poker/Table.hs, interpreted )
+[6 of 8] Compiling Poker.Random     ( src/Poker/Random.hs, interpreted )
+[7 of 8] Compiling Poker.Range      ( src/Poker/Range.hs, interpreted )
+[8 of 8] Compiling Poker.Charts     ( src/Poker/Charts.hs, interpreted )
+Ok, 8 modules loaded.
+ghci> Ok, 8 modules loaded.
+ghci
+>
+ok
+#+end_example
+
+** handRank bug
 
 #+begin_src haskell
-:t iso
+:{
+handRankHighs =
+  [ HighCard a b c d e
+    | a <- ranks,
+      b <- ranksLT a,
+      c <- ranksLT b,
+      d <- ranksLT c,
+      e <- ranksLT d,
+      not (a == s b && b == s c && c == s d && d == s e),
+      not (a == RankS 12 && [b, c, d, e] == [RankS 3, RankS 2, RankS 1, RankS 0])
+  ]
+  where
+    s (RankS 12) = RankS 0
+    s (RankS x) = RankS (x + 1)
+    ranks = RankS <$> [0 .. 12]
+    ranksLT (RankS 0) = []
+    ranksLT (RankS x) = RankS <$> [0 .. (x - 1)]
+    ranksGE (RankS x) = RankS <$> reverse (12 : [x .. 11])
+    succ' (RankS 0) = RankS 0
+    succ' (RankS x) = RankS (x - 1)
+:}
 #+end_src
 
 #+RESULTS:
-: iso :: (s -> a) -> (b -> t) -> Iso s t a b
+: ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci| ghci|
 
+
+#+begin_src haskell :results output
+pretty <$> take 5 handRankHighs
+#+end_src
+
+#+RESULTS:
+: [HighCard Seven Five Four Three Two,HighCard Seven Six Four Three Two,HighCard Seven Six Five Three Two,HighCard Seven Six Five Four Two,HighCard Eight Five Four Three Two]
+
+
+
+#+begin_src haskell
+length handRankHighs
+#+end_src
+
+#+RESULTS:
+: 1277
+
+** lookup bug
+
+#+begin_src haskell :results output
+xs = CardsS $ S.fromList $ [15,17,19,20,23,32,48]
+pretty xs
+#+end_src
+
+#+RESULTS:
+: 5s6d6s7c7sTcAc
+
+#+begin_src haskell :results output
+pretty $ handRank xs
+#+end_src
+
+#+RESULTS:
+: TwoPair Seven Six Ace
+
+
+#+begin_src haskell :results output
+(Map.!) mapHRValue $ handRank xs
+#+end_src
+
+#+RESULTS:
+: 4301
+
+ #+begin_src haskell
+s <- hvs7
+ #+end_src
+
+#+RESULTS:
+
+#+begin_src haskell
+lookupHR s xs
+#+end_src
+
+#+RESULTS:
+: 7451
+
+#+begin_src haskell :results output
+import Poker.Lexico
+import qualified Data.List as List
+v = combinationsR 7 [0 .. 51]
+#+end_src
+
+#+RESULTS:
+
+#+begin_src haskell :results output
+import Control.Category ((>>>))
+combinationsR 7 [0 .. 51] & fmap (S.fromList >>> CardsS >>> handRank >>> pretty) & (\xs -> (List.!!) xs 1000000)
+#+end_src
+
+#+RESULTS:
+: OnePair Ace King Nine Seven
+
+#+begin_src haskell :results output
+xs = CardsS $ S.fromList $ [15,17,19,20,23,32,48]
+pretty xs
+pretty $ handRank xs
+#+end_src
+
+#+RESULTS:
+: 5s6d6s7c7sTcAc
+: TwoPair Seven Six Ace
+
+#+begin_src haskell
+toLexiPosR 52 7 $ S.fromList $ fromLexiPosR 52 7 10000000
+#+end_src
+
+#+RESULTS:
+: 10000000
+
+#+begin_src haskell :results output
+fromLexiPosR 52 7 100000000 & fmap fromIntegral & S.fromList & CardsS & pretty
+#+end_src
+
+#+RESULTS:
+: 5h6s7d8dTcThQs
+
+
+#+begin_src haskell :results output
+fromLexiPosR 52 7 100000000
+#+end_src
+
+#+RESULTS:
+: [14,19,21,25,32,34,43]
+
+
+#+begin_src haskell
+toLexiPosR 52 7 $ S.fromList [14,19,21,25,32,34,43] :: Int
+#+end_src
+
+#+RESULTS:
+: 100000000
+
+#+begin_src haskell
+xs' = CardsS $ S.fromList $ [14,19,21,25,32,34,43]
+pretty xs'
+pretty $ handRank xs'
+#+end_src
+
+#+RESULTS:
+: OnePair Ten Queen Eight Seven
+
+#+begin_src haskell
+-- (combinationsR 7 [0 .. 51]) List.!! 100000000
+#+end_src
+
+#+RESULTS:
+: (combinationsR 7 [0 .. 51]) List.!! 100000000
+:   :: (Num a, Enum a) => [a]
 
 
 * Instaling the lookup table

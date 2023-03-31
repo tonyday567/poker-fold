@@ -15,13 +15,6 @@
 
 -- | Evaluation of a standard holdem poker hand. The evaluators work for 5 and 7 card hands.
 --
--- The module supplies:
---
--- - 'handRank' and helpers for evaluation of a ['Card']
---
--- - 'handRankS' and helpers for evaluation of a 'CardsS'
---
--- - 'handRankL' and helpers for lookup of a pre-evaluated vector of the ranking of all possible 7 card hands.
 module Poker.HandRank
   ( -- * Usage
     -- $usage
@@ -40,7 +33,6 @@ module Poker.HandRank
     suitRanks,
 
     -- * Evaluation
-    handRankL,
     mapHRValue,
     mapValueHR,
     handValues,
@@ -86,31 +78,21 @@ import Prettyprinter
 --
 -- >>> import Poker.Card
 -- >>> import Poker.Card.Storable
+-- >>> import Poker.Lexico
 -- >>> import Optics.Core
 -- >>> import Prettyprinter
 -- >>> import Data.Bifunctor
--- >>> import qualified Data.Vector as V
 -- >>> import qualified Data.Vector.Storable as S
 -- >>> import qualified Data.List as List
 -- >>> import Data.Ord (Down)
 -- >>> import qualified Data.Map.Strict as Map
--- >>> cs' = [Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
--- >>> cs = review cardsI cs'
--- >>> let cs2' = [Card Ten Clubs, Card Five Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
--- >>> cs2 = review cardsI cs'
--- >>> css = review cards2I [cs', cs2']
---
--- The pre-evaluated storable vector
---
--- >>> s <- hvs7
--- >>> :t s
--- s :: S.Vector GHC.Word.Word16
+-- >>> cs = review cardsI [Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
+-- >>> css = review cards2I [[Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades], [Card Ten Clubs, Card Five Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]]
 
 -- | 5 card standard poker rankings
 --
--- FIXME:
--- > pretty . handRank <$> [cs,cs2]
--- [TwoPair 7 6 A,TwoPair Ten Six Five]
+-- >>> pretty $ handRank cs
+-- TwoPair Seven Six Ace
 data HandRank
   = HighCard RankS RankS RankS RankS RankS
   | OnePair RankS RankS RankS RankS
@@ -124,20 +106,20 @@ data HandRank
   deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Pretty HandRank where
-  pretty (HighCard r0 r1 r2 r3 r4) = hsep ["HighCard", pretty r0, pretty r1, pretty r2, pretty r3,pretty r4]
-  pretty (OnePair r0 r1 r2 r3) = hsep ["OnePair", pretty r0, pretty r1, pretty r2, pretty r3]
-  pretty (TwoPair r0 r1 r2) = hsep ["TwoPair", pretty r0, pretty r1, pretty r2]
-  pretty (ThreeOfAKind r0 r1 r2) = hsep ["ThreeOfAKind", pretty r0, pretty r1, pretty r2]
-  pretty (Straight r0) = hsep ["Straight", pretty r0]
-  pretty (Flush r0 r1 r2 r3 r4) = hsep ["Flush", pretty r0, pretty r1, pretty r2, pretty r3,pretty r4]
-  pretty (FullHouse r0 r1) = hsep ["FullHouse", pretty r0, pretty r1]
-  pretty (FourOfAKind r0 r1) = hsep ["FourOfAKind", pretty r0, pretty r1]
-  pretty (StraightFlush r0) = hsep ["StraightFlush", pretty r0]
+  pretty (HighCard r0 r1 r2 r3 r4) = hsep ["HighCard", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3,(unsafeViaShow . view rankI) r4]
+  pretty (OnePair r0 r1 r2 r3) = hsep ["OnePair", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3]
+  pretty (TwoPair r0 r1 r2) = hsep ["TwoPair", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2]
+  pretty (ThreeOfAKind r0 r1 r2) = hsep ["ThreeOfAKind", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2]
+  pretty (Straight r0) = hsep ["Straight", (unsafeViaShow . view rankI) r0]
+  pretty (Flush r0 r1 r2 r3 r4) = hsep ["Flush", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3,(unsafeViaShow . view rankI) r4]
+  pretty (FullHouse r0 r1) = hsep ["FullHouse", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1]
+  pretty (FourOfAKind r0 r1) = hsep ["FourOfAKind", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1]
+  pretty (StraightFlush r0) = hsep ["StraightFlush", (unsafeViaShow . view rankI) r0]
 
 -- | Convert a CardsS to a HandRank
 --
 -- >>> pretty $ handRank cs
--- TwoPair 7 6 A
+-- TwoPair Seven Six Ace
 handRank :: CardsS -> HandRank
 handRank cs =
   fromMaybe
@@ -149,9 +131,8 @@ handRank cs =
 
 -- | enumeration of all possible HandRanks, in ascending order.
 --
--- FIXME: 7462 or 7480???
 -- >>> length allHandRanks
--- 7480
+-- 7462
 allHandRanks :: [HandRank]
 allHandRanks =
   [ HighCard a b c d e
@@ -160,7 +141,7 @@ allHandRanks =
       c <- ranksLT b,
       d <- ranksLT c,
       e <- ranksLT d,
-      not (a == succ' b && b == succ' c && c == succ' d && d == s e),
+      not (a == s b && b == s c && c == s d && d == s e),
       not (a == RankS 12 && [b, c, d, e] == [RankS 3, RankS 2, RankS 1, RankS 0])
   ]
     ++ [ OnePair a b c d
@@ -193,7 +174,7 @@ allHandRanks =
            c <- ranksLT b,
            d <- ranksLT c,
            e <- ranksLT d,
-           not (a == succ' b && b == succ' c && c == succ' d && d == s e),
+           not (a == s b && b == s c && c == s d && d == s e),
            not (a == RankS 12 && [b, c, d, e] == [RankS 3, RankS 2, RankS 1, RankS 0])
        ]
     ++ [FullHouse a b | a <- ranks, b <- ranks, a /= b]
@@ -205,16 +186,14 @@ allHandRanks =
     ranks = RankS <$> [0 .. 12]
     ranksLT (RankS 0) = []
     ranksLT (RankS x) = RankS <$> [0 .. (x - 1)]
-    ranksGE (RankS x) = RankS <$> reverse (12 : [x .. 11])
-    succ' (RankS 0) = RankS 0
-    succ' (RankS x) = RankS (x - 1)
+    ranksGE (RankS x) = RankS <$> [x .. 12]
 
--- | Check straight on storable ranks
+-- | Check for a straight in a rankS with no duplicates.
 --
--- > straight $ review ranksI <$> [Ace, King, Queen, Five, Four, Three, Two]
--- Just (Straight Five)
+-- >>> pretty <$> (straight $ review ranksI [Ace, King, Queen, Five, Four, Three, Two])
+-- Just Straight Five
 --
--- > straight (cardRanksS cs)
+-- >>> straight (cardRanksS cs)
 -- Nothing
 straight :: RanksS -> Maybe HandRank
 straight rs = Straight <$> run rs
@@ -246,13 +225,13 @@ run4 rs = listToMaybe $ fst <$> filter ((>= 4) . snd) (runs rs)
 
 -- | check Flush on storable cards
 --
--- > flush $ review cardsI [Card Ace Hearts, Card Seven Clubs, Card Seven Spades, Card Five Hearts, Card Four Hearts, Card Three Hearts, Card Two Heart]
--- Just (StraightFlush Five)
+-- >>> pretty <$> (flush $ review cardsI [Card Ace Hearts, Card Seven Clubs, Card Seven Spades, Card Five Hearts, Card Four Hearts, Card Three Hearts, Card Two Hearts])
+-- Just StraightFlush Five
 --
--- > flush $ review cardsI $ [Card Ace Hearts, Card Seven Clubs, Card Seven Spades, Card Six Hearts, Card Four Hearts, Card Three Hearts, Card Two Heart]
--- Just (Flush Ace Six Four Three Two)
+-- >>> pretty <$> (flush $ review cardsI $ [Card Ace Hearts, Card Seven Clubs, Card Seven Spades, Card Six Hearts, Card Four Hearts, Card Three Hearts, Card Two Hearts])
+-- Just Flush Ace Six Four Three Two
 --
--- > flush cs
+-- >>> flush cs
 -- Nothing
 flush :: CardsS -> Maybe HandRank
 flush cs =
@@ -268,8 +247,8 @@ flush cs =
 
 -- | Group Ranks by Suit
 --
--- > bimap (view suitI) (view ranksI) <$> suitRanks cs
--- [(Club,[Six]),(Heart,[Ace,Ten,Seven]),(Spade,[Seven,Five,Six])]
+-- >>>  bimap (view suitI) (fmap (view rankI)) <$> suitRanks cs
+-- [(Clubs,[Six]),(Hearts,[Ace,Ten,Seven]),(Spades,[Seven,Five,Six])]
 suitRanks :: CardsS -> [(SuitS, [RankS])]
 suitRanks cs =
    fmap (bimap (review suitI) (fmap (review rankI))) $
@@ -282,22 +261,22 @@ suitRanks cs =
 -- When straights and flushes are ruled out, hand ranking falls back to counted then sorted rank groups, with larger groups (FourOfAKind) ranked higer than smaller ones.
 --
 -- >>> pretty $ kind $ review ranksI [Ace, Ace, Ace, Ace, Two]
--- FourOfAKind A 2
+-- FourOfAKind Ace Two
 --
 -- >>> pretty $ kind $ review ranksI [Ace, Ace, Ace, Two, Two]
--- FullHouse A 2
+-- FullHouse Ace Two
 --
 -- >>> pretty $ kind $ review ranksI [Ace, Ace, Ace, Five, Two]
--- ThreeOfAKind A 5 2
+-- ThreeOfAKind Ace Five Two
 --
 -- >>> pretty $ kind $ review ranksI [Ace, Ace, Five, Five, Two]
--- TwoPair A 5 2
+-- TwoPair Ace Five Two
 --
 -- >>> pretty $ kind $ review ranksI [Ace, Ace, Six, Five, Two]
--- OnePair A 6 5 2
+-- OnePair Ace Six Five Two
 --
 -- >>> pretty $ kind $ review ranksI [Ace, King, Six, Five, Two]
--- HighCard A K 6 5 2
+-- HighCard Ace King Six Five Two
 kind :: RanksS -> HandRank
 kind rs =
   case rankCount rs of
@@ -323,7 +302,7 @@ rankCountV (RanksS rs) = S.create $ do
 
 -- | Count of all ranks, as a list.
 --
--- > first (view rankI) <$> rankCount $ (cardRanksSWithDups cs)
+-- >>> first (view rankI) <$> (rankCount $ (cardRanksSWithDups cs))
 -- [(Seven,2),(Six,2),(Ace,1),(Ten,1),(Five,1)]
 rankCount :: RanksS -> [(RankS, Word8)]
 rankCount rs =
@@ -331,10 +310,10 @@ rankCount rs =
 
 -- | vector of hand values indexed by lexigraphic order for n-card combinations.
 --
--- > fmap ((Map.!) mapHRValue . handRank) (combinationsR 5 allCardsS) List.!! 1000000
+-- >>> (fmap ((Map.!) mapHRValue . handRank . CardsS . S.fromList) (combinationsR 5 $ S.toList $ unwrapCardsS allCardsS)) List.!! 1000000
 -- 645
 --
--- > ((Map.!) mapHRValue) (handRank (toEnum <$> (fromLexiPosR 52 5 1000000) :: [Card]))
+-- >>> fromLexiPosR 52 5 1000000 & fmap fromIntegral & S.fromList & CardsS & handRank & ((Map.!) mapHRValue)
 -- 645
 handValues :: Int -> S.Vector Word16
 handValues n = S.fromList $ fmap ((mapHRValue Map.!) . handRank . CardsS . S.fromList) (combinationsR n [0 .. 51])
@@ -356,19 +335,15 @@ hvs7Write = hvsWrite 7 "other/hvs7.vec"
 hvs7 :: IO (S.Vector Word16)
 hvs7 = unsafeMMapVector "other/hvs7.vec" Nothing
 
--- | Lookup the value of a hand in the pre-evaluated vector, unsafely.
---
--- > handRankL (from cards $ List.sort cs)
--- 4301
-handRankL :: CardsS -> Word16
-handRankL = lookupHRUnsafe
-
 -- | HandRank to reverse lexicographic Word16 index map
 --
 -- > ((Map.!) mapHRValue) . ((Map.!) mapValueHR) == id
 --
 -- >>> (Map.!) mapHRValue $ (Map.!) mapValueHR 1000
 -- 1000
+--
+-- >>> Map.size mapHRValue
+-- 7462
 mapHRValue :: Map.Map HandRank Word16
 mapHRValue = Map.fromList (zip allHandRanks [(0 :: Word16) ..])
 
@@ -376,10 +351,10 @@ mapHRValue = Map.fromList (zip allHandRanks [(0 :: Word16) ..])
 --
 -- >>> s <- hvs7
 -- >>> pretty $ ((Map.!) mapValueHR) (s S.! 133784559)
--- FourOfAKind 2 3
+-- FourOfAKind Two Three
 --
 -- >>> pretty $ ((Map.!) mapValueHR) (s S.! 0)
--- FourOfAKind A K
+-- FourOfAKind Ace King
 mapValueHR :: Map.Map Word16 HandRank
 mapValueHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
 
@@ -390,19 +365,13 @@ mapValueHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
 -- 5s6d6s7c7sTcAc
 --
 -- >>> pretty $ handRank xs
--- TwoPair 7 6 A
+-- TwoPair Seven Six Ace
 --
 -- >>> s <- hvs7
--- >>> pretty $ mapValueHR Map.! (s S.! 0)
--- FourOfAKind A K
---
--- >>> pretty $ mapValueHR Map.! (s S.! 133784559)
--- FourOfAKind 2 3
---
--- > s <- hvs7
--- > ((Map.!) mapValueHR) $ lookupHR s xs
+-- >>> pretty $ (Map.!) mapValueHR (lookupHR s xs)
+-- TwoPair Seven Six Ace
 lookupHR :: S.Vector Word16 -> CardsS -> Word16
-lookupHR s (CardsS v) = s S.! fromIntegral (toLexiPosR 52 7 v)
+lookupHR s (CardsS v) = s S.! toLexiPosR 52 7 v
 
 -- | sort a 'Storable' 'Vector.Storable.Vector'
 sort :: (Ord a, Storable a) => S.Vector a -> S.Vector a
@@ -416,7 +385,7 @@ sort xs = S.create $ do
 -- > pretty <$> (Map.!) mapValueHR . lookupHRUnsorted s $ css
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
 lookupHRUnsorted :: S.Vector Word16 -> CardsS -> Word16
-lookupHRUnsorted s (CardsS v) = s S.! fromIntegral (toLexiPosR 52 7 (sort v))
+lookupHRUnsorted s (CardsS v) = s S.! toLexiPosR 52 7 (sort v)
 
 -- | version hiding the IO call for hvs7
 --

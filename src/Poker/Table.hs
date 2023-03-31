@@ -473,7 +473,7 @@ bests ((i, x) : xs) x' res =
 --
 -- FIXME: bug here for shoz
 -- >>> bestLiveHole t
--- [1,0]
+-- [1]
 bestLiveHole :: Table -> [Int]
 bestLiveHole t =
   (\xs -> bests xs 0 [])

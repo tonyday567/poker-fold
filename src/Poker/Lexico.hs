@@ -120,6 +120,6 @@ binomR n k = binomR (n - 1) (k - 1) * n `div` k
 --
 -- > toLexiPosR 5 2 <$> S.fromList <$> combinationsR 2 [0..4]
 -- [0,1,2,3,4,5,6,7,8,9]
-toLexiPosR :: (Integral a, S.Storable a) => a -> a -> S.Vector a -> a
+toLexiPosR :: (S.Storable a, S.Storable b, Integral a, Integral b) => a -> a -> S.Vector b -> a
 toLexiPosR n k s =
   binom n k - 1 - S.sum (S.imap (\i a -> fromIntegral $ binom (fromIntegral a) (1 + i)) s)

@@ -170,10 +170,7 @@ dealTable cfg = do
 
 -- | uniform random variate of HandRank
 --
--- FIXME: looks wrong
--- >>> evalState rvHandRank (mkStdGen 42)
--- HighCard (RankS {unwrapRankS = 11}) (RankS {unwrapRankS = 8}) (RankS {unwrapRankS = 6}) (RankS {unwrapRankS = 4}) (RankS {unwrapRankS = 2})
---
+-- >>> pretty $ evalState rvHandRank (mkStdGen 42)
 -- HighCard King Ten Nine Three Two
 rvHandRank :: (RandomGen g) => State g HandRank
 rvHandRank = do
