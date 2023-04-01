@@ -33,8 +33,10 @@ module Poker.HandRank
     suitRanks,
 
     -- * Evaluation
-    mapHRValue,
-    mapValueHR,
+    mapLexiHR,
+    lexiToHR,
+    mapHRLexi,
+    hrToLexi,
     handValues,
     hvs7Write,
     hvs7,
@@ -88,6 +90,7 @@ import Prettyprinter
 -- >>> import qualified Data.Map.Strict as Map
 -- >>> cs = review cardsI [Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
 -- >>> css = review cards2I [[Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades], [Card Ten Clubs, Card Five Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]]
+-- >>> s <- hvs7
 
 -- | 5 card standard poker rankings
 --
@@ -310,13 +313,13 @@ rankCount rs =
 
 -- | vector of hand values indexed by lexigraphic order for n-card combinations.
 --
--- >>> (fmap ((Map.!) mapHRValue . handRank . CardsS . S.fromList) (combinationsR 5 $ S.toList $ unwrapCardsS allCardsS)) List.!! 1000000
+-- >>> (fmap (hrToLexi . handRank . CardsS . S.fromList) (combinationsR 5 $ S.toList $ unwrapCardsS allCardsS)) List.!! 1000000
 -- 645
 --
--- >>> fromLexiPosR 52 5 1000000 & fmap fromIntegral & S.fromList & CardsS & handRank & ((Map.!) mapHRValue)
+-- >>> fromLexiPosR 52 5 1000000 & fmap fromIntegral & S.fromList & CardsS & handRank & hrToLexi
 -- 645
 handValues :: Int -> S.Vector Word16
-handValues n = S.fromList $ fmap ((mapHRValue Map.!) . handRank . CardsS . S.fromList) (combinationsR n [0 .. 51])
+handValues n = S.fromList $ fmap (hrToLexi . handRank . CardsS . S.fromList) (combinationsR n [0 .. 51])
 
 -- | write handRank vector to an mmap'ped file
 hvsWrite :: Int -> FilePath -> IO ()
@@ -330,33 +333,44 @@ hvs7Write = hvsWrite 7 "other/hvs7.vec"
 
 -- | Vector of hand values for 7 card combinations in lexicographic order
 --
--- >>> S.length <$> hvs7
+-- >>> s <- hvs7
+-- >>> S.length s
 -- 133784560
+-- >>> pretty $ lexiToHR (s S.! 133784559)
+-- FourOfAKind Two Three
+-- >>> pretty $ lexiToHR (s S.! 0)
+-- FourOfAKind Ace King
 hvs7 :: IO (S.Vector Word16)
 hvs7 = unsafeMMapVector "other/hvs7.vec" Nothing
 
--- | HandRank to reverse lexicographic Word16 index map
+-- | lexicographic index to HandRank map
 --
--- > ((Map.!) mapHRValue) . ((Map.!) mapValueHR) == id
---
--- >>> (Map.!) mapHRValue $ (Map.!) mapValueHR 1000
--- 1000
---
--- >>> Map.size mapHRValue
--- 7462
-mapHRValue :: Map.Map HandRank Word16
-mapHRValue = Map.fromList (zip allHandRanks [(0 :: Word16) ..])
+mapLexiHR :: Map.Map Word16 HandRank
+mapLexiHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
 
 -- | lexicographic index to HandRank
 --
--- >>> s <- hvs7
--- >>> pretty $ ((Map.!) mapValueHR) (s S.! 133784559)
--- FourOfAKind Two Three
+-- > lexiToHR . hrToLexi == id
 --
--- >>> pretty $ ((Map.!) mapValueHR) (s S.! 0)
--- FourOfAKind Ace King
-mapValueHR :: Map.Map Word16 HandRank
-mapValueHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
+-- >>> pretty $ lexiToHR 4301
+-- TwoPair Seven Six Ace
+lexiToHR :: Word16 -> HandRank
+lexiToHR = (Map.!) mapLexiHR
+
+-- | HandRank to reverse lexicographic Word16 index map
+--
+mapHRLexi :: Map.Map HandRank Word16
+mapHRLexi = Map.fromList (zip allHandRanks [(0 :: Word16) ..])
+
+-- | HandRank to lexicographic index
+--
+-- > hrToLexi . lexiToHR == id
+--
+-- >>> hrToLexi $ handRank cs
+-- 4301
+--
+hrToLexi :: HandRank -> Word16
+hrToLexi = (Map.!) mapHRLexi
 
 -- | look up the HandRank of some cards.
 --
@@ -368,7 +382,7 @@ mapValueHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
 -- TwoPair Seven Six Ace
 --
 -- >>> s <- hvs7
--- >>> pretty $ (Map.!) mapValueHR (lookupHR s xs)
+-- >>> pretty $ lexiToHR (lookupHR s xs)
 -- TwoPair Seven Six Ace
 lookupHR :: S.Vector Word16 -> CardsS -> Word16
 lookupHR s (CardsS v) = s S.! toLexiPosR 52 7 v
@@ -382,28 +396,28 @@ sort xs = S.create $ do
 
 -- | Version for unsorted cards
 --
--- > pretty <$> (Map.!) mapValueHR . lookupHRUnsorted s $ css
--- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
+-- >>> cs & unwrapCardsS & S.reverse & CardsS & lookupHRUnsorted s & lexiToHR & pretty
+-- TwoPair Seven Six Ace
 lookupHRUnsorted :: S.Vector Word16 -> CardsS -> Word16
 lookupHRUnsorted s (CardsS v) = s S.! toLexiPosR 52 7 (sort v)
 
 -- | version hiding the IO call for hvs7
 --
--- > pretty <$> (Map.!) mapValueHR . lookupHRUnsafe $ css
+-- > pretty <$> lexiToHR . lookupHRUnsafe $ css
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
 lookupHRUnsafe :: CardsS -> Word16
 lookupHRUnsafe = lookupHR (unsafePerformIO hvs7)
 
 -- | look up the HandRank of a bunch of cards. CardsS must be sorted in ascending order.
 --
--- > pretty <$>  fmap ((Map.!) mapValueHR) $ S.toList $ lookupHRs s css
+-- > pretty <$>  fmap lexiToHR $ S.toList $ lookupHRs s css
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
 lookupHRs :: S.Vector Word16 -> Cards2S -> S.Vector Word16
 lookupHRs s = apply (lookupHR s)
 
 -- | version hiding IO
 --
--- > pretty <$> fmap ((Map.!) mapValueHR) $ S.toList $ lookupHRsUnsafe css
+-- > pretty <$> fmap lexiToHR $ S.toList $ lookupHRsUnsafe css
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
 lookupHRsUnsafe :: Cards2S -> S.Vector Word16
 lookupHRsUnsafe = lookupHRs (unsafePerformIO hvs7)

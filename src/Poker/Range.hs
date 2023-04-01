@@ -55,7 +55,7 @@ module Poker.Range
     toRepHole,
     fromOPS,
 
-    -- * RangedHole
+    -- * Range
     Range (..),
     rhText,
     handTypeCount,
@@ -63,6 +63,7 @@ module Poker.Range
     always,
     allin,
     ordered,
+    ops,
 
     -- * Simulation
     simStartingHandWin,
@@ -402,6 +403,25 @@ always a = tabulate (const a)
 -- | Convert from magnitude to order
 ordered :: Range Double -> Range Int
 ordered r = Range $ fromList $ fmap fst $ List.sortOn snd $ zip [0 ..] (fmap fst $ List.sortOn snd $ zip [0 ..] (toList r))
+
+-- | Create a Range base on Offsuited, Suited or Paired status
+--
+-- >>> pretty $ ops ('o','p','s')
+-- p s s s s s s s s s s s s
+-- o p s s s s s s s s s s s
+-- o o p s s s s s s s s s s
+-- o o o p s s s s s s s s s
+-- o o o o p s s s s s s s s
+-- o o o o o p s s s s s s s
+-- o o o o o o p s s s s s s
+-- o o o o o o o p s s s s s
+-- o o o o o o o o p s s s s
+-- o o o o o o o o o p s s s
+-- o o o o o o o o o o p s s
+-- o o o o o o o o o o o p s
+-- o o o o o o o o o o o o p
+ops :: (a, a, a) -> Range a
+ops a = tabulate $ fromOPS a . view (re startingHandI)
 
 -- | Raise to the cursor's stack size.
 allin :: Table -> Range RawAction
