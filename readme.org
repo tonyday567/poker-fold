@@ -1,60 +1,16 @@
 #+TITLE: poker-fold
-#+PROPERTY: header-args :exports both
-#+PROPERTY: header-args :eval no-export
 
-A Haskell poker library exploring:
-
-- speed
-- static analysis
-- deception
+A Haskell poker library experimenting with speed, static analysis & strategy.
 
 * Development
 
-To create the 7-card lookup table, run
+The library is in an active development phase, nothing is guaranteed to stay in place, and there is no centralised API.
 
-#+begin_src shell
-cabal install
-poker-fold-writes --hsv7
-#+end_src
+One way to approach the library and appreciate the state of development is to have a good look around this org file. All the code is runnable in an emacs environment (and you can always cut and paste the code to elsewhere if this doesn't suit).
 
-* Recent Research
+There are also doctests everywhere so it's relatively easy to find your way.
 
-Heads-up odds versus any2
-
-[[file:other/odds2.svg]]
-
-Odds versus full table
-
-[[file:other/odds9.svg]]
-
-Tier shifts between heads-up and full table.
-
-[[file:other/compare29.svg]]
-
-top 10% range:
-
-[[file:other/top10.svg]]
-
-* chart references
-
-[[file:other/count.svg]]
-
-
-[[file:other/fcr.svg]]
-[[file:other/freq.svg]]
-[[file:other/o2.svg]]
-[[file:other/pixelo9.svg]]
-[[file:other/rect.svg]]
-[[file:other/text.svg]]
-
-* Setup
-
-#+begin_src elisp
-(setq haskell-process-args-cabal-repl '("poker-fold:exe:poker-fold-speed"))
-#+end_src
-
-#+RESULTS:
-| poker-fold:exe:poker-fold-speed |
+** imports
 
 #+begin_src haskell :results output :exports both
 :r
@@ -62,50 +18,268 @@ top 10% range:
 :set -Wno-type-defaults
 :set -Wno-name-shadowing
 :set -XOverloadedStrings
-import Perf
-import Chart
+import Poker.Card
+import Poker.Card.Storable
+import Poker.HandRank
+import Poker.Range
+import Poker.Random
+import Poker.Lexico
+import Poker.Charts
+import Chart hiding (Range)
 import Data.FormatN
+import Optics.Core
+import Prettyprinter
 import qualified Data.Text as Text
 import qualified Data.Map.Strict as Map
-import Prettyprinter
+import qualified Data.Vector.Storable as S
+import Data.Functor.Rep
+import Perf
 putStrLn "ok"
 #+end_src
 
 #+RESULTS:
 #+begin_example
-Build profile: -w ghc-8.10.7 -O1
-In order, the following will be built (use -v for more details):
- - poker-fold-0.0.1 (lib) (configuration changed)
- - poker-fold-0.0.1 (exe:poker-fold-speed) (configuration changed)
-Configuring library for poker-fold-0.0.1..
-Preprocessing library for poker-fold-0.0.1..
-Building library for poker-fold-0.0.1..
-[2 of 8] Compiling Poker.Card.Storable ( src/Poker/Card/Storable.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Card/Storable.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Card/Storable.dyn_o )
-[3 of 8] Compiling Poker.HandRank.List ( src/Poker/HandRank/List.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/List.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/List.dyn_o )
-[4 of 8] Compiling Poker.HandRank.Storable ( src/Poker/HandRank/Storable.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/Storable.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/HandRank/Storable.dyn_o )
-[5 of 8] Compiling Poker.Table      ( src/Poker/Table.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Table.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Table.dyn_o ) [Poker.Card.Storable changed]
-[6 of 8] Compiling Poker.Random     ( src/Poker/Random.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Random.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Random.dyn_o )
-[7 of 8] Compiling Poker.RangedHole ( src/Poker/RangedHole.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/RangedHole.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/RangedHole.dyn_o ) [Poker.Card.Storable changed]
-[8 of 8] Compiling Poker.Charts     ( src/Poker/Charts.hs, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Charts.o, /Users/tonyday/haskell/poker-fold/dist-newstyle/build/x86_64-osx/ghc-8.10.7/poker-fold-0.0.1/build/Poker/Charts.dyn_o ) [Poker.RangedHole changed]
-Configuring executable 'poker-fold-speed' for poker-fold-0.0.1..
-Preprocessing executable 'poker-fold-speed' for poker-fold-0.0.1..
-GHCi, version 8.10.7: https://www.haskell.org/ghc/  :? for help
 Loaded GHCi configuration from /Users/tonyday/haskell/poker-fold/.ghci
-[1 of 1] Compiling Main             ( app/speed.hs, interpreted )
-
-app/speed.hs:28:1: warning: [-Wunused-imports]
-    The import of ‘Data.Bifunctor’ is redundant
-      except perhaps to import instances from ‘Data.Bifunctor’
-    To import instances alone, use: import Data.Bifunctor()
-   |
-28 | import Data.Bifunctor
-   | ^^^^^^^^^^^^^^^^^^^^^
-Ok, one module loaded.
-,*Main> Ok, one module loaded.
->  >  >  >  >  >  >  >  >  > ok
+[1 of 8] Compiling Poker.Card       ( src/Poker/Card.hs, interpreted )
+[2 of 8] Compiling Poker.Card.Storable ( src/Poker/Card/Storable.hs, interpreted )
+[3 of 8] Compiling Poker.Lexico     ( src/Poker/Lexico.hs, interpreted )
+[4 of 8] Compiling Poker.HandRank   ( src/Poker/HandRank.hs, interpreted )
+[5 of 8] Compiling Poker.Table      ( src/Poker/Table.hs, interpreted )
+[6 of 8] Compiling Poker.Random     ( src/Poker/Random.hs, interpreted )
+[7 of 8] Compiling Poker.Range      ( src/Poker/Range.hs, interpreted )
+[8 of 8] Compiling Poker.Charts     ( src/Poker/Charts.hs, interpreted )
+Ok, 8 modules loaded.
+ghci> Ok, 8 modules loaded.
+>  >
+ok
 #+end_example
 
-* hand evaluation speed
+** quick tour
+
+*** Cards
+
+Poker.Cards contain the basic and human-friendly Poker types, and Poker.Cards.Storable the newtyped-wrapped, efficiently-stored versions. There are [[https://hackage.haskell.org/package/optics-core][optics-core]] iso's to help convert between the two versions, and [[https://hackage.haskell.org/package/prettyprinter][prettyprinter]] is used to render it all nicely when you need to see results.
+
+ #+begin_src haskell :results output
+import Poker.Card
+import Poker.Card.Storable
+import Optics.Core
+import Prettyprinter
+cs' = [Card Ace Hearts,Card Seven Spades,Card Ten Hearts,Card Five Spades,Card Six Clubs, Card Seven Hearts,Card Six Spades]
+cs = review cardsI cs'
+cs
+pretty cs
+#+end_src
+
+#+RESULTS:
+: CardsS {unwrapCardsS = [50,23,34,15,16,22,19]}
+: Ah7sTh5s6c7h6s
+
+Routines for evaluation of a hand - 7 cards consisting of 2 player cards and 5 community cards - can be found in Poker.HandRank.
+
+*** Hand Ranks
+
+#+begin_src haskell
+import Poker.HandRank
+handRank cs
+pretty (handRank cs)
+#+end_src
+
+#+RESULTS:
+: TwoPair Seven Six Ace
+
+It is much faster to look up hand rankings then recompute them every time, so a big [[https://hackage.haskell.org/package/vector-0.13.0.0/docs/Data-Vector-Storable.html][Data.Vector.Storable]] is used to hold the indexed results.
+
+To install the vector:
+
+#+begin_src sh
+cabal install --force
+poker-fold-writes --hvs7
+#+end_src
+
+... and to use it ...
+
+#+begin_src haskell :results output
+s <- hvs7
+lookupHRUnsorted s cs
+pretty $ lexiToHR (lookupHRUnsorted s cs)
+pretty $ allHandRanks !! 4301
+#+end_src
+
+#+RESULTS:
+: 4301
+: TwoPair Seven Six Ace
+: TwoPair Seven Six Ace
+
+The hand rankings are held in reverse lexicographical position order using Knuth's revolving door R algorithm which makes it just a little bit fancy. From Poker.Lexico:
+
+#+begin_src haskell :results output
+cs & unwrapCardsS & sort & toLexiPosR 52 7 :: Int
+pretty $ lexiToHR $ s S.! 32513187
+#+end_src
+
+#+RESULTS:
+: 32513187
+: TwoPair Seven Six Ace
+
+I suspect that the algorithm is a [[https://doisinkidney.com/posts/2021-03-14-hyperfunctions.html][hyperfunction]]...
+
+#+begin_src haskell
+-- | Given a reverse lexicographic position, what was the combination?
+--
+-- >>> (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR 5 2) xs) (combinations 2 [0..4])
+-- True
+--
+fromLexiPosR :: Int -> Int -> Int -> [Int]
+fromLexiPosR n k p = go (n - 1) k ((binom n k - 1) - p) []
+  where
+    go n' k' p' xs =
+      bool
+        ( bool
+            (go (n' - 1) k' p' xs)
+            (go (n' - 1) (k' - 1) (p' - binom n' k') (n' : xs))
+            (p' >= binom n' k')
+        )
+        xs
+        (length xs == k)
+#+end_src
+
+*** Ranges
+
+A major thematic of the library is that poker strategy is well encapsulated by a 13 by 13 grid representation of a [[https://en.wikipedia.org/wiki/Texas_hold_%27em_starting_hands][starting hand]].
+
+Poker.Range contains the core types for this encapsulation. Under the hood of Range is a [[https://hackage.haskell.org/package/numhask-array][numhask-array]] array which has a nice representable functor instance from [[https://hackage.haskell.org/package/adjunctions][adjunctions]]. Using tabulate can be confusing at first, but it tends to lead to quite simple code pipelines.
+
+#+begin_src haskell :results output
+import Control.Category ((>>>))
+import Prettyprinter.Render.Text (renderStrict)
+pretty $ (tabulate (pretty >>> layoutCompact >>> renderStrict) :: Range Text)
+#+end_src
+
+#+RESULTS:
+#+begin_example
+AAp AKs AQs AJs ATs A9s A8s A7s A6s A5s A4s A3s A2s
+AKo KKp KQs KJs KTs K9s K8s K7s K6s K5s K4s K3s K2s
+AQo KQo QQp QJs QTs Q9s Q8s Q7s Q6s Q5s Q4s Q3s Q2s
+AJo KJo QJo JJp JTs J9s J8s J7s J6s J5s J4s J3s J2s
+ATo KTo QTo JTo TTp T9s T8s T7s T6s T5s T4s T3s T2s
+A9o K9o Q9o J9o T9o 99p 98s 97s 96s 95s 94s 93s 92s
+A8o K8o Q8o J8o T8o 98o 88p 87s 86s 85s 84s 83s 82s
+A7o K7o Q7o J7o T7o 97o 87o 77p 76s 75s 74s 73s 72s
+A6o K6o Q6o J6o T6o 96o 86o 76o 66p 65s 64s 63s 62s
+A5o K5o Q5o J5o T5o 95o 85o 75o 65o 55p 54s 53s 52s
+A4o K4o Q4o J4o T4o 94o 84o 74o 64o 54o 44p 43s 42s
+A3o K3o Q3o J3o T3o 93o 83o 73o 63o 53o 43o 33p 32s
+A2o K2o Q2o J2o T2o 92o 82o 72o 62o 52o 42o 32o 22p
+#+end_example
+
+
+Poker.Chart contains chart elements to help visualize Ranges.
+
+#+begin_src haskell :file other/base.svg :results output graphics file :exports both
+import Poker.Range
+import Poker.Charts
+writeChartOptions "other/base.svg" baseChart
+#+end_src
+
+#+RESULTS:
+[[file:other/base.svg]]
+
+
+The percentage chance of winning heads-up given each starting hand looks somewhat like this:
+
+#+begin_src haskell :file other/o2.svg :results output graphics file :exports both
+(Just m) <- readSomeRanges
+let o2 = m Map.! "o2"
+writeChartOptions "other/o2.svg" $ percentChart o2
+#+end_src
+
+#+RESULTS:
+[[file:other/o2.svg]]
+
+
+
+
+
+* Executables
+
+There are two executables included in the library:
+
+** poker-fold-writes
+
+poker-fold-writes executes the various canned data that help speed up computation.
+
+#+begin_src sh
+cabal install
+poker-fold-writes --hvs7
+#+end_src
+
+Creates a Storable vector (called hvs7) containing the hand ranking of every 7 card hand.
+
+#+begin_src sh
+poker-fold-writes --sims 100000
+#+end_src
+
+Writes results of simulations for various ranges, accessed via readSomeRanges.
+
+  #+begin_src haskell
+(Just m) <- readSomeRanges
+let o2 = m Map.! "o2"
+let o9 = m Map.! "o9"
+
+  #+end_src
+
+#+RESULTS:
+
+The expected value change for each starting hand, from a heads-up, 2 player table to a full, 9 player table, expressed in big blinds.
+
+  #+begin_src haskell :results output
+pretty $ lpad 5 . fixed (Just 2) <$> ((\o o' -> (o' * 9 - o * 2)) <$> o2 <*> o9)
+  #+end_src
+
+#+RESULTS:
+#+begin_example
+1.42  0.68  0.58  0.49  0.44  0.27  0.21  0.19  0.18  0.23  0.22  0.22  0.19
+ 0.41  0.97  0.58  0.49  0.42  0.27  0.16  0.13  0.12  0.10  0.11  0.11  0.11
+ 0.28  0.30  0.65  0.50  0.44  0.28  0.19  0.10  0.09  0.07  0.06  0.07  0.07
+ 0.19  0.21  0.23  0.40  0.48  0.33  0.21  0.14  0.07  0.06  0.05  0.05  0.05
+ 0.12  0.13  0.16  0.21  0.25  0.37  0.29  0.20  0.12  0.08  0.07  0.07  0.07
+-0.06 -0.05 -0.02  0.04  0.10  0.09  0.27  0.22  0.16  0.10  0.04  0.04  0.04
+-0.12 -0.16 -0.13 -0.09  0.00  0.00  0.04  0.27  0.24  0.17  0.10  0.06  0.05
+-0.15 -0.19 -0.22 -0.18 -0.10 -0.07  0.00 -0.00  0.28  0.24  0.18  0.12  0.06
+-0.16 -0.20 -0.23 -0.24 -0.18 -0.12 -0.04  0.01  0.01  0.32  0.27  0.20  0.14
+-0.11 -0.23 -0.25 -0.25 -0.23 -0.19 -0.11 -0.03  0.04 -0.02  0.30  0.27  0.21
+-0.12 -0.22 -0.26 -0.26 -0.23 -0.25 -0.18 -0.10 -0.01  0.03  0.02  0.24  0.19
+-0.12 -0.23 -0.25 -0.25 -0.23 -0.25 -0.22 -0.16 -0.07  0.00 -0.03  0.07  0.17
+-0.15 -0.23 -0.25 -0.26 -0.23 -0.25 -0.23 -0.22 -0.14 -0.06 -0.07 -0.09  0.12
+#+end_example
+
+[[file:other/pixelo9.svg]]
+
+#+begin_src sh
+poker-fold-writes --charts
+#+end_src
+
+Writes the example charts to file.
+
+This is equivalent to running:
+
+#+begin_src haskell
+import Poker.Charts
+writeAllCharts
+#+end_src
+
+** poker-fold-speed
+
+poker-fold-speed contains performance results and testing routines.
+
+To hack this in emacs:
+
+#+begin_src elisp
+(setq haskell-process-args-cabal-repl '("poker-fold:exe:poker-fold-speed"))
+#+end_src
+
+*** hand evaluation speed
 
 #+begin_src sh  :results output :exports both
 poker-fold-speed
@@ -121,8 +295,7 @@ poker-fold-speed
 : handRank |f         time                1.36e4
 : handRank |f|        time                6.46e6
 
-
-* shuffling
+*** shuffling
 
 #+begin_src sh :results output :exports both
 poker-fold-speed --shuffle -n 100000
@@ -161,7 +334,6 @@ rviv - list f       time                1.36e4
 rviv - single       time                2.95e3
 rviv - single f     time                4.10e3
 #+end_example
-
 
 Creating a list of random variates stays lazy as perf is WHNF in the output. Forcing the list fixes this. For a single rvi, the output is computed, and force being added is probably creating an intermediary.
 
@@ -207,8 +379,7 @@ rviv - single f     allocation          7.60e3
 
 Something allocated to the heap for rvi - single, forced, harming performance.
 
-
-* handRankS
+*** handRankS
 
 #+begin_src haskell :results output :exports both
 import Data.Bifunctor
@@ -221,29 +392,120 @@ fmap (fmap (bimap getSum ((/10000.0) . fromIntegral))) $ execPerfT ((,) <$> coun
 : count :: Measure IO (Sum Int)
 : fromList [("flushS",(10000,1709.5718)),("kindS",(9239,1160.7222)),("ranksSet",(9703,1324.894)),("straightS",(9703,421.3668))]
 
+* ToDo footnotes
 
-handRankS seems bug-free
+** origins
 
-#+begin_src haskell :results output :exports both
-cs = card7sS 100000
-:t cs
-:t handRankS
-V.length $ applyV handRankS cs
+Poker AI is my Haskell origin story, and I can trace it back to pokerpirate and a series of posts, such as [[https://izbicki.me/blog/exploiting-the-sit-and-go-game.html][Exploiting the sit-and-go]] that came out, way back in the day, that were often referred to. Years later, I looked up Mike's work and came across [[https://izbicki.me/blog/fast-nearest-neighbor-queries-in-haskell.html][Fast Nearest Neighbour Queries in Haskell]].
+
+Mike's paper and code kicked the arse out of anything else that people were using, back in the day. I like fast. I speedrun megabase Factorio for relaxation. For some people, min-maxing stuff is like knitting.
+
+Down the rabbit hole, I spent some time in [[https://github.com/mikeizbicki/subhask][subhask]], a still remarkable archeological site, full of buried treasure. Another great dig site is [[https://github.com/mikeizbicki/HLearn][HLearn]]; my [[https://hackage.haskell.org/package/perf-0.10.0/docs/Perf-Types.html#t:PerfT][perf]] library is a direct descendent of [[https://github.com/mikeizbicki/HLearn/blob/master/src/HLearn/History.hs#L299][History]] Monad I stumbled across. Mike was kind of winding things down by that stage, and it never made it to Hackage. I learnt about how you could just turn stuff off with execStateT, and there are guarantees of zero cost.
+
+I think the library is the fastest open-source, 7-card Hold'em evaluator within a factor of 1.
+
+Since many of you have a rough idea of the play, here's the main hand value compute:
+
+#+begin_src haskell
+handRank :: Cards -> HandRank
+handRank cs =
+  fromMaybe
+    (kind (toRanks cs))
+    ( flush cs
+        <|> straight (ranksSet cs)
+    )
+#+end_src
+
+It's slightly more efficient to check for flushes, drop down to a straight check transforming ranks to a set, and then dealing with kinded hands (the collective term for 4-of-a-kind, 2-pair and so on). This replaces about eleventy million lines of bit-shifting wizardry that you can explore via [[https://hackage.haskell.org/package/poker-eval][poker-eval]], written almost a decade ago by [[https://hub.darcs.net/Lemmih][Lemmih]]. The library compiles on ghc-9.2.3 without a single modification since publication. As does [[https://github.com/copumpkin/][copumpkin]]'s [[https://hackage.haskell.org/package/vector-mmap][vector-mmap]], virtually unchanged since written in 2010.
+
+Poker AI suffered a technology shock over the course of about a week, celebrated in [[https://www.codingthewheel.com/archives/poker-hand-evaluator-roundup/#2p2][The Great Poker Hand Evaluator Roundup — Coding the Wheel]] (It's a highly entertaining read). It was realised that lookup tables beat raw computation and that was that for any need to improve evaluation.
+
+One social outcome of this disruption was that future poker AI development went closed-shop, into poker trainers and HUDs, and this is why I add the open-source tag to my claim.
+
+** revolving door
+
+#+begin_src haskell
+-- | Given a reverse lexicographic position, what was the combination?
+--
+-- >>> (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR 5 2) xs) (combinations 2 [0..4])
+-- True
+--
+fromLexiPosR :: Int -> Int -> Int -> [Int]
+fromLexiPosR n k p = go (n - 1) k ((binom n k - 1) - p) []
+  where
+    go n' k' p' xs =
+      bool
+        ( bool
+            (go (n' - 1) k' p' xs)
+            (go (n' - 1) (k' - 1) (p' - binom n' k') (n' : xs))
+            (p' >= binom n' k')
+        )
+        xs
+        (length xs == k)
+#+end_src
+
+** equivalence classes
+
+Hole cards start off as a set of 52 * 51 possibilities, but Suit information is neutral in hold'em, so equivalance classes of Hole hands narrow down to 169 possibilities.
+
+** hvs7
+
+hvs7 is a vector of hand rankings for 7 card vectors in reverse lexicographic order.
+
+#+begin_src haskell :results output
+s <- hvs7
+l = S.length s
+l
 #+end_src
 
 #+RESULTS:
-:
-: cs :: Cards2S
-: handRankS :: CardsS -> HandRank
-: 100000
+: 133784560
 
-#+begin_src haskell :results output :exports both
-:t fromIntegral <$> time
-:t statify
+The first element of the vector corresponds to:
+
+#+begin_src haskell :results output
+hand0 = fromLexiPosR 52 7 0 & fmap fromIntegral & S.fromList & CardsS
+"hand:" <> pretty hand0
+"hand rank index:" <> pretty (s S.! 0)
+"hand rank:" <> pretty (lexiToHR $ s S.! 0)
 #+end_src
 
 #+RESULTS:
-: fromIntegral <$> time :: Num b => Measure IO b
-: statify
-:   :: Ord a =>
-:      StatDType -> Map.Map a [[Double]] -> Map.Map [a] [Double]
+: hand:KdKhKsAcAdAhAs
+: hand rank index:7451
+: hand rank:FourOfAKind Ace King
+
+And the last element corresponds to:
+
+#+begin_src haskell :results output
+hand1 = fromLexiPosR 52 7 (l-1) & fmap fromIntegral & S.fromList & CardsS
+"hand:" <> pretty hand1
+"hand rank index:" <> pretty (s S.! (l-1))
+"hand rank:" <> pretty (lexiToHR $ s S.! (l-1))
+#+end_src
+
+#+RESULTS:
+: hand:2c2d2h2s3c3d3h
+: hand rank index:7296
+: hand rank:FourOfAKind Two Three
+
+And the one hundred millionth
+
+#+begin_src haskell :results output
+handb = fromLexiPosR 52 7 (100000000-1) & fmap fromIntegral & S.fromList & CardsS
+"hand:" <> pretty handb
+"hand rank index:" <> pretty (s S.! (100000000-1))
+"hand rank:" <> pretty (lexiToHR $ s S.! (100000000-1))
+#+end_src
+
+#+RESULTS:
+: hand:5s6s7d8dTcThQs
+: hand rank index:3141
+: hand rank:OnePair Ten Queen Eight Seven
+
+#+begin_src haskell
+pretty $ lexiToHR 3141
+#+end_src
+
+#+RESULTS:
+: OnePair Ten Queen Eight Seven

@@ -32,6 +32,13 @@ import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
 import Prelude
 
+-- $setup
+--
+-- >>> import Poker.Lexico
+-- >>> import Data.Word
+-- >>> import qualified Data.List as List
+-- >>> import qualified Data.Vector.Storable as S
+
 -- | @combinations k xs@ generates a list of k-combinations from xs
 --
 -- >>> combinations 2 [0..4]
@@ -45,7 +52,7 @@ combinations m l = [x : ys | x : xs <- List.tails l, ys <- combinations (m - 1) 
 -- >>> combinationsR 2 [0..4]
 -- [[3,4],[2,4],[1,4],[0,4],[2,3],[1,3],[0,3],[1,2],[0,2],[0,1]]
 --
--- > List.length (combinationsR 5 [0..51]) == binom 52 5
+-- > length (combinationsR 5 [0..51]) == binom 52 5
 -- 2598960
 combinationsR :: Int -> [a] -> [[a]]
 combinationsR 0 _ = [[]]
@@ -55,23 +62,23 @@ combinationsR m l = reverse <$> combinations m (reverse l)
 --
 --  <https://math.stackexchange.com/questions/1368526/fast-way-to-get-a-combination-given-its-position-in-reverse-lexicographic-or/1368570#1368570 stackexchange question>
 --
--- >>> toLexiPosR 52 2 [50,51]
+-- >>> toLexiPosRList 52 2 [50,51]
 -- 0
 --
--- >>>  toLexiPosR 52 2 [0,1]
+-- >>>  toLexiPosRList 52 2 [0,1]
 -- 1325
 --
--- >>> toLexiPosR 5 2 <$> combinationsR 2 [0..4]
+-- >>> toLexiPosRList 5 2 <$> combinationsR 2 [0..4]
 -- [0,1,2,3,4,5,6,7,8,9]
 toLexiPosRList :: Int -> Int -> [Int] -> Int
 toLexiPosRList n k xs = binom n k - 1 - sum (zipWith binom xs [1 ..])
 
 -- | Given a reverse lexicographic position, what was the combination?
 --
--- >>> (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR 5 2) xs) (combinations 2 [0..4])
+-- > (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR 5 2) xs) (S.fromList <$> combinations 2 [0..4])
 -- True
 --
--- >>> ((combinationsR 5 allCards) List.!! 1000000) == (fmap toEnum (fromLexiPosR 52 5 1000000) :: [Card])
+-- > ((combinationsR 5 allCards) List.!! 1000000) == (fmap toEnum (fromLexiPosR 52 5 1000000) :: [Card])
 -- True
 fromLexiPosR :: Int -> Int -> Int -> [Int]
 fromLexiPosR n k p = go (n - 1) k (binom n k - 1 - p) []
@@ -111,8 +118,8 @@ binomR n k = binomR (n - 1) (k - 1) * n `div` k
 -- > toLexiPosR n k s = binom n k - 1 - S.sum (S.imap (\i a -> binom a (1+i)) s)
 -- > toLexiPosR == toLexiPosR . S.fromList
 --
--- >>> toLexiPosR 5 2 <$> S.fromList <$> combinationsR 2 [0..4]
+-- > toLexiPosR 5 2 <$> S.fromList <$> combinationsR 2 [0..4]
 -- [0,1,2,3,4,5,6,7,8,9]
-toLexiPosR :: (Integral a, S.Storable a) => a -> a -> S.Vector a -> a
+toLexiPosR :: (S.Storable a, S.Storable b, Integral a, Integral b) => a -> a -> S.Vector b -> a
 toLexiPosR n k s =
   binom n k - 1 - S.sum (S.imap (\i a -> fromIntegral $ binom (fromIntegral a) (1 + i)) s)

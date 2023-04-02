@@ -60,51 +60,27 @@ import qualified Data.Vector.Storable as S
 import GHC.Exts hiding (toList)
 import GHC.Generics hiding (from, to)
 import Optics.Core
-import Poker hiding (Card, fromList)
 import Poker.Card.Storable
-import qualified Poker.Cards as P
-import Poker.HandRank.List (cardI)
-import Poker.HandRank.Storable
+import Poker.HandRank
 import Prettyprinter hiding (comma)
 import Prelude
-
--- $usage
---
--- >>> import Poker
--- >>> import Poker.Card.Storable
--- >>> import Poker.Random
--- >>> import Prettyprinter
--- >>> import qualified Data.Vector as V
--- >>> import qualified Data.Vector.Storable as S
--- >>> import Control.Monad.State.Lazy
--- >>> import System.Random
--- >>> t = evalState (dealTable defaultTableConfig) (mkStdGen 42)
--- >>> pretty t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
---
--- >>> cs = evalState (dealN 9) (mkStdGen 42)
--- >>> t' = makeTable defaultTableConfig (to cardsS cs)
--- >>> pretty t'
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
+import Poker.Card (Hole(..))
 
 -- $setup
 --
--- >>> import Poker
+-- >>> import Poker.Card
 -- >>> import Poker.Card.Storable
 -- >>> import Poker.Random
+-- >>> import Optics.Core
 -- >>> import Prettyprinter
 -- >>> import qualified Data.Vector as V
 -- >>> import qualified Data.Vector.Storable as S
 -- >>> import Control.Monad.State.Lazy
 -- >>> import System.Random
--- >>> t = evalState (dealTable defaultTableConfig) (mkStdGen 42)
--- >>> pretty t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
---
 -- >>> cs = evalState (dealN 9) (mkStdGen 42)
--- >>> t' = makeTable defaultTableConfig (to cardsS cs)
--- >>> pretty t'
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- >>> t = makeTable defaultTableConfig cs
+-- >>> pretty t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 9.0,0.50 1.0,0.0,
 
 -- | Cards dealt to the players and to the table for all streets.
 --
@@ -112,17 +88,16 @@ import Prelude
 --
 -- - there are 5 hole cards
 --
--- >>> pretty $ cards t
+-- > pretty $ cards t
 -- Ac7s Tc5s|6d7c6s|9c|4s
 data TableCards = TableCards
   { playerCards :: [Hole],
-    flopCards :: (Card, Card, Card),
-    turnCard :: Card,
-    riverCard :: Card
+    flopCards :: (CardS, CardS, CardS),
+    turnCard :: CardS,
+    riverCard :: CardS
   }
   deriving (Eq, Show, Generic)
 
-{-
 instance Pretty TableCards where
   pretty (TableCards ps (f0, f1, f2) t r) =
     concatWith
@@ -133,18 +108,15 @@ instance Pretty TableCards where
         pretty r
       ]
 
--}
-
 -- | Deal a card list to the table
 --
--- FIXME: unwind MkHole
--- >>> deal (to cardsS cs)
--- TableCards {playerCards = [MkHole (Card {rank = Ace, suit = Club}) (Card {rank = Seven, suit = Spade}),MkHole (Card {rank = Ten, suit = Club}) (Card {rank = Five, suit = Spade})], flopCards = (Card {rank = Six, suit = Diamond},Card {rank = Seven, suit = Club},Card {rank = Six, suit = Spade}), turnCard = Card {rank = Nine, suit = Club}, riverCard = Card {rank = Four, suit = Spade}}
-deal :: Cards -> TableCards
-deal (Cards cs) =
+-- >>> deal cs
+-- TableCards {playerCards = [Hole (Card {rank = Jack, suit = Spades}) (Card {rank = Two, suit = Hearts}),Hole (Card {rank = Nine, suit = Spades}) (Card {rank = Six, suit = Spades})], flopCards = (CardS {unwrapCardS = 24},CardS {unwrapCardS = 15},CardS {unwrapCardS = 42}), turnCard = CardS {unwrapCardS = 12}, riverCard = CardS {unwrapCardS = 16}}
+deal :: CardsS -> TableCards
+deal (CardsS cs) =
   TableCards
     ( ( \x ->
-          MkHole (review cardI $ cs' List.!! (2 * x)) (review cardI $ cs' List.!! (2 * x + 1))
+          Hole (view cardI $ cs' List.!! (2 * x)) (view cardI $ cs' List.!! (2 * x + 1))
       )
         <$> [0 .. n - 1]
     )
@@ -153,7 +125,7 @@ deal (Cards cs) =
     (cs' List.!! (4 + n * 2))
   where
     n = (length cs' - 5) `div` 2
-    cs' = Card <$> S.toList cs
+    cs' = CardS <$> S.toList cs
 
 -- | For each seat, the betting can be open (can re-raise), closed (has called and cannot re-raise). A raise at the table re-opens the betting for all live seats.
 --
@@ -170,9 +142,9 @@ instance Pretty SeatState where
 --
 -- The structure of a holdem table.
 --
--- >>> t = makeTable defaultTableConfig (to cardsS cs)
+-- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 9.0,0.50 1.0,0.0,
 data Table = Table
   { cards :: TableCards,
     -- | position of the next seat to act
@@ -188,7 +160,6 @@ data Table = Table
   }
   deriving (Eq, Show, Generic)
 
-{-
 instance Pretty Table where
   pretty (Table cs n s st bs p h) =
     concatWith
@@ -201,8 +172,6 @@ instance Pretty Table where
         pretty (comma (Just 2) p),
         concatWith (surround ":") $ (\(a, p) -> pretty a <> pretty p) <$> h
       ]
-
--}
 
 -- | number of seats at the table
 --
@@ -256,20 +225,20 @@ closed t =
 -- | Index of seat and hands still in the pot
 --
 -- >>> pretty $ liveHoles t
--- [(0, [Ac, 7s, 6d, 7c, 6s, 9c, 4s]), (1, [Tc, 5s, 6d, 7c, 6s, 9c, 4s])]
-liveHoles :: Table -> [(Int, [Card])]
+-- [(0, [Js, 2h, 8c, 5s, Qh, 5c, 6c]), (1, [9s, 6s, 8c, 5s, Qh, 5c, 6c])]
+liveHoles :: Table -> [(Int, [CardS])]
 liveHoles t = (\i -> hands (cards t) List.!! i) <$> liveSeats t
 
 -- | Provide the player hands combined with the table cards.
 --
 -- >>> pretty $ hands $ cards t
--- [(0, [Ac, 7s, 6d, 7c, 6s, 9c, 4s]), (1, [Tc, 5s, 6d, 7c, 6s, 9c, 4s])]
-hands :: TableCards -> [(Int, [Card])]
+-- [(0, [Js, 2h, 8c, 5s, Qh, 5c, 6c]), (1, [9s, 6s, 8c, 5s, Qh, 5c, 6c])]
+hands :: TableCards -> [(Int, [CardS])]
 hands (TableCards ps (f0, f1, f2) t r) =
-  fmap (fmap (view cardI))
+  fmap (fmap (review cardI))
     <$> zip
       [0 .. (length ps - 1)]
-      ((\(P.Hole x y) -> [x, y, review cardI f0, review cardI f1, review cardI f2, review cardI t, review cardI r]) <$> ps)
+      ((\(Hole x y) -> [x, y, view cardI f0, view cardI f1, view cardI f2, view cardI t, view cardI r]) <$> ps)
 
 -- | Static configuration for setting up a table.
 --
@@ -288,9 +257,9 @@ defaultTableConfig = TableConfig 2 0 (replicate 2 10)
 
 -- | Construct a Table with the supplied cards.
 --
--- >>> pretty $ makeTable defaultTableConfig (to cardsS cs)
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
-makeTable :: TableConfig -> Cards -> Table
+-- >>> pretty $ makeTable defaultTableConfig cs
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 9.0,0.50 1.0,0.0,
+makeTable :: TableConfig -> CardsS -> Table
 makeTable cfg cs =
   Table (deal cs) (Just 0) (replicate (tableSize cfg) BettingOpen) (zipWith (-) (stacks0 cfg) bs) bs 0 []
   where
@@ -354,7 +323,7 @@ adjust x f xs = List.take x xs <> [f (xs List.!! x)] <> List.drop (x + 1) xs
 -- | A game progresses by seats acting which alters the state of the table.
 --
 -- >>> pretty t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 9.0,0.50 1.0,0.0,
 --
 -- The default example is a 2 seat table, stacks of 10 each. The cursor or hero (currently acting seat) is seat 0, Big blind is seat 1. Seat 1 posts the big blind, seat 0 posts the small blind. Both players are open for further bets, stacks are 9.5 and 9.0, bets are 0.5 1.0 and pot is 0
 --
@@ -363,59 +332,59 @@ adjust x f xs = List.take x xs <> [f (xs List.!! x)] <> List.drop (x + 1) xs
 -- - s0: Fold
 --
 -- >>> pretty (actOn RawFold t)
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 1,f o,9.5 9,0 1,0.5,f0
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 1,f o,9.5 9.0,0.0 1.0,0.50,f0
 --
 -- >>> closed (actOn RawFold t)
 -- True
 --
 -- - s0: Call
 --
--- >>> pretty (actOn RawCall t)
+-- > pretty (actOn RawCall t)
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 1,c o,9 9,1 1,0,c0
 --
 -- s1: s1 is the strategy for seat 1, given betting history of [s0:Call]. They are open for betting (can actOn). They cannot Fold, but can Call or Raise 10
 --
 --     - s1: Call. At this point, assuming no further betting.
 --
--- >>> pretty $ actOn RawCall $ actOn RawCall t
+-- > pretty $ actOn RawCall $ actOn RawCall t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,9 9,1 1,0,c1:c0
 --
 -- Seat 0 wins a small pot.
 --
 --     - s1: Raise 10
 --
--- >>> pretty $ actOn (RawRaise 10) $ actOn RawCall t
+-- > pretty $ actOn (RawRaise 10) $ actOn RawCall t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o c,9 0,1 10,0,9.0r1:c0
 --
 -- (s2) is the strategy for seat 0, given betting history of [s0:Call, s1:Raise 10]
 --
 --       - s2: Fold
 --
--- >>> pretty $ actOn RawFold $ actOn (RawRaise 10) $ actOn RawCall t
+-- > pretty $ actOn RawFold $ actOn (RawRaise 10) $ actOn RawCall t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,f c,9 0,0 10,1,f0:9.0r1:c0
 --
 --       - s2: Call
 --
--- >>> pretty $ actOn RawCall $ actOn (RawRaise 10) $ actOn RawCall t
+-- > pretty $ actOn RawCall $ actOn (RawRaise 10) $ actOn RawCall t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c0:9.0r1:c0
 --
 -- Table is closed for betting (cursor == Nothing), and the small blind wins a big pot with a pair of sevens after calling the big blinds allin.
 --
 -- - s0: Raise 10
 --
--- >>> pretty $ actOn (RawRaise 10) t
+-- > pretty $ actOn (RawRaise 10) t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: 1,c o,0 9,10 1,0,9.0r0
 --
 -- (s3) is the strategy for seat 1, given betting history of [s0:Raise 10]
 --
 --     - s3:Fold
 --
--- >>> pretty $ actOn RawFold $ actOn (RawRaise 10) t
+-- > pretty $ actOn RawFold $ actOn (RawRaise 10) t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c f,0 9,10 0,1,f1:9.0r0
 --
 --     - s3:Call
 --
--- >>> pretty $ actOn RawCall $ actOn (RawRaise 10) t
+-- > pretty $ actOn RawCall $ actOn (RawRaise 10) t
 -- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c1:9.0r0
 actOn :: RawAction -> Table -> Table
 actOn RawFold t = case cursor t of
@@ -479,8 +448,8 @@ actOn (RawRaise r) t = case cursor t of
 
 -- | Ship the pot to the winning hands
 --
--- >>> pretty $ showdown t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,11 9,0 0,0,
+-- > pretty $ showdown t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,10 9.8,0.0 0.0,0.0,
 showdown :: Table -> Table
 showdown t =
   t
@@ -502,9 +471,10 @@ bests ((i, x) : xs) x' res =
 
 -- | index of the winning hands
 --
+-- FIXME: bug here for shoz
 -- >>> bestLiveHole t
--- [0]
+-- [1]
 bestLiveHole :: Table -> [Int]
 bestLiveHole t =
   (\xs -> bests xs 0 [])
-    (fmap (second (lookupHRUnsafe . Cards . S.fromList . fmap unwrapCard . List.sort)) (liveHoles t))
+    (fmap (second (lookupHRUnsafe . CardsS . S.fromList . fmap unwrapCardS . List.sort)) (liveHoles t))

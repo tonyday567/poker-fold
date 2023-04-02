@@ -17,17 +17,15 @@ import Data.Text (Text)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import GHC.Word
-import Optics.Core
 import Options.Applicative
 import Perf
 import Poker.Card.Storable
-import qualified Poker.HandRank.List as L
-import Poker.HandRank.Storable
+import Poker.HandRank
 import Poker.Random
 import System.Random
 import Prelude
 
-data TestType = TestHandRankSParts | TestHandRankList | TestShuffle | TestDefault deriving (Eq, Show)
+data TestType = TestHandRankSParts | TestShuffle | TestDefault deriving (Eq, Show)
 
 parseTestType :: Parser TestType
 parseTestType =
@@ -107,18 +105,18 @@ countN n = fmap sum $ toMeasureN n $ StepMeasure start stop
     start = pure ()
     stop _ = pure 1
 
-handRankS_ :: (MonadIO m, Semigroup t) => Cards -> PerfT m t HandRank
+handRankS_ :: (MonadIO m, Semigroup t) => CardsS -> PerfT m t HandRank
 handRankS_ cs = do
   fl <- fap "flushS" flush cs
   case fl of
     Just x -> pure x
     Nothing -> do
-      rs <- fap "ranksSet" ranksSet cs
+      rs <- fap "cardRanksS" cardRanksS cs
       st <- fap "straightS" straight rs
       case st of
         Just x -> pure x
         Nothing -> do
-          fap "kindS" kind (toRanks cs)
+          fap "cardRanksSWithDups" kind (cardRanksSWithDups cs)
 
 -- | unification of the different measurements to being averages.
 measureD :: MeasureType' -> Measure IO [Double]
@@ -184,7 +182,7 @@ main = do
         ffap "rviv - single" (eval . rviv 52 :: Word8 -> S.Vector Word8) shuffleN
         ffap "cutShuffle" (eval . fmap (fst . cutShuffle 52 . S.toList) . rviv 52 :: Int -> V.Vector Int) (fromIntegral shuffleN)
         ffap "indexShuffle" (eval . fmap (S.fromList . indexShuffle . S.toList) . rviv 52 :: Word8 -> S.Vector Word8) shuffleN
-        ffap "dealN" (eval . dealN :: Word8 -> Cards) shuffleN
+        ffap "dealN" (eval . dealN :: Word8 -> CardsS) shuffleN
         ffap "card7sS" card7sS (fromIntegral shuffleN)
         ffap "card7sSI" card7sSI (fromIntegral shuffleN)
       m' <- fmap (fmap (fmap (/ fromIntegral n))) $ execPerfT (measureD' mt) $ do
@@ -198,16 +196,6 @@ main = do
           execPerfT (measureD mt) $
             V.sequence $
               applyV handRankS_ (card7sS n)
-      when w (writeFile raw (show m))
-      report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap (: []) m))
-    TestHandRankList -> do
-      m <- fmap (fmap (measureFinalStat mt)) $
-        execPerfT (measureD mt) $ do
-          _ <- fap "handRank list" (fmap L.handRank) (view (re L.cards7I) $ card7sS n)
-          _ <- fap "handRank list |f" (fmap L.handRank) (view (re L.cards7I) $ force $ card7sS n)
-          _ <- fap "handRank list max" (maximum . fmap L.handRank) (view (re L.cards7I) $ card7sS n)
-          _ <- fap "handRank list max |f" (maximum . fmap L.handRank) (view (re L.cards7I) $ force $ card7sS n)
-          pure ()
       when w (writeFile raw (show m))
       report cfg gold (measureLabels' mt) (Map.mapKeys (: []) (fmap (: []) m))
     TestDefault -> do
