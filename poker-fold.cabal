@@ -46,7 +46,7 @@ library
     deepseq,
     formatn >= 0.3 && <0.4,
     mtl >= 2.2.2 && < 2.4,
-    numhask-array ^>= 0.10,
+    numhask-array >= 0.10 && <0.12,
     optics-core ^>= 0.4,
     random ^>=1.2,
     text >= 1.2 && <2.1,
@@ -74,7 +74,7 @@ executable poker-fold-speed
   build-depends:
     base >=4.7 && <5,
     poker-fold,
-    perf ^>= 0.10,
+    perf >= 0.10 && <0.12,
     containers,
     mtl >= 2.2.2 && <2.4,
     random ^>= 1.2,

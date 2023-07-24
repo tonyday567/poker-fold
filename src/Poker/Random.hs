@@ -34,11 +34,11 @@ module Poker.Random
   )
 where
 
+import Control.Monad
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
     State,
     evalState,
-    replicateM,
   )
 import Data.Bool (bool)
 import Data.Foldable (Foldable (foldl'))

@@ -96,6 +96,7 @@ module Poker.Range
     )
 where
 
+import Control.Monad
 import Control.Monad.State.Lazy
 import Data.Bifunctor
 import Data.Bool

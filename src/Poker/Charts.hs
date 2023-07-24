@@ -172,15 +172,14 @@ bPixelChart ::
   SurfaceLegendOptions ->
   Range Double ->
   ChartOptions
-bPixelChart pixelStyle plo s = mempty & #charts .~ runHud (aspect 1) hs1 (addHud (rhHud 0.7) $ unnamed cs1)
+bPixelChart pixelStyle _ s = mempty & #charts .~ runHud (aspect 1) mempty (addHud (rhHud 0.7) $ unnamed cs1)
   where
     f :: Point Double -> Double
     f (Point x y) = index s (StartingHandS $ (12 - floor x) + 13 * floor y)
-    (cs1, hs1) =
-      surfacefl
+    (cs1, _) =
+      surfacef
         f
         (SurfaceOptions pixelStyle (Point 13 13) (Rect 0 13 0 13))
-        plo
 
 -- | Pixel chart of a Range Double using supplied colour gradient.
 --
