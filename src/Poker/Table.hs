@@ -1,18 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wall #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-type-defaults #-}
 
 -- | Representation of a holdem table
 module Poker.Table
@@ -52,7 +40,6 @@ import Data.Bifunctor
 import Data.Bool
 import Data.Foldable
 import Data.FormatN
-import Data.Generics.Labels ()
 import qualified Data.List as List
 import Data.Maybe
 import Data.Text (Text)
@@ -88,8 +75,8 @@ import Poker.Card (Hole(..))
 --
 -- - there are 5 hole cards
 --
--- > pretty $ cards t
--- Ac7s Tc5s|6d7c6s|9c|4s
+-- >>> pretty $ cards t
+-- Js2h 9s6s|8c5sQh|5c|6c
 data TableCards = TableCards
   { playerCards :: [Hole],
     flopCards :: (CardS, CardS, CardS),

@@ -1,9 +1,2 @@
 packages:
   poker-fold.cabal
-
--- source-repository-package
---  type: git
---  location: https://github.com/santiweight/poker-base
---  tag: 4a1cd5dfd6b150751f94ca1e66ec718d849daa51
-
--- optimisation: 2

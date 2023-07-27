@@ -1,17 +1,5 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wall #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use unwords" #-}
 
 -- | Evaluation of a standard holdem poker hand. The evaluators work for 5 and 7 card hands.
 --
@@ -403,7 +391,7 @@ lookupHRUnsorted s (CardsS v) = s S.! toLexiPosR 52 7 (sort v)
 
 -- | version hiding the IO call for hvs7
 --
--- > pretty <$> lexiToHR . lookupHRUnsafe $ css
+-- >>> pretty <$> lexiToHR . lookupHRUnsafe $ cs
 -- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
 lookupHRUnsafe :: CardsS -> Word16
 lookupHRUnsafe = lookupHR (unsafePerformIO hvs7)

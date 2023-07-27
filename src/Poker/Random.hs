@@ -1,11 +1,4 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wall #-}
 
 -- | Card entropy
 module Poker.Random
@@ -34,11 +27,11 @@ module Poker.Random
   )
 where
 
+import Control.Monad
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
     State,
     evalState,
-    replicateM,
   )
 import Data.Bool (bool)
 import Data.Foldable (Foldable (foldl'))
@@ -159,9 +152,8 @@ dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . S.fromList . fmap from
 
 -- | deal a table
 --
--- FIXME: pretty for Table
--- > pretty $ evalState (dealTable defaultTableConfig) (mkStdGen 42)
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o o,9.5 9,0.5 1,0,
+-- >>> pretty $ evalState (dealTable defaultTableConfig) (mkStdGen 42)
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 9.0,0.50 1.0,0.0,
 dealTable :: (RandomGen g) => TableConfig -> State g Table
 dealTable cfg = do
   cs <- dealN (toEnum $ 5 + tableSize cfg * 2)
