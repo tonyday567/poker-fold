@@ -1,13 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 
@@ -136,6 +129,7 @@ import Poker.Card.Storable hiding (apply)
 -- >>> import Control.Monad.State.Lazy
 -- >>> import Data.Bool
 -- >>> import Data.Functor.Rep
+-- >>> import Optics.Core
 -- >>> import Poker.Card
 -- >>> import Poker.Random
 -- >>> import Poker.Range
@@ -278,7 +272,7 @@ fromOPS (_, _, a) (Suited _ _) = a
 -- >>> :t always RawCall
 -- always RawCall :: Range RawAction
 --
--- Or the dual to this question: given the betting action that has occurred, what are my guesses about other player strategies. (FIXME: NYI)
+-- Or the dual to this question: given the betting action that has occurred, what are my guesses about other player strategies.
 --
 -- Range instances for representable functors tend to be very useful.
 --
@@ -432,11 +426,11 @@ allin ts = tabulate (const (RawRaise x))
 
 -- | Given a 'StartingHand', what is the chance of that player winning against p other players, simulated n times.
 --
--- FIXME:
--- > simStartingHandWin (Paired Ace) 2 1000
--- 0.4995
+-- >>> simStartingHandWin (Paired Ace) 2 1000
+-- 0.85
 --
--- > simStartingHandWin (Offsuited Three Two) 2 1000
+-- >>> simStartingHandWin (Offsuited Three Two) 2 1000
+-- 0.3145
 simStartingHandWin :: StartingHand -> Int -> Int -> Double
 simStartingHandWin b p n =
   (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHole <$> tablesB p b 0 n
@@ -656,11 +650,10 @@ writeSomeRanges :: Int -> IO ()
 writeSomeRanges n = writeFile "other/some.str" (show $ someRanges n)
 
 -- | read Range map
--- FIXME:
 --
--- > (Just m) <- readSomeRanges
--- > index (m Map.! "o2") (review startingHandI $ Suited Jack Ten)
--- 0.5742
+-- >>> (Just m) <- readSomeRanges
+-- >>> index (m Map.! "o2") (view startingHandI $ Suited Jack Ten)
+-- 0.574275
 readSomeRanges :: IO (Maybe (Map.Map Text (Range Double)))
 readSomeRanges = do
   t <- readFile "other/some.str"

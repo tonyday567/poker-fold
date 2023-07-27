@@ -1,7 +1,2 @@
 packages:
   poker-fold.cabal
-  ../chart-svg/chart-svg.cabal
-  ../perf/perf.cabal
-  ../numhask/numhask.cabal
-  ../numhask-array/numhask-array.cabal
-  ../numhask-space/numhask-space.cabal

@@ -1,17 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wall #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-type-defaults #-}
-
 -- | Storable version of 'Poker.Card' and related types.
 --
 -- In general, this module provides:
@@ -311,14 +297,14 @@ cardsS7V = iso (applyFlatV 7 CardsS . unwrapCards2S) (Cards2S . fold . V.map unw
 applyFlatV :: (Storable s) => Int -> (S.Vector s -> a) -> S.Vector s -> V.Vector a
 applyFlatV k f s = V.generate n (\i -> f (S.slice (k * i) k s))
   where
-    n = fromIntegral $ S.length s `div` k
+    n = S.length s `div` k
 
 -- | Apply a function that takes a vector by slicing the supplied main vector n times, and providing a Storable for each slice.
 --
 applyFlat :: (Storable s, Storable a) => Int -> (S.Vector s -> a) -> S.Vector s -> S.Vector a
 applyFlat k f s = S.generate n (\i -> f (S.slice (k * i) k s))
   where
-    n = fromIntegral $ S.length s `div` k
+    n = S.length s `div` k
 
 -- | apply a function to a cards vector, returning a boxed vector of the results.
 --
