@@ -33,24 +33,31 @@ import qualified Data.Text as Text
 import qualified Data.Map.Strict as Map
 import qualified Data.Vector.Storable as S
 import Data.Functor.Rep
-import Perf
 putStrLn "ok"
 #+end_src
 
 #+RESULTS:
 #+begin_example
-Loaded GHCi configuration from /Users/tonyday/haskell/poker-fold/.ghci
-[1 of 8] Compiling Poker.Card       ( src/Poker/Card.hs, interpreted )
-[2 of 8] Compiling Poker.Card.Storable ( src/Poker/Card/Storable.hs, interpreted )
-[3 of 8] Compiling Poker.Lexico     ( src/Poker/Lexico.hs, interpreted )
-[4 of 8] Compiling Poker.HandRank   ( src/Poker/HandRank.hs, interpreted )
-[5 of 8] Compiling Poker.Table      ( src/Poker/Table.hs, interpreted )
-[6 of 8] Compiling Poker.Random     ( src/Poker/Random.hs, interpreted )
-[7 of 8] Compiling Poker.Range      ( src/Poker/Range.hs, interpreted )
-[8 of 8] Compiling Poker.Charts     ( src/Poker/Charts.hs, interpreted )
 Ok, 8 modules loaded.
-ghci> Ok, 8 modules loaded.
->  >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ok
 #+end_example
 
