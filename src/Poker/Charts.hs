@@ -102,7 +102,7 @@ opsLegend op =
   colourHudOptions (set opac' op) $
     mempty & #legends .~ [(30,
              defaultLegendOptions
-               & #content
+               & #legendCharts
                  .~ let (o, p, s) = opsRectStyle 0.3 0.2 0.4
                      in [ ("Offsuited", [RectChart (o & set (#color % opac') op) [one]]),
                           ("Paired", [RectChart (p & set (#color % opac') op) [one]]),
