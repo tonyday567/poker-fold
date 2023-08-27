@@ -30,9 +30,8 @@ module Poker.HandRank
     hvs7,
     lookupHR,
     lookupHRUnsorted,
-    lookupHRUnsafe,
     lookupHRs,
-    lookupHRsUnsafe,
+    lookupHRsUnsorted,
     sort,
   )
 where
@@ -58,7 +57,6 @@ import GHC.Exts hiding (toList)
 import GHC.Generics
 import Poker.Card.Storable
 import Poker.Lexico
-import System.IO.Unsafe (unsafePerformIO)
 import Prelude
 import Optics.Core
 import Poker.Card (rank, suit)
@@ -389,23 +387,17 @@ sort xs = S.create $ do
 lookupHRUnsorted :: S.Vector Word16 -> CardsS -> Word16
 lookupHRUnsorted s (CardsS v) = s S.! toLexiPosR 52 7 (sort v)
 
--- | version hiding the IO call for hvs7
---
--- >>> pretty <$> lexiToHR . lookupHRUnsafe $ cs
--- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
-lookupHRUnsafe :: CardsS -> Word16
-lookupHRUnsafe = lookupHR (unsafePerformIO hvs7)
-
 -- | look up the HandRank of a bunch of cards. CardsS must be sorted in ascending order.
 --
--- > pretty <$>  fmap lexiToHR $ S.toList $ lookupHRs s css
--- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
+-- >>> cssSorted = css & applyV (CardsS . sort . unwrapCardsS) & review cardsS7V
+-- >>> pretty <$>  fmap lexiToHR $ S.toList $ lookupHRs s cssSorted
+-- [TwoPair Seven Six Ace, TwoPair Ten Six Two]
 lookupHRs :: S.Vector Word16 -> Cards2S -> S.Vector Word16
 lookupHRs s = apply (lookupHR s)
 
--- | version hiding IO
+-- | look up the HandRank of a bunch of cards. CardsS can be unsorted.
 --
--- > pretty <$> fmap lexiToHR $ S.toList $ lookupHRsUnsafe css
--- [TwoPair Seven Six Ace,TwoPair Ten Six Two]
-lookupHRsUnsafe :: Cards2S -> S.Vector Word16
-lookupHRsUnsafe = lookupHRs (unsafePerformIO hvs7)
+-- >>> pretty <$>  fmap lexiToHR $ S.toList $ lookupHRsUnsorted s css
+-- [TwoPair Seven Six Ace, TwoPair Ten Six Two]
+lookupHRsUnsorted :: S.Vector Word16 -> Cards2S -> S.Vector Word16
+lookupHRsUnsorted s = apply (lookupHRUnsorted s)

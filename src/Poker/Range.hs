@@ -109,6 +109,7 @@ import GHC.Read
 import GHC.Word
 import NumHask.Array (Array)
 import Optics.Core
+import Poker.HandRank
 import Poker.Random
 import Poker.Table
 import Prettyprinter
@@ -131,6 +132,7 @@ import Poker.Card.Storable hiding (apply)
 -- >>> import Data.Functor.Rep
 -- >>> import Optics.Core
 -- >>> import Poker.Card
+-- >>> import Poker.HandRank
 -- >>> import Poker.Random
 -- >>> import Poker.Range
 -- >>> import Poker.Table
@@ -139,14 +141,15 @@ import Poker.Card.Storable hiding (apply)
 -- >>> import System.Random
 -- >>> import qualified Data.Map.Strict as Map
 -- >>> import qualified Data.Text as Text
+-- >>> hvs <- hvs7
 -- >>> cs = evalState (dealN 9) (mkStdGen 42)
 -- >>> pretty cs
 -- Js2h9s6s8c5sQh5c6c
 --
 -- >>> t = makeTable defaultTableConfig cs
 --
--- > pretty t
---
+-- >>> pretty t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 9.0,0.50 1.0,0.0,
 -- >>> (Just m) <- readSomeRanges
 -- >>> Map.keys m
 -- ["any2","count","o2","o9"]
@@ -426,14 +429,14 @@ allin ts = tabulate (const (RawRaise x))
 
 -- | Given a 'StartingHand', what is the chance of that player winning against p other players, simulated n times.
 --
--- >>> simStartingHandWin (Paired Ace) 2 1000
+-- >>> simStartingHandWin hvs (Paired Ace) 2 1000
 -- 0.85
 --
--- >>> simStartingHandWin (Offsuited Three Two) 2 1000
+-- >>> simStartingHandWin hvs (Offsuited Three Two) 2 1000
 -- 0.3145
-simStartingHandWin :: StartingHand -> Int -> Int -> Double
-simStartingHandWin b p n =
-  (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHole <$> tablesB p b 0 n
+simStartingHandWin :: S.Vector Word16 -> StartingHand -> Int -> Int -> Double
+simStartingHandWin s b p n =
+  (/ fromIntegral n) $ sum $ (\x -> bool (0 :: Double) (1 / fromIntegral (length x)) (0 `elem` x)) . bestLiveHole s <$> tablesB p b 0 n
 
 -- | Win odds
 --
@@ -446,25 +449,25 @@ simStartingHandWin b p n =
 -- > winOdds 9 1000
 --
 -- ![odds9 example](other/odds9.svg)
-winOdds :: Int -> Int -> Range Double
-winOdds p n = tabulate (\b -> simStartingHandWin (view (re startingHandI) b) p n)
+winOdds :: S.Vector Word16 -> Int -> Int -> Range Double
+winOdds s p n = tabulate (\b -> simStartingHandWin s (view (re startingHandI) b) p n)
 
 -- | Top x percent of hands, order determined by a Range Double.
 --
--- > pretty (bool "." "x" <$> topBs (m Map.! "o2") 0.25 :: Range Text.Text)
--- x x x x x x x x x x . . .
+-- >>> pretty (bool "." "x" <$> topBs (m Map.! "o2") 0.25 :: Range Text.Text)
+-- x x x x x x x x x x x x x
+-- x x x x x x x x . . . . .
 -- x x x x x x . . . . . . .
 -- x x x x x . . . . . . . .
--- x x x x . . . . . . . . .
--- x x x x x . . . . . . . .
--- x x x . . x . . . . . . .
--- x x . . . . x . . . . . .
--- x x . . . . . x . . . . .
+-- x x x . x . . . . . . . .
+-- x x . . . x . . . . . . .
+-- x . . . . . x . . . . . .
+-- x . . . . . . x . . . . .
 -- x . . . . . . . x . . . .
 -- x . . . . . . . . x . . .
--- x . . . . . . . . . . . .
--- x . . . . . . . . . . . .
--- x . . . . . . . . . . . .
+-- . . . . . . . . . . . . .
+-- . . . . . . . . . . . . .
+-- . . . . . . . . . . . . .
 topBs :: Range Double -> Double -> Range Bool
 topBs bs x = tabulate (`elem` top)
   where
@@ -477,20 +480,20 @@ topBs bs x = tabulate (`elem` top)
 --
 -- eg raising with your top 10% and calling with your top 50% (top defined by o2 stats) is
 --
--- > pretty $ fromRawAction <$> rcf (m Map.! "o2") 10 0.1 0.5
--- r r r r r c c c c c c c c
--- r r c c c c c c c c c c c
--- r r r c c c c c c f f f f
--- r r c r c c c f f f f f f
--- r c c c r c c f f f f f f
--- r c c c c r f f f f f f f
--- c c c c c c r f f f f f f
--- c c c c c f f r f f f f f
--- c c c c f f f f r f f f f
+-- >>> pretty $ fromRawAction <$> rcf (m Map.! "o2") 10 0.1 0.5
+-- r r r r r r c c c c c c c
+-- r r r r c c c c c c c c c
+-- r c r c c c c c c c c c c
+-- r c c r c c c c c c f f f
+-- r c c c r c c c f f f f f
+-- c c c c c r c f f f f f f
+-- c c c c f f r f f f f f f
+-- c c c f f f f r f f f f f
+-- c c c f f f f f r f f f f
 -- c c c f f f f f f c f f f
--- c c c f f f f f f f c f f
--- c c c f f f f f f f f c f
--- c c c f f f f f f f f f c
+-- c c f f f f f f f f c f f
+-- c c f f f f f f f f f c f
+-- c c f f f f f f f f f f c
 rcf :: Range Double -> Double -> Double -> Double -> Range RawAction
 rcf s r x y =
   tabulate
@@ -503,26 +506,26 @@ rcf s r x y =
 
 -- | Simulate the expected value of a list of ranged hand actions (for seat 0)
 --
--- > ev 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
--- Just 2.999999999999936e-2
-ev :: Int -> Int -> [Range RawAction] -> Maybe Double
-ev n sims acts =
+-- >>> ev hvs 2 100 [rcf s 10 0.2 0.9, rcf s 10 0.3 0.9, rcf s 10 0.1 0.5, rcf s 10 0.6 0.8]
+-- Just (-0.6099999999999994)
+ev :: S.Vector Word16 -> Int -> Int -> [Range RawAction] -> Maybe Double
+ev s n sims acts =
   listToMaybe $
     fmap ((+ negate 10) . (/ fromIntegral sims) . sum) $
       List.transpose $
-        evs n sims acts
+        evs s n sims acts
 
 -- | Simulate winnings for each seat.
 --
--- > all (==20.0) $ sum <$> evs 2 100 [rcf s 1 0 0.9, rcf s 1 0.3 0.9, rcf s 1 0.1 0.5, rcf s 1 0.6 0.8]
+-- >>> all (==20.0) $ sum <$> evs hvs 2 100 [rcf s 1 0 0.9, rcf s 1 0.3 0.9, rcf s 1 0.1 0.5, rcf s 1 0.6 0.8]
 -- True
-evs :: Int -> Int -> [Range RawAction] -> [[Double]]
-evs n sims acts = fmap (toList . stacks) (evTables n sims acts)
+evs :: S.Vector Word16 -> Int -> Int -> [Range RawAction] -> [[Double]]
+evs s n sims acts = fmap (toList . stacks) (evTables s n sims acts)
 
 -- | Simulate end state of tables given strategies.
-evTables :: Int -> Int -> [Range RawAction] -> [Table]
-evTables n sims acts =
-  showdown . applies acts <$> tables
+evTables :: S.Vector Word16 -> Int -> Int -> [Range RawAction] -> [Table]
+evTables s n sims acts =
+  showdown s . applies acts <$> tables
   where
     cards = evalState (replicateM sims (dealN (5 + 2 * toEnum n))) (mkStdGen 42)
     tables = makeTable (defaultTableConfig {tableSize = n}) <$> cards
@@ -546,22 +549,22 @@ evTables n sims acts =
 --
 -- [0,0,0,0,0] is iso to always Fold
 --
--- >>> ev2Ranges s 100 [0,0,0,0,0]
+-- >>> ev2Ranges hvs s 100 [0,0,0,0,0]
 -- Just (-0.5)
 --
 -- [1,_,1,_] is iso to always Raise
 --
--- > ev2Ranges s 100 [1,1,1,1,1]
--- Just (-1.205)
+-- >>> ev2Ranges hvs s 100 [1,1,1,1,1]
+-- Just (-1.6999999999999993)
 --
 -- [0,1,0,_,_] is iso to always Call
 --
--- > ev2Ranges s 100 [0,1,0,1,1]
--- Just (-0.125)
-ev2Ranges :: Range Double -> Int -> [Double] -> Maybe Double
-ev2Ranges s sims (s0r : s0c : s1r : s2r : s3r : _) =
-  ev 2 sims [rcf s 10 s0r s0c, rcf s 10 s1r 1, rcf s 10 0 s2r, rcf s 10 0 s3r]
-ev2Ranges _ _ _ = Nothing
+-- >>> ev2Ranges hvs s 100 [0,1,0,1,1]
+-- Just (-0.16999999999999993)
+ev2Ranges :: S.Vector Word16 -> Range Double -> Int -> [Double] -> Maybe Double
+ev2Ranges s' s sims (s0r : s0c : s1r : s2r : s3r : _) =
+  ev s' 2 sims [rcf s 10 s0r s0c, rcf s 10 s1r 1, rcf s 10 0 s2r, rcf s 10 0 s3r]
+ev2Ranges _ _ _ _ = Nothing
 
 -- | Apply a 'Range' 'RawAction', supplying a RawAction for the cursor.
 --
@@ -632,11 +635,11 @@ tablesB p b k n =
     (mkStdGen 42)
 
 -- | create some common simulation results
-someRanges :: Int -> Map.Map Text (Range Double)
-someRanges n = do
+someRanges :: S.Vector Word16 -> Int -> Map.Map Text (Range Double)
+someRanges s n = do
   Map.fromList
-    [ ("o2", tabulate (\b -> simStartingHandWin (view (re startingHandI) b) 2 n)),
-      ("o9", tabulate (\b -> simStartingHandWin (view (re startingHandI) b) 9 n)),
+    [ ("o2", tabulate (\b -> simStartingHandWin s (view (re startingHandI) b) 2 n)),
+      ("o9", tabulate (\b -> simStartingHandWin s (view (re startingHandI) b) 9 n)),
       ("count", fromIntegral <$> handTypeCount),
       ("any2", any2)
     ]
@@ -647,7 +650,9 @@ someRanges n = do
 --
 -- n = 100000 is about 5 mins
 writeSomeRanges :: Int -> IO ()
-writeSomeRanges n = writeFile "other/some.str" (show $ someRanges n)
+writeSomeRanges n = do
+  s <- hvs7
+  writeFile "other/some.str" (show $ someRanges s n)
 
 -- | read Range map
 --

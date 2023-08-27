@@ -126,7 +126,6 @@ library
         , text              >=1.2 && <2.1
         , vector            >=0.12.3 && <0.14
         , vector-algorithms >=0.8.0 && <0.10
-        -- generic-lens >= 2.2.2 && < 2.3,
         , vector-mmap       >=0.0.3 && <0.1
     exposed-modules:
         Poker.Card

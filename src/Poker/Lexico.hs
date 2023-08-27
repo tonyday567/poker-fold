@@ -40,7 +40,7 @@ combinations m l = [x : ys | x : xs <- List.tails l, ys <- combinations (m - 1) 
 -- [[3,4],[2,4],[1,4],[0,4],[2,3],[1,3],[0,3],[1,2],[0,2],[0,1]]
 --
 -- > length (combinationsR 5 [0..51]) == binom 52 5
--- 2598960
+-- True
 combinationsR :: Int -> [a] -> [[a]]
 combinationsR 0 _ = [[]]
 combinationsR m l = reverse <$> combinations m (reverse l)
@@ -62,10 +62,10 @@ toLexiPosRList n k xs = binom n k - 1 - sum (zipWith binom xs [1 ..])
 
 -- | Given a reverse lexicographic position, what was the combination?
 --
--- > (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosR 5 2) xs) (S.fromList <$> combinations 2 [0..4])
+-- >>> (\xs -> xs == fmap (fromLexiPosR 5 2 . toLexiPosRList 5 2) xs) (combinations 2 [0..4])
 -- True
 --
--- > ((combinationsR 5 allCards) List.!! 1000000) == (fmap toEnum (fromLexiPosR 52 5 1000000) :: [Card])
+-- > (fromIntegral <$> (S.toList $ unwrapCardsS $ review cardsI $ combinationsR 5 allCards List.!! 1000000)) == (fromLexiPosR 52 5 1000000)
 -- True
 fromLexiPosR :: Int -> Int -> Int -> [Int]
 fromLexiPosR n k p = go (n - 1) k (binom n k - 1 - p) []
@@ -105,7 +105,7 @@ binomR n k = binomR (n - 1) (k - 1) * n `div` k
 -- > toLexiPosR n k s = binom n k - 1 - S.sum (S.imap (\i a -> binom a (1+i)) s)
 -- > toLexiPosR == toLexiPosR . S.fromList
 --
--- > toLexiPosR 5 2 <$> S.fromList <$> combinationsR 2 [0..4]
+-- >>> toLexiPosR 5 2 <$> S.fromList <$> combinationsR 2 [(0::Int)..4] :: [Int]
 -- [0,1,2,3,4,5,6,7,8,9]
 toLexiPosR :: (S.Storable a, S.Storable b, Integral a, Integral b) => a -> a -> S.Vector b -> a
 toLexiPosR n k s =

@@ -136,8 +136,8 @@ indexShuffle as = reverse $ go as []
 
 -- | deal n cards as a CardsS
 --
--- > pretty (view cardsI) $ evalState (dealN 7) (mkStdGen 42)
--- Ac7sTc5s6d7c6s
+-- >>> pretty $ evalState (dealN 7) (mkStdGen 42)
+-- Js2h9s6s8c5sQh
 dealN :: (RandomGen g) => Word8 -> State g CardsS
 dealN n = CardsS . S.fromList . indexShuffle . S.toList <$> rviv 52 n
 {-# INLINE dealN #-}

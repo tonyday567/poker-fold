@@ -52,11 +52,13 @@ import Poker.HandRank
 import Prettyprinter hiding (comma)
 import Prelude
 import Poker.Card (Hole(..))
+import Data.Word
 
 -- $setup
 --
 -- >>> import Poker.Card
 -- >>> import Poker.Card.Storable
+-- >>> import Poker.HandRank
 -- >>> import Poker.Random
 -- >>> import Optics.Core
 -- >>> import Prettyprinter
@@ -64,6 +66,7 @@ import Poker.Card (Hole(..))
 -- >>> import qualified Data.Vector.Storable as S
 -- >>> import Control.Monad.State.Lazy
 -- >>> import System.Random
+-- >>> hvs <- hvs7
 -- >>> cs = evalState (dealN 9) (mkStdGen 42)
 -- >>> t = makeTable defaultTableConfig cs
 -- >>> pretty t
@@ -326,53 +329,53 @@ adjust x f xs = List.take x xs <> [f (xs List.!! x)] <> List.drop (x + 1) xs
 --
 -- - s0: Call
 --
--- > pretty (actOn RawCall t)
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 1,c o,9 9,1 1,0,c0
+-- >>> pretty (actOn RawCall t)
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 1,c o,9.0 9.0,1.0 1.0,0.0,c0
 --
 -- s1: s1 is the strategy for seat 1, given betting history of [s0:Call]. They are open for betting (can actOn). They cannot Fold, but can Call or Raise 10
 --
 --     - s1: Call. At this point, assuming no further betting.
 --
--- > pretty $ actOn RawCall $ actOn RawCall t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,9 9,1 1,0,c1:c0
+-- >>> pretty $ actOn RawCall $ actOn RawCall t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: ,c c,9.0 9.0,1.0 1.0,0.0,c1:c0
 --
 -- Seat 0 wins a small pot.
 --
 --     - s1: Raise 10
 --
--- > pretty $ actOn (RawRaise 10) $ actOn RawCall t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 0,o c,9 0,1 10,0,9.0r1:c0
+-- >>> pretty $ actOn (RawRaise 10) $ actOn RawCall t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o c,9.0 0.0,1.0 10,0.0,9.0r1:c0
 --
 -- (s2) is the strategy for seat 0, given betting history of [s0:Call, s1:Raise 10]
 --
 --       - s2: Fold
 --
--- > pretty $ actOn RawFold $ actOn (RawRaise 10) $ actOn RawCall t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,f c,9 0,0 10,1,f0:9.0r1:c0
+-- >>> pretty $ actOn RawFold $ actOn (RawRaise 10) $ actOn RawCall t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: ,f c,9.0 0.0,0.0 10,1.0,f0:9.0r1:c0
 --
 --       - s2: Call
 --
--- > pretty $ actOn RawCall $ actOn (RawRaise 10) $ actOn RawCall t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c0:9.0r1:c0
+-- >>> pretty $ actOn RawCall $ actOn (RawRaise 10) $ actOn RawCall t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: ,c c,0.0 0.0,10 10,0.0,c0:9.0r1:c0
 --
 -- Table is closed for betting (cursor == Nothing), and the small blind wins a big pot with a pair of sevens after calling the big blinds allin.
 --
 -- - s0: Raise 10
 --
--- > pretty $ actOn (RawRaise 10) t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: 1,c o,0 9,10 1,0,9.0r0
+-- >>> pretty $ actOn (RawRaise 10) t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 1,c o,0.0 9.0,10 1.0,0.0,9.0r0
 --
 -- (s3) is the strategy for seat 1, given betting history of [s0:Raise 10]
 --
 --     - s3:Fold
 --
--- > pretty $ actOn RawFold $ actOn (RawRaise 10) t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c f,0 9,10 0,1,f1:9.0r0
+-- >>> pretty $ actOn RawFold $ actOn (RawRaise 10) t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: ,c f,0.0 9.0,10 0.0,1.0,f1:9.0r0
 --
 --     - s3:Call
 --
--- > pretty $ actOn RawCall $ actOn (RawRaise 10) t
--- Ac7s Tc5s|6d7c6s|9c|4s,hero: ,c c,0 0,10 10,0,c1:9.0r0
+-- >>> pretty $ actOn RawCall $ actOn (RawRaise 10) t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: ,c c,0.0 0.0,10 10,0.0,c1:9.0r0
 actOn :: RawAction -> Table -> Table
 actOn RawFold t = case cursor t of
   Nothing -> t
@@ -435,17 +438,17 @@ actOn (RawRaise r) t = case cursor t of
 
 -- | Ship the pot to the winning hands
 --
--- > pretty $ showdown t
--- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,10 9.8,0.0 0.0,0.0,
-showdown :: Table -> Table
-showdown t =
+-- >>> pretty $ showdown hvs t
+-- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 10,0.0 0.0,0.0,
+showdown :: S.Vector Word16 -> Table -> Table
+showdown s t =
   t
     & #stacks %~ (\s -> foldr ($) s ((\x -> adjust x (+ pot' / fromIntegral (length winners))) <$> winners))
     & #bets .~ fromList (replicate (numSeats t) 0)
     & #pot .~ 0
   where
     pot' = sum (t ^. #bets) + t ^. #pot
-    winners = bestLiveHole t
+    winners = bestLiveHole s t
 
 -- | Find the (maybe multiple) best a's
 bests :: (Ord a) => [(Int, a)] -> a -> [Int] -> [Int]
@@ -459,9 +462,9 @@ bests ((i, x) : xs) x' res =
 -- | index of the winning hands
 --
 -- FIXME: bug here for shoz
--- >>> bestLiveHole t
+-- >>> bestLiveHole hvs t
 -- [1]
-bestLiveHole :: Table -> [Int]
-bestLiveHole t =
+bestLiveHole :: S.Vector Word16 -> Table -> [Int]
+bestLiveHole s t =
   (\xs -> bests xs 0 [])
-    (fmap (second (lookupHRUnsafe . CardsS . S.fromList . fmap unwrapCardS . List.sort)) (liveHoles t))
+    (fmap (second (lookupHR s . CardsS . S.fromList . fmap unwrapCardS . List.sort)) (liveHoles t))
