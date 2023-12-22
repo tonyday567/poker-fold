@@ -399,7 +399,7 @@ fmap (fmap (bimap getSum ((/10000.0) . fromIntegral))) $ execPerfT ((,) <$> coun
 : count :: Measure IO (Sum Int)
 : fromList [("flushS",(10000,1709.5718)),("kindS",(9239,1160.7222)),("ranksSet",(9703,1324.894)),("straightS",(9703,421.3668))]
 
-* ToDo footnotes
+* footnotes
 
 ** origins
 
