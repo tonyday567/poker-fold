@@ -27,12 +27,11 @@ module Poker.Charts
   )
 where
 
-import Chart hiding (shape, Range)
-import Data.Bifunctor
+import Chart hiding (Range)
 import Data.Foldable
 import Data.Functor.Rep
 import qualified Data.Map.Strict as Map
-import Data.Text (Text, pack)
+import Data.Text (Text)
 import GHC.Exts (fromList)
 import Optics.Core hiding (to)
 import Poker.Range
@@ -41,6 +40,7 @@ import Prettyprinter
 import Prettyprinter.Render.Text
 import Prelude
 import Poker.Card as C ( Rank(Ace, Two) )
+import NumHask.Space hiding (Range)
 
 toText_ :: (Pretty a) => a -> Text
 toText_ = renderStrict . layoutCompact . pretty
@@ -61,7 +61,7 @@ opsColourText l c op =
    view lcha2colour' (LCHA l c 260 op))
 
 -- | background rectangle style for Offsuit, Pair and Suited hole hands.
-opsRectStyle :: Double -> Double -> Double -> (RectStyle, RectStyle, RectStyle)
+opsRectStyle :: Double -> Double -> Double -> (Style, Style, Style)
 opsRectStyle l c op =
   ( defaultRectStyle & #color .~ o & #borderSize .~ 0,
     defaultRectStyle
@@ -74,33 +74,33 @@ opsRectStyle l c op =
     (o,p,s) = opsColourText l c op
 
 -- | default background representing Offsuit, Pair & Suited hole cards.
-rhBackground :: Range RectStyle
+rhBackground :: Range Style
 rhBackground = ops (opsRectStyle 0.3 0.2 0.2)
 
 -- | default Chart.Range Hud
 rhHud :: Double -> HudOptions
 rhHud op =
       mempty
-             & #axes .~ [(5, rankXAxis op), (5, rankYAxis op)]
+             & #axes .~ [Priority 5 (rankXAxis op), Priority 5 (rankYAxis op)]
              & #titles
-               .~ [ (10, defaultTitle "Suited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op),
-                    (10, defaultTitle "Offsuited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op & #buffer .~ 0.05 & #place .~ PlaceLeft)
+               .~ [ (Priority 10 $ defaultTitleOptions "Suited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op),
+                    (Priority 10 $ defaultTitleOptions "Offsuited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op & #buffer .~ 0.05 & #place .~ PlaceLeft)
                   ]
 
 -- | default X-Axis
 rankXAxis :: Double -> AxisOptions
-rankXAxis op = defaultAxisOptions & #bar .~ Nothing & #place .~ PlaceTop & #ticks % #style .~ TickLabels (toText_ <$> reverse [Two .. Ace]) & #ticks % #gtick .~ Nothing & #ticks % #ltick .~ Nothing & #ticks % #ttick %~ fmap (first (\x -> x & #size .~ 0.04 & #color .~ set opac' op dark))
+rankXAxis op = defaultXAxisOptions & #axisBar .~ Nothing & #place .~ PlaceTop & #ticks % #tick .~ TickLabels (toText_ <$> reverse [Two .. Ace]) & #ticks % #glyphTick .~ Nothing & #ticks % #lineTick .~ Nothing & over (#ticks % #textTick % _Just % #style) (\x -> x & #size .~ 0.04 & #color .~ set opac' op dark)
 
 -- | default Y-Axis
 rankYAxis :: Double -> AxisOptions
-rankYAxis op = defaultAxisOptions & #bar .~ Nothing & #place .~ PlaceLeft & #ticks % #style .~ TickLabels (toText_ <$> [Two .. Ace]) & #ticks % #gtick .~ Nothing & #ticks % #ltick .~ Nothing & #ticks % #ttick %~ fmap (first (\x -> x & #size .~ 0.04 & #color .~ set opac' op dark))
+rankYAxis op = defaultYAxisOptions & #axisBar .~ Nothing & #place .~ PlaceLeft & #ticks % #tick .~ TickLabels (toText_ <$> [Two .. Ace]) & #ticks % #glyphTick .~ Nothing & #ticks % #lineTick .~ Nothing & over (#ticks % #textTick % _Just % #style) (\x -> x & #size .~ 0.04 & #color .~ set opac' op dark)
 
 -- | default Offsuit-Pair-Suited legend.
 opsLegend :: Double -> HudOptions
 opsLegend op =
-  over #legends (fmap (second (over #frame (fmap (#color .~ transparent))))) $
+  set (#legends % each % #item % #frame % _Just % #color) transparent $
   colourHudOptions (set opac' op) $
-    mempty & #legends .~ [(30,
+    mempty & #legends .~ [(Priority 30 $
              defaultLegendOptions
                & #legendCharts
                  .~ let (o, p, s) = opsRectStyle 0.3 0.2 0.4
@@ -114,8 +114,8 @@ opsLegend op =
 -- > writeChartOptions "other/rect.svg" $ rectChart rhBackground <> rhHud <> (mempty & #hudOptions .~ opsLegend) <> textChart ((,) <$> opsColourText <*> rhText)
 --
 -- ![rect example](other/rect.svg)
-rectChart :: Range RectStyle -> ChartOptions
-rectChart s = mempty & #charts .~ unnamed (toList $ liftR2 (\r s -> RectChart s [r]) sRect s)
+rectChart :: Range Style -> ChartOptions
+rectChart s = mempty & #chartTree .~ unnamed (toList $ liftR2 (\r s -> RectChart s [r]) sRect s)
 
 -- | Chart text with supplied text & colour.
 --
@@ -128,7 +128,7 @@ rectChart s = mempty & #charts .~ unnamed (toList $ liftR2 (\r s -> RectChart s 
 textChart :: Range (Colour, Text) -> ChartOptions
 textChart r =
   mempty
-    & #charts
+    & #chartTree
       .~ named
         "any2"
         ( zipWith
@@ -164,7 +164,7 @@ bPixelChart ::
   SurfaceLegendOptions ->
   Range Double ->
   ChartOptions
-bPixelChart pixelStyle _ s = mempty & #charts .~ runHud (aspect 1) mempty (addHud (rhHud 0.7) $ unnamed cs1)
+bPixelChart pixelStyle _ s = mempty & #chartTree .~ runHudWith (aspect 1) mempty (addHud ChartAspect (rhHud 0.7) $ unnamed cs1)
   where
     f :: Point Double -> Double
     f (Point x y) = index s (StartingHandS $ (12 - floor x) + 13 * floor y)
@@ -182,9 +182,8 @@ pixelChart :: [Colour] -> Range Double -> ChartOptions
 pixelChart cs xs =
   bPixelChart
     (defaultSurfaceStyle & #surfaceColors .~ fromList cs)
-    ( defaultSurfaceLegendOptions dark (pack "drift")
-        & #sloLegendOptions % #place .~ PlaceAbsolute (Point 0.6 (-0.2))
-        & #sloStyle % #surfaceColors .~ fromList cs
+    ( defaultSurfaceLegendOptions
+        & #sloSurfaceStyle % #surfaceColors .~ fromList cs
     )
     xs
 
@@ -198,8 +197,9 @@ pixelColors =
 orderedScatterHud :: HudOptions
 orderedScatterHud =
   defaultHudOptions &
-  #axes .~ fmap (second (#ticks % #style .~ TickPlaced [(0, "worst"), (84.5, "median"), (168, "best")])) [(5, defaultAxisOptions), (5, defaultAxisOptions & #place .~ PlaceLeft)] &
-  #titles .~ [(4, defaultTitle "Heads Up" & #place .~ PlaceTop & #style % #size .~ 0.08), (4, defaultTitle "Full Table" & #place .~ PlaceRight & #style % #size .~ 0.08)]
+  set #axes [Priority 5 defaultXAxisOptions, (Priority 5 defaultYAxisOptions)] &
+  set (#axes % each % #item % #ticks % #tick) (TickPlaced [(0, "worst"), (84.5, "median"), (168, "best")]) &
+  #titles .~ [(Priority 4 $ defaultTitleOptions "Heads Up" & #place .~ PlaceTop & #style % #size .~ 0.08), (Priority 4 $ defaultTitleOptions "Full Table" & #place .~ PlaceRight & #style % #size .~ 0.08)]
 
 -- | draw text hole ranges in the XY-plane
 --
@@ -209,10 +209,10 @@ orderedScatterHud =
 scatterChart :: Range (Point Double) -> ChartOptions
 scatterChart ps =
   mempty &
-  #markupOptions % #markupHeight .~ 600 &
+  #markupOptions % #markupHeight .~ Just 600 &
   #markupOptions % #cssOptions % #cssExtra .~ fillSwitch (dark, light) "dark" "scatter" &
   #hudOptions .~ (defaultHudOptions & #frames .~ []) &
-  #charts .~ named "scatter" [c]
+  #chartTree .~ named "scatter" [c]
   where
     c = TextChart
       (defaultTextStyle & #size .~ 3 & #color % opac' %~ 0.6)
@@ -224,8 +224,8 @@ baseChart =
       <> textChart ((,) <$> ops (opsColourText 0.6 0.2 1) <*> rhText)
       & #hudOptions %~ (<> rhHud 0.7)
       & #hudOptions %~ (<> opsLegend 0.7)
-      & #markupOptions % #markupHeight .~ 600
-      & #hudOptions % #chartAspect .~ CanvasAspect 1
+      & #markupOptions % #markupHeight .~ Just 600
+      & #markupOptions % #chartAspect .~ CanvasAspect 1
 
 percentChart :: Range Double -> ChartOptions
 percentChart r = rectChart rhBackground <> textChart ((,) <$> ops (opsColourText 0.6 0.2 1) <*> (fixed (Just 0) . (100*) <$> r)) & #hudOptions %~ (<> rhHud 0.7)

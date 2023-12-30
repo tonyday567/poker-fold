@@ -22,7 +22,7 @@ description:
     ![odds](other/odds2.svg)
 
 build-type: Simple
-tested-with: GHC == 8.10.7 || ==9.2.8 || ==9.4.5 || ==9.6.2
+tested-with: GHC == 8.10.7 || ==9.2.8 || ==9.4.5 || ==9.6.2 || ==9.8.1
 extra-doc-files:
     ChangeLog.md
     other/*.svg
@@ -113,17 +113,18 @@ library
     build-depends:
         , adjunctions       >=4.0 && <5
         , base              >=4.7 && <5
-        , chart-svg         >=0.5 && <0.6
-        , containers        >=0.6 && <0.7
-        , deepseq           >=1.4.4 && <1.5
+        , chart-svg         >=0.5 && <0.7
+        , containers        >=0.6 && <0.8
+        , deepseq           >=1.4.4 && <1.6
         , distributive      >=0.4 && <0.7
         , formatn           >=0.2.1 && <0.4
         , mtl               >=2.2.2 && <2.4
         , numhask-array     >=0.10 && <0.12
+        , numhask-space
         , optics-core       >=0.4 && <0.5
         , prettyprinter     >=1.7.1 && <1.8
         , random            >=1.2 && <1.3
-        , text              >=1.2 && <2.1
+        , text              >=1.2 && <2.2
         , vector            >=0.12.3 && <0.14
         , vector-algorithms >=0.8.0 && <0.10
         , vector-mmap       >=0.0.3 && <0.1
@@ -136,24 +137,6 @@ library
         Poker.Random
         Poker.Range
         Poker.Table
-
-executable poker-fold-speed
-    import: ghc-options-exe-stanza
-    import: ghc-options-stanza
-    import: ghc2021-stanza
-    main-is: speed.hs
-    hs-source-dirs: app
-    build-depends:
-        , base                 >=4.7 && <5
-        , containers           >=0.6 && <0.7
-        , deepseq              >=1.4.4 && <1.5
-        , mtl                  >=2.2.2 && <2.4
-        , optparse-applicative >=0.17 && <0.19
-        , perf                 >=0.10 && <0.12
-        , poker-fold
-        , random               >=1.2 && <1.3
-        , vector               >=0.12.3 && <0.14
-    ghc-options: -O2
 
 executable poker-fold-writes
     import: ghc-options-exe-stanza
