@@ -26,12 +26,12 @@ where
 import Control.Monad (liftM2)
 import Data.Bifunctor (Bifunctor (second))
 import Data.Maybe
+import Data.Set qualified as Set
 import Data.String (IsString (fromString))
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Prettyprinter
 import Prettyprinter.Internal
-import qualified Data.Set as Set
 
 -- $setup
 --
@@ -102,7 +102,6 @@ rankToChr = \case
 --
 -- >>> chrToRank 'f'
 -- Nothing
---
 chrToRank :: Char -> Maybe Rank
 chrToRank = \case
   '2' -> pure Two
@@ -148,7 +147,6 @@ suitToChr = \case
 -- [Clubs,Diamonds,Hearts,Spades]
 -- >>> chrToSuit '1'
 -- Nothing
---
 chrToSuit :: Char -> Maybe Suit
 chrToSuit = \case
   'c' -> pure Clubs
@@ -212,22 +210,19 @@ cardFromShortTxt cs = case second T.uncons <$> T.uncons cs of
 data Hole = Hole !Card !Card
   deriving (Eq, Ord, Show)
 
-
 instance Pretty Hole where
   pretty (Hole c1 c2) = pretty c1 <> pretty c2
 
 -- | All possible Hold'Em poker 'Hole's
---
 allHoles :: [Hole]
 allHoles = reverse $ do
   r1 <- [minBound .. maxBound]
   r2 <- enumFrom r1
   (s1, s2) <-
     if r1 == r2
-      then [(s1, s2) | s1 <- [minBound .. maxBound] , s2 <- drop 1 (enumFrom s1)]
+      then [(s1, s2) | s1 <- [minBound .. maxBound], s2 <- drop 1 (enumFrom s1)]
       else liftM2 (,) [minBound .. maxBound] [minBound .. maxBound]
   pure $ Hole (Card r1 s1) (Card r2 s2)
-
 
 -- | Set of ranks in a ['Card'] (with no duplicates)
 --

@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Evaluation of a standard holdem poker hand. The evaluators work for 5 and 7 card hands.
---
 module Poker.HandRank
   ( -- * Usage
     -- $usage
@@ -42,25 +41,25 @@ import Data.Bifunctor
 import Data.Bool
 import Data.Foldable
 import Data.List (sortOn)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Ord
 import Data.Tuple
-import qualified Data.Vector as V
-import qualified Data.Vector.Algorithms.Intro as Intro
+import Data.Vector qualified as V
+import Data.Vector.Algorithms.Intro qualified as Intro
 import Data.Vector.Storable (Storable)
-import qualified Data.Vector.Storable as S
+import Data.Vector.Storable qualified as S
 import Data.Vector.Storable.MMap
-import qualified Data.Vector.Storable.Mutable as SM
+import Data.Vector.Storable.Mutable qualified as SM
 import Data.Word
 import GHC.Exts hiding (toList)
 import GHC.Generics
-import Poker.Card.Storable
-import Poker.Lexico
-import Prelude
 import Optics.Core
 import Poker.Card (rank, suit)
+import Poker.Card.Storable
+import Poker.Lexico
 import Prettyprinter
+import Prelude
 
 -- $setup
 --
@@ -95,12 +94,12 @@ data HandRank
   deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Pretty HandRank where
-  pretty (HighCard r0 r1 r2 r3 r4) = hsep ["HighCard", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3,(unsafeViaShow . view rankI) r4]
+  pretty (HighCard r0 r1 r2 r3 r4) = hsep ["HighCard", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3, (unsafeViaShow . view rankI) r4]
   pretty (OnePair r0 r1 r2 r3) = hsep ["OnePair", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3]
   pretty (TwoPair r0 r1 r2) = hsep ["TwoPair", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2]
   pretty (ThreeOfAKind r0 r1 r2) = hsep ["ThreeOfAKind", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2]
   pretty (Straight r0) = hsep ["Straight", (unsafeViaShow . view rankI) r0]
-  pretty (Flush r0 r1 r2 r3 r4) = hsep ["Flush", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3,(unsafeViaShow . view rankI) r4]
+  pretty (Flush r0 r1 r2 r3 r4) = hsep ["Flush", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1, (unsafeViaShow . view rankI) r2, (unsafeViaShow . view rankI) r3, (unsafeViaShow . view rankI) r4]
   pretty (FullHouse r0 r1) = hsep ["FullHouse", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1]
   pretty (FourOfAKind r0 r1) = hsep ["FourOfAKind", (unsafeViaShow . view rankI) r0, (unsafeViaShow . view rankI) r1]
   pretty (StraightFlush r0) = hsep ["StraightFlush", (unsafeViaShow . view rankI) r0]
@@ -125,46 +124,46 @@ handRank cs =
 allHandRanks :: [HandRank]
 allHandRanks =
   [ HighCard a b c d e
-    | a <- ranks,
-      b <- ranksLT a,
-      c <- ranksLT b,
-      d <- ranksLT c,
-      e <- ranksLT d,
-      not (a == s b && b == s c && c == s d && d == s e),
-      not (a == RankS 12 && [b, c, d, e] == [RankS 3, RankS 2, RankS 1, RankS 0])
+  | a <- ranks,
+    b <- ranksLT a,
+    c <- ranksLT b,
+    d <- ranksLT c,
+    e <- ranksLT d,
+    not (a == s b && b == s c && c == s d && d == s e),
+    not (a == RankS 12 && [b, c, d, e] == [RankS 3, RankS 2, RankS 1, RankS 0])
   ]
     ++ [ OnePair a b c d
-         | a <- ranks,
-           b <- ranks,
-           a /= b,
-           c <- ranksLT b,
-           a /= c,
-           d <- ranksLT c,
-           a /= d
+       | a <- ranks,
+         b <- ranks,
+         a /= b,
+         c <- ranksLT b,
+         a /= c,
+         d <- ranksLT c,
+         a /= d
        ]
     ++ [ TwoPair a b c
-         | a <- ranks,
-           b <- ranksLT a,
-           c <- ranks,
-           a /= c,
-           b /= c
+       | a <- ranks,
+         b <- ranksLT a,
+         c <- ranks,
+         a /= c,
+         b /= c
        ]
     ++ [ ThreeOfAKind a b c
-         | a <- ranks,
-           b <- ranks,
-           a /= b,
-           c <- ranksLT b,
-           a /= c
+       | a <- ranks,
+         b <- ranks,
+         a /= b,
+         c <- ranksLT b,
+         a /= c
        ]
     ++ [Straight f | f <- ranksGE (RankS 3)]
     ++ [ Flush a b c d e
-         | a <- ranks,
-           b <- ranksLT a,
-           c <- ranksLT b,
-           d <- ranksLT c,
-           e <- ranksLT d,
-           not (a == s b && b == s c && c == s d && d == s e),
-           not (a == RankS 12 && [b, c, d, e] == [RankS 3, RankS 2, RankS 1, RankS 0])
+       | a <- ranks,
+         b <- ranksLT a,
+         c <- ranksLT b,
+         d <- ranksLT c,
+         e <- ranksLT d,
+         not (a == s b && b == s c && c == s d && d == s e),
+         not (a == RankS 12 && [b, c, d, e] == [RankS 3, RankS 2, RankS 1, RankS 0])
        ]
     ++ [FullHouse a b | a <- ranks, b <- ranks, a /= b]
     ++ [FourOfAKind a b | a <- ranks, b <- ranks, a /= b]
@@ -240,7 +239,7 @@ flush cs =
 -- [(Clubs,[Six]),(Hearts,[Ace,Ten,Seven]),(Spades,[Seven,Five,Six])]
 suitRanks :: CardsS -> [(SuitS, [RankS])]
 suitRanks cs =
-   fmap (bimap (review suitI) (fmap (review rankI))) $
+  fmap (bimap (review suitI) (fmap (review rankI))) $
     Map.toList $
       Map.fromListWith (flip (<>)) $
         fmap (\x -> (suit x, [rank x])) (view cardsI cs)
@@ -330,7 +329,6 @@ hvs7 :: IO (S.Vector Word16)
 hvs7 = unsafeMMapVector "other/hvs7.vec" Nothing
 
 -- | lexicographic index to HandRank map
---
 mapLexiHR :: Map.Map Word16 HandRank
 mapLexiHR = Map.fromList (zip [(0 :: Word16) ..] allHandRanks)
 
@@ -344,7 +342,6 @@ lexiToHR :: Word16 -> HandRank
 lexiToHR = (Map.!) mapLexiHR
 
 -- | HandRank to reverse lexicographic Word16 index map
---
 mapHRLexi :: Map.Map HandRank Word16
 mapHRLexi = Map.fromList (zip allHandRanks [(0 :: Word16) ..])
 
@@ -354,7 +351,6 @@ mapHRLexi = Map.fromList (zip allHandRanks [(0 :: Word16) ..])
 --
 -- >>> hrToLexi $ handRank cs
 -- 4301
---
 hrToLexi :: HandRank -> Word16
 hrToLexi = (Map.!) mapHRLexi
 

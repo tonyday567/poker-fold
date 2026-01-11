@@ -35,9 +35,9 @@ import Control.Monad.State.Lazy
   )
 import Data.Bool (bool)
 import Data.Foldable (Foldable (foldl'))
-import qualified Data.List as List
-import qualified Data.Vector as V
-import qualified Data.Vector.Storable as S
+import Data.List qualified as List
+import Data.Vector qualified as V
+import Data.Vector.Storable qualified as S
 import Data.Word
 import Poker.Card.Storable
 import Poker.HandRank

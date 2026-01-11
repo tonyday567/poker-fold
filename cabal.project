@@ -2,6 +2,7 @@ packages:
   poker-fold.cabal
 
 allow-newer:
+  *:base,
+  *:template-haskell,
   string-interpolate:bytestring,
-  string-interpolate:template-haskell,
   string-interpolate:text,
