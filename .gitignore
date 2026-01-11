@@ -6,3 +6,4 @@ cabal.project.local
 /.hie/
 /other/*.vec
 /cabal.project.local*
+.ghc.environment.*
