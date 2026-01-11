@@ -40,19 +40,19 @@ import Data.Bifunctor
 import Data.Bool
 import Data.Foldable
 import Data.FormatN
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Maybe
 import Data.Text (Text)
-import qualified Data.Vector.Storable as S
+import Data.Vector.Storable qualified as S
+import Data.Word
 import GHC.Exts hiding (toList)
 import GHC.Generics hiding (from, to)
 import Optics.Core
+import Poker.Card (Hole (..))
 import Poker.Card.Storable
 import Poker.HandRank
 import Prettyprinter hiding (comma)
 import Prelude
-import Poker.Card (Hole(..))
-import Data.Word
 
 -- $setup
 --
@@ -382,26 +382,33 @@ actOn RawFold t = case cursor t of
   Just p ->
     -- order of execution matters
     t
-      & #bets %~ update p 0
-      & #pot %~ (+ (t ^. #bets) List.!! p)
+      & #bets
+      %~ update p 0
+      & #pot
+      %~ (+ (t ^. #bets) List.!! p)
       & #seats
-        %~ bool
-          (update p BettingClosed)
-          (update p Folded)
-          -- last player cant fold
-          (length (liveSeats t) > 1)
+      %~ bool
+        (update p BettingClosed)
+        (update p Folded)
+        -- last player cant fold
+        (length (liveSeats t) > 1)
       -- cursor calculation needs to take into account updated seat status
       & (\x -> x & #cursor .~ nextCursor x)
-      & #history %~ ((bool RawCall RawFold (length (liveSeats t) > 1), p) :)
+      & #history
+      %~ ((bool RawCall RawFold (length (liveSeats t) > 1), p) :)
 actOn RawCall t = case cursor t of
   Nothing -> t
   Just p ->
     t
-      & #bets %~ adjust p (+ bet)
-      & #stacks %~ adjust p (\x -> x - bet)
-      & #seats %~ update p BettingClosed
+      & #bets
+      %~ adjust p (+ bet)
+      & #stacks
+      %~ adjust p (\x -> x - bet)
+      & #seats
+      %~ update p BettingClosed
       & (\t -> t & #cursor .~ nextCursor t)
-      & #history %~ ((RawCall, p) :)
+      & #history
+      %~ ((RawCall, p) :)
     where
       gap = maximum (t ^. #bets) - (t ^. #bets) List.!! p
       st = (t ^. #stacks) List.!! p
@@ -410,9 +417,12 @@ actOn (RawRaise r) t = case cursor t of
   Nothing -> t
   Just p ->
     t
-      & #bets %~ adjust p (+ bet)
-      & #stacks %~ adjust p (\x -> x - bet)
-      & #seats %~ update p (bool BettingClosed BettingOpen (st' > 0))
+      & #bets
+      %~ adjust p (+ bet)
+      & #stacks
+      %~ adjust p (\x -> x - bet)
+      & #seats
+      %~ update p (bool BettingClosed BettingOpen (st' > 0))
       & ( \x ->
             x
               & bool
@@ -428,7 +438,8 @@ actOn (RawRaise r) t = case cursor t of
                 (r' > 0)
         )
       & (\x -> x & #cursor .~ nextCursor x)
-      & #history %~ ((bool RawCall (RawRaise r') (r' > 0), p) :)
+      & #history
+      %~ ((bool RawCall (RawRaise r') (r' > 0), p) :)
     where
       gap = maximum (t ^. #bets) - (t ^. #bets) List.!! p
       st = (t ^. #stacks) List.!! p
@@ -443,9 +454,12 @@ actOn (RawRaise r) t = case cursor t of
 showdown :: S.Vector Word16 -> Table -> Table
 showdown s t =
   t
-    & #stacks %~ (\s -> foldr ($) s ((\x -> adjust x (+ pot' / fromIntegral (length winners))) <$> winners))
-    & #bets .~ fromList (replicate (numSeats t) 0)
-    & #pot .~ 0
+    & #stacks
+    %~ (\s -> foldr ($) s ((\x -> adjust x (+ pot' / fromIntegral (length winners))) <$> winners))
+    & #bets
+    .~ fromList (replicate (numSeats t) 0)
+    & #pot
+    .~ 0
   where
     pot' = sum (t ^. #bets) + t ^. #pot
     winners = bestLiveHole s t

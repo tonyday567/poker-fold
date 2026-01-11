@@ -13,9 +13,9 @@ where
 import Control.Applicative
 import Data.Bool
 import Data.Foldable
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Ord
-import qualified Data.Vector.Storable as S
+import Data.Vector.Storable qualified as S
 import GHC.Exts hiding (toList)
 import Prelude
 

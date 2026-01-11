@@ -36,22 +36,21 @@ module Poker.Card.Storable
     applyFlatV,
     apply,
     applyV,
-
   )
 where
 
+import Control.Category ((>>>))
 import Control.DeepSeq
 import Data.Foldable
-import qualified Data.Set as Set
-import qualified Data.Vector as V
+import Data.Set qualified as Set
+import Data.Vector qualified as V
 import Data.Vector.Storable (Storable)
-import qualified Data.Vector.Storable as S
+import Data.Vector.Storable qualified as S
 import Data.Word
 import Optics.Core
-import Prelude
 import Poker.Card
-import Prettyprinter ( Pretty(pretty) )
-import Control.Category ( (>>>) )
+import Prettyprinter (Pretty (pretty))
+import Prelude
 
 -- $setup
 --
@@ -135,9 +134,10 @@ instance Pretty RanksS where
 
 -- | isomorphism between 'RanksS' and [Rank]
 ranksI :: Iso' RanksS [Rank]
-ranksI = iso
-  (\x -> x & unwrapRanksS & S.toList & fmap (RankS >>> view rankI))
-  (\xs -> xs & fmap (review rankI >>> unwrapRankS) & S.fromList & RanksS)
+ranksI =
+  iso
+    (\x -> x & unwrapRanksS & S.toList & fmap (RankS >>> view rankI))
+    (\xs -> xs & fmap (review rankI >>> unwrapRankS) & S.fromList & RanksS)
 
 -- | Storable representation of 'Suit'
 --
@@ -181,9 +181,10 @@ instance Pretty SuitsS where
 
 -- | isomorphism between 'SuitsS' and [Suit]
 suitsI :: Iso' SuitsS [Suit]
-suitsI = iso
-  (\x -> x & unwrapSuitsS & S.toList & fmap (SuitS >>> view suitI))
-  (\xs -> xs & fmap (review suitI >>> unwrapSuitS) & S.fromList & SuitsS)
+suitsI =
+  iso
+    (\x -> x & unwrapSuitsS & S.toList & fmap (SuitS >>> view suitI))
+    (\xs -> xs & fmap (review suitI >>> unwrapSuitS) & S.fromList & SuitsS)
 
 -- | Storable representation of a 'Card'
 --
@@ -278,7 +279,6 @@ instance Monoid Cards2S where
   mempty = Cards2S S.empty
 
 -- | Convert between a list of 7 card lists and a 'Cards2SS'
---
 cards2I :: Iso' Cards2S [[Card]]
 cards2I =
   iso
@@ -288,31 +288,26 @@ cards2I =
 -- | Convert between a 'Cards2S' and a boxed vector of 'CardsS'.
 --
 -- The main purpose of this representation is to access vector operations for things that aren't storable.
---
 cardsS7V :: Iso' Cards2S (V.Vector CardsS)
 cardsS7V = iso (applyFlatV 7 CardsS . unwrapCards2S) (Cards2S . fold . V.map unwrapCardsS)
 
 -- | Apply a function that takes a vector by slicing the supplied main vector n times.
---
 applyFlatV :: (Storable s) => Int -> (S.Vector s -> a) -> S.Vector s -> V.Vector a
 applyFlatV k f s = V.generate n (\i -> f (S.slice (k * i) k s))
   where
     n = S.length s `div` k
 
 -- | Apply a function that takes a vector by slicing the supplied main vector n times, and providing a Storable for each slice.
---
 applyFlat :: (Storable s, Storable a) => Int -> (S.Vector s -> a) -> S.Vector s -> S.Vector a
 applyFlat k f s = S.generate n (\i -> f (S.slice (k * i) k s))
   where
     n = S.length s `div` k
 
 -- | apply a function to a cards vector, returning a boxed vector of the results.
---
 applyV :: (CardsS -> a) -> Cards2S -> V.Vector a
 applyV f (Cards2S s) = applyFlatV 7 (f . CardsS) s
 {-# INLINE applyV #-}
 
 -- | apply a function to a cards vector, returning a storable vector of the results.
---
 apply :: (Storable a) => (CardsS -> a) -> Cards2S -> S.Vector a
 apply f (Cards2S s) = applyFlat 7 (f . CardsS) s

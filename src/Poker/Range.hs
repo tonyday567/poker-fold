@@ -41,8 +41,7 @@
 -- A statement that can be verified by examining a hand history of the player and dividing up profit and loss into starting hand HoleRanges.
 module Poker.Range
   ( -- * Storable StartingHand
-
-    StartingHand(..),
+    StartingHand (..),
     StartingHandS (..),
     startingHandI,
     toRepHole,
@@ -81,12 +80,11 @@ module Poker.Range
 
     -- * lpad
     lpad,
-
     fromHole',
     fromHole'',
     fromHole,
     toHoles,
-    )
+  )
 where
 
 import Control.Monad
@@ -97,29 +95,29 @@ import Data.Distributive
 import Data.Foldable
 import Data.Functor.Rep
 import Data.List (sortOn)
-import qualified Data.List as List
-import qualified Data.Map.Strict as Map
+import Data.List qualified as List
+import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Ord
 import Data.Text (Text, pack)
-import qualified Data.Text as Text
-import qualified Data.Vector.Storable as S
+import Data.Text qualified as Text
+import Data.Vector.Storable qualified as S
 import GHC.Exts hiding (toList)
 import GHC.Read
 import GHC.Word
 import NumHask.Array (Array)
 import Optics.Core
+import Poker.Card (Hole (..), Suit (..), allSuits)
+import Poker.Card qualified as C
+import Poker.Card.Storable hiding (apply)
 import Poker.HandRank
 import Poker.Random
 import Poker.Table
 import Prettyprinter
+import Prettyprinter.Render.Text
 import System.Random
 import Text.Read (readMaybe)
 import Prelude
-import Poker.Card (Hole(..), Suit(..), allSuits)
-import qualified Poker.Card as C
-import Prettyprinter.Render.Text
-import Poker.Card.Storable hiding (apply)
 
 -- $setup
 --
@@ -162,7 +160,6 @@ import Poker.Card.Storable hiding (apply)
 -- to as "King-5 offsuit".
 --
 -- https://en.wikipedia.org/wiki/Texas_hold_%27em_starting_hands
---
 data StartingHand = Paired !C.Rank | Offsuited !C.Rank !C.Rank | Suited !C.Rank !C.Rank
   deriving (Eq, Ord, Show)
 
