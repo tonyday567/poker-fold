@@ -32,7 +32,6 @@ import Data.Foldable
 import Data.Functor.Rep
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
-import GHC.Exts (fromList)
 import NumHask.Space hiding (Range)
 import Optics.Core hiding (to)
 import Poker.Card as C (Rank (Ace, Two))
@@ -47,7 +46,7 @@ toText_ = renderStrict . layoutCompact . pretty
 
 -- | A grid of points on the XY plane representing a 'Range'
 sGrid :: Range (Point Double)
-sGrid = Range $ fromList $ fmap (\(Point x y) -> Point (-y) x) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
+sGrid = rangeFromList $ fmap (\(Point x y) -> Point (-y) x) (grid MidPos (Rect (-0.5) 0.5 (-0.5) 0.5) (Point 13 13) :: [Point Double])
 
 -- | A grid of rectangles on the XY plane representing a 'Range'
 sRect :: Range (Rect Double)
@@ -193,11 +192,11 @@ bPixelChart pixelStyle _ s = mempty & #chartTree .~ runHudWith (aspect 1) mempty
 pixelChart :: [Colour] -> Range Double -> ChartOptions
 pixelChart cs xs =
   bPixelChart
-    (defaultSurfaceStyle & #surfaceColors .~ fromList cs)
+    (defaultSurfaceStyle & #surfaceColors .~ cs)
     ( defaultSurfaceLegendOptions
         & #sloSurfaceStyle
         % #surfaceColors
-        .~ fromList cs
+        .~ cs
     )
     xs
 
@@ -239,7 +238,7 @@ scatterChart ps =
     c =
       TextChart
         (defaultTextStyle & #size .~ 3 & #color % opac' %~ 0.6)
-        (fromList $ toList $ (,) <$> rhText <*> ps)
+        (toList $ (,) <$> rhText <*> ps)
 
 baseChart :: ChartOptions
 baseChart =

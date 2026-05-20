@@ -113,13 +113,13 @@ library
     build-depends:
         , adjunctions       >=4.0 && <5
         , base              >=4.7 && <5
-        , chart-svg         >=0.5 && <0.7
-        , containers        >=0.6 && <0.8
+        , chart-svg         >=0.5 && <0.9
+        , containers        >=0.6 && <0.9
         , deepseq           >=1.4.4 && <1.6
         , distributive      >=0.4 && <0.7
         , formatn           >=0.2.1 && <0.4
         , mtl               >=2.2.2 && <2.4
-        , numhask-array     >=0.10 && <0.12
+        , harpie >=0.1 && <0.3
         , numhask-space
         , optics-core       >=0.4 && <0.5
         , prettyprinter     >=1.7.1 && <1.8

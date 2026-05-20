@@ -1,8 +1,7 @@
 packages:
   poker-fold.cabal
 
+write-ghc-environment-files: always
+
 allow-newer:
-  *:base,
-  *:template-haskell,
-  string-interpolate:bytestring,
-  string-interpolate:text,
+  tdigest:base

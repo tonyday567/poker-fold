@@ -457,7 +457,7 @@ showdown s t =
     & #stacks
     %~ (\s -> foldr ($) s ((\x -> adjust x (+ pot' / fromIntegral (length winners))) <$> winners))
     & #bets
-    .~ fromList (replicate (numSeats t) 0)
+    .~ replicate (numSeats t) 0
     & #pot
     .~ 0
   where

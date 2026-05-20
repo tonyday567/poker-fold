@@ -49,6 +49,7 @@ module Poker.Range
 
     -- * Range
     Range (..),
+    rangeFromList,
     rhText,
     handTypeCount,
     any2,
@@ -102,10 +103,12 @@ import Data.Ord
 import Data.Text (Text, pack)
 import Data.Text qualified as Text
 import Data.Vector.Storable qualified as S
+import Data.Vector qualified as V
 import GHC.Exts hiding (toList)
 import GHC.Read
 import GHC.Word
-import NumHask.Array (Array)
+import Harpie.Fixed (Array (..))
+import Harpie.Shape (Fins (..))
 import Optics.Core
 import Poker.Card (Hole (..), Suit (..), allSuits)
 import Poker.Card qualified as C
@@ -303,13 +306,20 @@ fromOPS (_, _, a) (Suited _ _) = a
 newtype Range a = Range
   { array :: Array '[169] a
   }
-  deriving (Eq, Foldable)
+  deriving (Eq)
+
+instance Foldable Range where
+  foldMap f (Range (Array v)) = foldMap f v
+  toList (Range (Array v)) = V.toList v
 
 instance (Show a) => Show (Range a) where
-  show (Range a) = show (toList a)
+  show r = show (toList r)
+
+rangeFromList :: [a] -> Range a
+rangeFromList xs = tabulate (\s -> xs !! fromEnum (unStartingHandS s))
 
 instance (Read a) => Read (Range a) where
-  readPrec = Range . fromList <$> readPrec
+  readPrec = rangeFromList <$> readPrec
 
 instance Functor Range where
   fmap f (Range a) = Range (fmap f a)
@@ -324,9 +334,9 @@ instance Data.Distributive.Distributive Range where
 instance Representable Range where
   type Rep Range = StartingHandS
 
-  tabulate f = Range $ tabulate (f . StartingHandS . toEnum . fromMaybe 0 . listToMaybe)
+  tabulate f = Range $ tabulate (f . StartingHandS . toEnum . fromMaybe 0 . listToMaybe . fromFins)
 
-  index (Range a) = index a . (: []) . fromEnum . unStartingHandS
+  index (Range a) (StartingHandS s) = index a (UnsafeFins [fromEnum s])
 
 -- | Create a list of lists representing the default textual grid for representing a Range
 --
@@ -397,7 +407,9 @@ always a = tabulate (const a)
 
 -- | Convert from magnitude to order
 ordered :: Range Double -> Range Int
-ordered r = Range $ fromList $ fmap fst $ List.sortOn snd $ zip [0 ..] (fmap fst $ List.sortOn snd $ zip [0 ..] (toList r))
+ordered r = tabulate (\s -> result !! fromEnum (unStartingHandS s))
+  where
+    result = fmap fst $ List.sortOn snd $ zip ([0 ..] :: [Int]) (fmap fst $ List.sortOn snd $ zip ([0 ..] :: [Int]) (toList r))
 
 -- | Create a Range base on Offsuited, Suited or Paired status
 --
