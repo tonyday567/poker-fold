@@ -455,7 +455,7 @@ showdown :: S.Vector Word16 -> Table -> Table
 showdown s t =
   t
     & #stacks
-    %~ (\s -> foldr ($) s ((\x -> adjust x (+ pot' / fromIntegral (length winners))) <$> winners))
+    %~ (\s -> foldr ((($)) . (\x -> adjust x (+ pot' / fromIntegral (length winners)))) s winners)
     & #bets
     .~ replicate (numSeats t) 0
     & #pot

@@ -87,8 +87,8 @@ rhHud op =
     & #axes
     .~ [Priority 5 (rankXAxis op), Priority 5 (rankYAxis op)]
     & #titles
-    .~ [ (Priority 10 $ defaultTitleOptions "Suited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op),
-         (Priority 10 $ defaultTitleOptions "Offsuited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op & #buffer .~ 0.05 & #place .~ PlaceLeft)
+    .~ [ Priority 10 $ defaultTitleOptions "Suited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op,
+         Priority 10 $ defaultTitleOptions "Offsuited" & #style % #size .~ 0.06 & #style % #color % opac' .~ op & #buffer .~ 0.05 & #place .~ PlaceLeft
        ]
 
 -- | default X-Axis
@@ -106,7 +106,7 @@ opsLegend op =
     colourHudOptions (set opac' op) $
       mempty
         & #legends
-        .~ [ ( Priority 30 $
+        .~ [ Priority 30 $
                  defaultLegendOptions
                    & #legendCharts
                    .~ let (o, p, s) = opsRectStyle 0.3 0.2 0.4
@@ -114,7 +114,6 @@ opsLegend op =
                             ("Paired", [RectChart (p & set (#color % opac') op) [one]]),
                             ("Suited", [RectChart (s & set (#color % opac') op) [one]])
                           ]
-             )
            ]
 
 -- | Rectangles in the Chart.Range square with supplied fill color.
@@ -210,10 +209,10 @@ pixelColors =
 orderedScatterHud :: HudOptions
 orderedScatterHud =
   defaultHudOptions
-    & set #axes [Priority 5 defaultXAxisOptions, (Priority 5 defaultYAxisOptions)]
+    & set #axes [Priority 5 defaultXAxisOptions, Priority 5 defaultYAxisOptions]
     & set (#axes % each % #item % #ticks % #tick) (TickPlaced [(0, "worst"), (84.5, "median"), (168, "best")])
     & #titles
-    .~ [(Priority 4 $ defaultTitleOptions "Heads Up" & #place .~ PlaceTop & #style % #size .~ 0.08), (Priority 4 $ defaultTitleOptions "Full Table" & #place .~ PlaceRight & #style % #size .~ 0.08)]
+    .~ [Priority 4 $ defaultTitleOptions "Heads Up" & #place .~ PlaceTop & #style % #size .~ 0.08, Priority 4 $ defaultTitleOptions "Full Table" & #place .~ PlaceRight & #style % #size .~ 0.08]
 
 -- | draw text hole ranges in the XY-plane
 --
