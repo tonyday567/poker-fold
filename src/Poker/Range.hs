@@ -102,8 +102,8 @@ import Data.Maybe
 import Data.Ord
 import Data.Text (Text, pack)
 import Data.Text qualified as Text
-import Data.Vector.Storable qualified as S
 import Data.Vector qualified as V
+import Data.Vector.Storable qualified as S
 import GHC.Exts hiding (toList)
 import GHC.Read
 import GHC.Word
