@@ -46,7 +46,6 @@ import Data.Maybe
 import Data.Ord
 import Data.Tuple
 import Data.Vector qualified as V
-import Data.Vector.Algorithms.Intro qualified as Intro
 import Data.Vector.Storable (Storable)
 import Data.Vector.Storable qualified as S
 import Data.Vector.Storable.MMap
@@ -367,21 +366,37 @@ hrToLexi = (Map.!) mapHRLexi
 -- >>> pretty $ lexiToHR (lookupHR s xs)
 -- TwoPair Seven Six Ace
 lookupHR :: S.Vector Word16 -> CardsS -> Word16
-lookupHR s (CardsS v) = s S.! toLexiPosR 52 7 v
+lookupHR s (CardsS v) = S.unsafeIndex s (toLexiPosR 52 7 v)
 
 -- | sort a 'Storable' 'Vector.Storable.Vector'
+--
+-- Uses insertion sort: for the tiny vectors used in poker-fold (<= 7
+-- cards) the constant factors of introsort dominate, and a simple
+-- in-place insertion sort is faster.
 sort :: (Ord a, Storable a) => S.Vector a -> S.Vector a
 sort xs = S.create $ do
-  xs' <- S.thaw xs
-  Intro.sort xs'
-  pure xs'
+  v <- S.thaw xs
+  let n = SM.length v
+  forM_ [1 .. n - 1] $ \i -> do
+    x <- SM.read v i
+    let go j
+          | j < 0 = pure 0
+          | otherwise = do
+              y <- SM.read v j
+              if y > x
+                then SM.write v (j + 1) y >> go (j - 1)
+                else pure (j + 1)
+    pos <- go (i - 1)
+    SM.write v pos x
+  pure v
+{-# INLINE sort #-}
 
 -- | Version for unsorted cards
 --
 -- >>> cs & unwrapCardsS & S.reverse & CardsS & lookupHRUnsorted s & lexiToHR & pretty
 -- TwoPair Seven Six Ace
 lookupHRUnsorted :: S.Vector Word16 -> CardsS -> Word16
-lookupHRUnsorted s (CardsS v) = s S.! toLexiPosR 52 7 (sort v)
+lookupHRUnsorted s (CardsS v) = S.unsafeIndex s (toLexiPosR 52 7 (sort v))
 
 -- | look up the HandRank of a bunch of cards. CardsS must be sorted in ascending order.
 --

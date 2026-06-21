@@ -34,10 +34,10 @@ import Control.Monad.State.Lazy
     evalState,
   )
 import Data.Bool (bool)
-import Data.Foldable (Foldable (foldl'))
 import Data.List qualified as List
 import Data.Vector qualified as V
 import Data.Vector.Storable qualified as S
+import Data.Vector.Storable.Mutable qualified as M
 import Data.Word
 import Poker.Card.Storable
 import Poker.HandRank
@@ -138,8 +138,21 @@ indexShuffle as = reverse $ go as []
 --
 -- >>> pretty $ evalState (dealN 7) (mkStdGen 42)
 -- Js2h9s6s8c5sQh
+-- | Standard 52-card deck as byte indices 0..51.
+deck52 :: S.Vector Word8
+deck52 = S.enumFromTo 0 51
+
+-- | Deal @n@ cards using an in-place Fisher-Yates sample on a storable
+-- mutable copy of the deck.  Much faster than the list-based shuffle for
+-- the small sample sizes used in poker-fold.
 dealN :: (RandomGen g) => Word8 -> State g CardsS
-dealN n = CardsS . S.fromList . indexShuffle . S.toList <$> rviv 52 n
+dealN n = do
+  let n' = fromIntegral n
+  js <- rviv 52 n
+  pure $ CardsS $ S.create $ do
+    v <- S.thaw deck52
+    S.imapM_ (\i j -> M.swap v i (i + fromIntegral j)) js
+    pure (M.unsafeSlice 0 n' v)
 {-# INLINE dealN #-}
 
 -- | deal n cards from a given deck
@@ -147,7 +160,14 @@ dealN n = CardsS . S.fromList . indexShuffle . S.toList <$> rviv 52 n
 -- >>> pretty $ evalState (dealNWith 7 allCardsS) (mkStdGen 42)
 -- Js2h9s6s8c5sQh
 dealNWith :: (RandomGen g) => Word8 -> CardsS -> State g CardsS
-dealNWith n (CardsS cs) = fmap (CardsS . S.map (cs S.!) . S.fromList . fmap fromIntegral . indexShuffle . S.toList) (rviv (fromIntegral $ S.length cs) n)
+dealNWith n (CardsS cs) = do
+  let m = fromIntegral (S.length cs)
+      n' = fromIntegral n
+  js <- rviv m n
+  pure $ CardsS $ S.create $ do
+    v <- S.thaw cs
+    S.imapM_ (\i j -> M.swap v i (i + fromIntegral j)) js
+    pure (M.unsafeSlice 0 n' v)
 {-# INLINE dealNWith #-}
 
 -- | deal a table
@@ -177,12 +197,7 @@ rvHandRank = do
 -- 700
 card7sS :: Int -> Cards2S
 card7sS n =
-  Cards2S $
-    S.convert $
-      mconcat $
-        evalState
-          (replicateM n (S.fromList . indexShuffle . S.toList <$> rviv 52 7))
-          (mkStdGen 42)
+  Cards2S $ S.concat $ evalState (replicateM n (unwrapCardsS <$> dealN 7)) (mkStdGen 42)
 {-# INLINE card7sS #-}
 
 -- | flat storable vector of ints, representing n 7-card sets using ishuffle

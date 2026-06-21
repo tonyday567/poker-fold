@@ -1,5 +1,7 @@
 packages:
   poker-fold.cabal
+  ../circuits-meter/circuits-meter.cabal
+  ../circuits/circuits.cabal
 
 write-ghc-environment-files: always
 

@@ -11,6 +11,7 @@ module Poker.Table
     TableCards (..),
     deal,
     SeatState (..),
+    Street (..),
     Table (..),
     numSeats,
     TableConfig (..),
@@ -23,6 +24,9 @@ module Poker.Table
     liveHoles,
     hands,
     bbs,
+    visibleCards,
+    visibleBoard,
+    advanceStreet,
 
     -- * Betting
     RawAction (..),
@@ -106,16 +110,15 @@ deal :: CardsS -> TableCards
 deal (CardsS cs) =
   TableCards
     ( ( \x ->
-          Hole (view cardI $ cs' List.!! (2 * x)) (view cardI $ cs' List.!! (2 * x + 1))
+          Hole (view cardI (CardS (S.unsafeIndex cs (2 * x)))) (view cardI (CardS (S.unsafeIndex cs (2 * x + 1))))
       )
         <$> [0 .. n - 1]
     )
-    (cs' List.!! (n * 2), cs' List.!! (1 + n * 2), cs' List.!! (2 + n * 2))
-    (cs' List.!! (3 + n * 2))
-    (cs' List.!! (4 + n * 2))
+    (CardS (S.unsafeIndex cs (n * 2)), CardS (S.unsafeIndex cs (1 + n * 2)), CardS (S.unsafeIndex cs (2 + n * 2)))
+    (CardS (S.unsafeIndex cs (3 + n * 2)))
+    (CardS (S.unsafeIndex cs (4 + n * 2)))
   where
-    n = (length cs' - 5) `div` 2
-    cs' = CardS <$> S.toList cs
+    n = (S.length cs - 5) `div` 2
 
 -- | For each seat, the betting can be open (can re-raise), closed (has called and cannot re-raise). A raise at the table re-opens the betting for all live seats.
 --
@@ -127,6 +130,16 @@ instance Pretty SeatState where
   pretty BettingOpen = "o"
   pretty BettingClosed = "c"
   pretty Folded = "f"
+
+-- | Betting round.
+data Street = Preflop | Flop | Turn | River
+  deriving (Eq, Show, Generic, Enum, Bounded)
+
+instance Pretty Street where
+  pretty Preflop = "p"
+  pretty Flop = "f"
+  pretty Turn = "t"
+  pretty River = "r"
 
 -- | Table state.
 --
@@ -145,13 +158,15 @@ data Table = Table
     bets :: [Double],
     -- | bets from folded seats
     pot :: Double,
+    -- | betting round
+    street :: Street,
     -- | betting history
     history :: [(RawAction, Int)]
   }
   deriving (Eq, Show, Generic)
 
 instance Pretty Table where
-  pretty (Table cs n s st bs p h) =
+  pretty (Table cs n s st bs p stt h) =
     concatWith
       (surround ",")
       [ pretty cs,
@@ -160,6 +175,7 @@ instance Pretty Table where
         hsep $ pretty . comma (Just 2) <$> st,
         hsep $ pretty . comma (Just 2) <$> bs,
         pretty (comma (Just 2) p),
+        pretty stt,
         concatWith (surround ":") $ (\(a, p) -> pretty a <> pretty p) <$> h
       ]
 
@@ -202,6 +218,35 @@ openSeats t = case cursor t of
 -- Just 1
 nextCursor :: Table -> Maybe Int
 nextCursor t = listToMaybe (openSeats t)
+
+-- | Board cards visible on the current street.
+visibleCards :: Table -> [CardS]
+visibleCards t =
+  case street t of
+    Preflop -> []
+    Flop -> [f0, f1, f2]
+    Turn -> [f0, f1, f2, t']
+    River -> [f0, f1, f2, t', r']
+  where
+    TableCards _ (f0, f1, f2) t' r' = cards t
+
+-- | Visible board cards as a 'CardsS'.
+visibleBoard :: Table -> CardsS
+visibleBoard = CardsS . S.fromList . fmap unwrapCardS . visibleCards
+
+-- | Advance to the next street after betting has closed.
+-- Live bets are moved into the pot and seats are reopened for the next round.
+advanceStreet :: Table -> Table
+advanceStreet t =
+  case street t of
+    River -> t
+    s ->
+      t
+        & #street .~ succ s
+        & #pot %~ (+ sum (t ^. #bets))
+        & #bets .~ replicate (numSeats t) 0
+        & #seats %~ fmap (\st -> bool BettingClosed BettingOpen (st /= Folded))
+        & #cursor .~ listToMaybe (liveSeats t)
 
 -- | The table is closed when no seat is open, or all but 1 seat has folded.
 --
@@ -251,7 +296,7 @@ defaultTableConfig = TableConfig 2 0 (replicate 2 10)
 -- Js2h 9s6s|8c5sQh|5c|6c,hero: 0,o o,9.5 9.0,0.50 1.0,0.0,
 makeTable :: TableConfig -> CardsS -> Table
 makeTable cfg cs =
-  Table (deal cs) (Just 0) (replicate (tableSize cfg) BettingOpen) (zipWith (-) (stacks0 cfg) bs) bs 0 []
+  Table (deal cs) (Just 0) (replicate (tableSize cfg) BettingOpen) (zipWith (-) (stacks0 cfg) bs) bs 0 Preflop []
   where
     bs = bbs (tableSize cfg) (ante cfg)
 
