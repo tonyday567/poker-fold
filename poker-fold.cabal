@@ -205,3 +205,19 @@ executable poker-fold-perf
         , random         >=1.2 && <1.3
         , vector         >=0.12.3 && <0.14
     ghc-options: -O2
+
+executable poker-fold-cohorts
+    import: ghc-options-exe-stanza
+    import: ghc-options-stanza
+    import: ghc2021-stanza
+    main-is: cohorts.hs
+    hs-source-dirs: app
+    build-depends:
+        , base           >=4.7 && <5
+        , containers     >=0.6 && <0.9
+        , formatn        >=0.2.1 && <0.4
+        , mtl            >=2.2.2 && <2.4
+        , poker-fold
+        , random         >=1.2 && <1.3
+        , text           >=2.0 && <2.2
+    ghc-options: -O2
