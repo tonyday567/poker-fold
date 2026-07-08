@@ -16,6 +16,7 @@ import Data.Foldable
 import Data.List qualified as List
 import Data.Ord
 import Data.Vector.Storable qualified as S
+import Data.Word (Word64)
 import GHC.Exts hiding (toList)
 import Prelude
 
@@ -100,6 +101,22 @@ binomR _ 0 = 1
 binomR 0 _ = 0
 binomR n k = binomR (n - 1) (k - 1) * n `div` k
 
+-- | Precomputed binomial coefficients: binom[n][k] for n ∈ [0..52], k ∈ [0..7].
+-- Stored as a flat 53×8 'Word64' vector.  416 entries, fits in L1 cache.
+binomTable :: S.Vector Word64
+binomTable =
+  S.fromList
+    [ fromIntegral (binom n k)
+    | n <- [0 .. 52]
+    , k <- [0 .. 7]
+    ]
+{-# NOINLINE binomTable #-}
+
+-- | Look up @binom n k@ from the precomputed table.
+binomLookup :: Int -> Int -> Word64
+binomLookup n k = S.unsafeIndex binomTable (n * 8 + k)
+{-# INLINE binomLookup #-}
+
 -- | reverse lexicographic position of a storable vector with enumerated binom function
 --
 -- > toLexiPosR n k s = binom n k - 1 - S.sum (S.imap (\i a -> binom a (1+i)) s)
@@ -107,6 +124,8 @@ binomR n k = binomR (n - 1) (k - 1) * n `div` k
 --
 -- >>> toLexiPosR 5 2 <$> S.fromList <$> combinationsR 2 [(0::Int)..4] :: [Int]
 -- [0,1,2,3,4,5,6,7,8,9]
-toLexiPosR :: (S.Storable a, S.Storable b, Integral a, Integral b) => a -> a -> S.Vector b -> a
+toLexiPosR :: (S.Storable b, Integral a, Integral b) => a -> a -> S.Vector b -> a
 toLexiPosR n k s =
-  binom n k - 1 - S.sum (S.imap (\i a -> fromIntegral $ binom (fromIntegral a) (1 + i)) s)
+  fromIntegral $
+    binomLookup (fromIntegral n) (fromIntegral k) - 1
+      - S.ifoldl' (\acc i a -> acc + binomLookup (fromIntegral a) (1 + i)) 0 s

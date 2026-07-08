@@ -71,25 +71,25 @@ main = do
   let dealT k = evalState (replicateM k (dealTable defaultTableConfig)) gen0 :: [Table]
   bench "dealTable" runs n (sum . map cardSum . dealT)
 
-  -- precompute sorted 7-card sets for pure benchmarks
+  -- precompute sorted 7-card sets
   let cssRaw = evalState (replicateM n (dealN 7)) gen0
   let cssSorted = map (CardsS . sort . unwrapCardsS) cssRaw
 
-  -- 5. lexicographic index computation only
+  -- 5. lexicographic index (pure, table-based)
   bench "toLexiPosR 52 7" runs n (\_ ->
     (foldl' (\acc cs -> acc + toLexiPosR (52 :: Int) (7 :: Int) (unwrapCardsS cs :: S.Vector Word8)) 0 cssSorted) :: Int)
 
-  -- 6. lookup in hvs7 (sorted input) -- note: ticksN can memoise this fold
+  -- 6. lookupHR sorted (table-based)
   bench "lookupHR sorted" runs n (\_ ->
     (foldl' (\acc cs -> acc + fromIntegral (lookupHR hvs cs)) 0 cssSorted) :: Int)
 
-  -- 7. IO-backed variants.  These use an IORef index so GHC cannot float
-  -- or memoise the work, giving a true per-iteration cost.
+  -- IO-backed variants (prevent GHC floating/memoising)
   let nIO = n + 100
   cssRawV <- pure $ force $ V.fromList $ evalState (replicateM nIO (dealN 7)) (mkStdGen 8)
   let cssSortedV = force $ V.map (CardsS . sort . unwrapCardsS) cssRawV
   let cssUnsortedV = cssRawV
 
+  -- sort 7-card vector
   idxSort <- newIORef 0
   sumSort <- newIORef (0 :: Int)
   benchIO "sort 7-card vector (IO)" n $ do
@@ -101,9 +101,21 @@ main = do
     modifyIORef' sumSort (+ r)
     evaluate (force r)
 
+  -- toLexiPosR (IO, table-based)
+  idxLexi <- newIORef 0
+  sumLexi <- newIORef (0 :: Int)
+  benchIO "toLexiPosR 52 7 (IO)" n $ do
+    i <- readIORef idxLexi
+    let !cs = cssSortedV V.! i
+    let !r = toLexiPosR (52 :: Int) (7 :: Int) (unwrapCardsS cs :: S.Vector Word8)
+    writeIORef idxLexi (i + 1)
+    modifyIORef' sumLexi (+ r)
+    evaluate (force r)
+
+  -- lookupHR sorted (IO, cold)
   idxLookSorted <- newIORef 0
   sumLookSorted <- newIORef (0 :: Int)
-  benchIO "lookupHR sorted (IO)" n $ do
+  benchIO "lookupHR sorted cold (IO)" n $ do
     i <- readIORef idxLookSorted
     let !cs = cssSortedV V.! i
     let !r = fromIntegral (lookupHR hvs cs) :: Int
@@ -111,16 +123,7 @@ main = do
     modifyIORef' sumLookSorted (+ r)
     evaluate (force r)
 
-  idxLookUnsorted <- newIORef 0
-  sumLookUnsorted <- newIORef (0 :: Int)
-  benchIO "lookupHR unsorted (IO)" n $ do
-    i <- readIORef idxLookUnsorted
-    let !cs = cssUnsortedV V.! i
-    let !r = fromIntegral (lookupHRUnsorted hvs cs) :: Int
-    writeIORef idxLookUnsorted (i + 1)
-    modifyIORef' sumLookUnsorted (+ r)
-    evaluate (force r)
-
+  -- lookupHR sorted hot (IO)
   idxLookSortedHot <- newIORef 0
   sumLookSortedHot <- newIORef (0 :: Int)
   benchIO "lookupHR sorted hot (IO)" n $ do
@@ -129,6 +132,17 @@ main = do
     let !r = fromIntegral (lookupHR hvs cs) :: Int
     writeIORef idxLookSortedHot (i + 1)
     modifyIORef' sumLookSortedHot (+ r)
+    evaluate (force r)
+
+  -- lookupHR unsorted (IO)
+  idxLookUnsorted <- newIORef 0
+  sumLookUnsorted <- newIORef (0 :: Int)
+  benchIO "lookupHR unsorted (IO)" n $ do
+    i <- readIORef idxLookUnsorted
+    let !cs = cssUnsortedV V.! i
+    let !r = fromIntegral (lookupHRUnsorted hvs cs) :: Int
+    writeIORef idxLookUnsorted (i + 1)
+    modifyIORef' sumLookUnsorted (+ r)
     evaluate (force r)
 
   -- precompute tables for showdown / play benchmarks
