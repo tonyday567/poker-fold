@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700">
+<rect width="100%" height="100%" fill="white"/>
+<text x="450.0" y="30" text-anchor="middle" font-size="18" font-weight="bold">Coordinate-ascent path with local optima marked</text>
+<line x1="-943.24" y1="60" x2="-943.24" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="898.35" x2="840" y2="898.35" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="-943.24" y1="640" x2="-943.24" y2="645" stroke="black"/>
+<text x="-943.24" y="660" text-anchor="middle" font-size="11">0.0</text>
+<line x1="55" y1="898.35" x2="60" y2="898.35" stroke="black"/>
+<text x="50" y="898.35" dy="4" text-anchor="end" font-size="11">0.0</text>
+<line x1="-586.59" y1="60" x2="-586.59" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="644.94" x2="840" y2="644.94" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="-586.59" y1="640" x2="-586.59" y2="645" stroke="black"/>
+<text x="-586.59" y="660" text-anchor="middle" font-size="11">0.2</text>
+<line x1="55" y1="644.94" x2="60" y2="644.94" stroke="black"/>
+<text x="50" y="644.94" dy="4" text-anchor="end" font-size="11">0.2</text>
+<line x1="-229.94" y1="60" x2="-229.94" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="391.52" x2="840" y2="391.52" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="-229.94" y1="640" x2="-229.94" y2="645" stroke="black"/>
+<text x="-229.94" y="660" text-anchor="middle" font-size="11">0.4</text>
+<line x1="55" y1="391.52" x2="60" y2="391.52" stroke="black"/>
+<text x="50" y="391.52" dy="4" text-anchor="end" font-size="11">0.4</text>
+<line x1="126.70" y1="60" x2="126.70" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="138.10" x2="840" y2="138.10" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="126.70" y1="640" x2="126.70" y2="645" stroke="black"/>
+<text x="126.70" y="660" text-anchor="middle" font-size="11">0.6</text>
+<line x1="55" y1="138.10" x2="60" y2="138.10" stroke="black"/>
+<text x="50" y="138.10" dy="4" text-anchor="end" font-size="11">0.6</text>
+<line x1="483.35" y1="60" x2="483.35" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="-115.32" x2="840" y2="-115.32" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="483.35" y1="640" x2="483.35" y2="645" stroke="black"/>
+<text x="483.35" y="660" text-anchor="middle" font-size="11">0.8</text>
+<line x1="55" y1="-115.32" x2="60" y2="-115.32" stroke="black"/>
+<text x="50" y="-115.32" dy="4" text-anchor="end" font-size="11">0.8</text>
+<line x1="840.00" y1="60" x2="840.00" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="-368.73" x2="840" y2="-368.73" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="840.00" y1="640" x2="840.00" y2="645" stroke="black"/>
+<text x="840.00" y="660" text-anchor="middle" font-size="11">1.0</text>
+<line x1="55" y1="-368.73" x2="60" y2="-368.73" stroke="black"/>
+<text x="50" y="-368.73" dy="4" text-anchor="end" font-size="11">1.0</text>
+<line x1="60" y1="640" x2="840" y2="640" stroke="black" stroke-width="2"/>
+<line x1="60" y1="60" x2="60" y2="640" stroke="black" stroke-width="2"/>
+<text x="450.0" y="690" text-anchor="middle" font-size="14">SB opening width (1 - C0_t0)</text>
+<text x="20" y="350.0" text-anchor="middle" font-size="14" transform="rotate(-90 20,350.0)">BB aggression index</text>
+<defs>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L0,6 L9,3 z" fill="#666"/>
+  </marker>
+</defs>
+<polyline points="840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,475.99 840.00,495.10 840.00,511.67 840.00,523.13 840.00,537.15 840.00,551.16 840.00,565.18 840.00,576.65 840.00,567.09 840.00,567.09 840.00,558.81 840.00,558.81 840.00,544.79 840.00,544.79" fill="none" stroke="#666" stroke-width="1.5" marker-mid="url(#arrow)"/>
+<circle cx="840.00" cy="475.99" r="5" fill="#ff0000" stroke="black" stroke-width="1.5"><title>Step 1
+EV: 0.02814
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<text x="840.00" y="475.99" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">1</text>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#d3002b" stroke="black" stroke-width="0.5"><title>Step 2
+EV: 0.12382
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#cd0031" stroke="black" stroke-width="0.5"><title>Step 3
+EV: 0.13854
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#b50049" stroke="black" stroke-width="0.5"><title>Step 4
+EV: 0.19006
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#ad0051" stroke="black" stroke-width="0.5"><title>Step 5
+EV: 0.20905
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="5" fill="#8f006f" stroke="black" stroke-width="1.5"><title>Step 6
+EV: 0.27552
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<text x="840.00" y="475.99" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">6</text>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#890075" stroke="black" stroke-width="0.5"><title>Step 7
+EV: 0.28728
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#770087" stroke="black" stroke-width="0.5"><title>Step 8
+EV: 0.32845
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#71008d" stroke="black" stroke-width="0.5"><title>Step 9
+EV: 0.34099
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#5d00a1" stroke="black" stroke-width="0.5"><title>Step 10
+EV: 0.38489
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="5" fill="#5800a6" stroke="black" stroke-width="1.5"><title>Step 11
+EV: 0.39579
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<text x="840.00" y="475.99" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">11</text>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#4700b7" stroke="black" stroke-width="0.5"><title>Step 12
+EV: 0.43394
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#4300bb" stroke="black" stroke-width="0.5"><title>Step 13
+EV: 0.44161
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#3700c7" stroke="black" stroke-width="0.5"><title>Step 14
+EV: 0.46846
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#3200cc" stroke="black" stroke-width="0.5"><title>Step 15
+EV: 0.47960
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="5" fill="#2000de" stroke="black" stroke-width="1.5"><title>Step 16
+EV: 0.51860
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<text x="840.00" y="475.99" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">16</text>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#1d00e1" stroke="black" stroke-width="0.5"><title>Step 17
+EV: 0.52697
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#0f00ef" stroke="black" stroke-width="0.5"><title>Step 18
+EV: 0.55623
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#0c00f2" stroke="black" stroke-width="0.5"><title>Step 19
+EV: 0.56407
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="475.99" r="2.5" fill="#0000ff" stroke="black" stroke-width="0.5"><title>Step 20
+EV: 0.59148
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="495.10" r="5" fill="#1100ed" stroke="black" stroke-width="1.5"><title>Step 21
+EV: 0.55230
+SB width: 1.000
+BB agg: 0.318</title></circle>
+<text x="840.00" y="495.10" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">21</text>
+<circle cx="840.00" cy="511.67" r="2.5" fill="#1f00df" stroke="black" stroke-width="0.5"><title>Step 22
+EV: 0.52160
+SB width: 1.000
+BB agg: 0.305</title></circle>
+<circle cx="840.00" cy="523.13" r="2.5" fill="#2900d5" stroke="black" stroke-width="0.5"><title>Step 23
+EV: 0.50082
+SB width: 1.000
+BB agg: 0.296</title></circle>
+<circle cx="840.00" cy="537.15" r="2.5" fill="#3300cb" stroke="black" stroke-width="0.5"><title>Step 24
+EV: 0.47703
+SB width: 1.000
+BB agg: 0.285</title></circle>
+<circle cx="840.00" cy="551.16" r="2.5" fill="#4000be" stroke="black" stroke-width="0.5"><title>Step 25
+EV: 0.44967
+SB width: 1.000
+BB agg: 0.274</title></circle>
+<circle cx="840.00" cy="565.18" r="5" fill="#4a00b4" stroke="black" stroke-width="1.5"><title>Step 26
+EV: 0.42746
+SB width: 1.000
+BB agg: 0.263</title></circle>
+<text x="840.00" y="565.18" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">26</text>
+<circle cx="840.00" cy="576.65" r="2.5" fill="#5200ac" stroke="black" stroke-width="0.5"><title>Step 27
+EV: 0.40951
+SB width: 1.000
+BB agg: 0.254</title></circle>
+<circle cx="840.00" cy="567.09" r="2.5" fill="#5c00a2" stroke="black" stroke-width="0.5"><title>Step 28
+EV: 0.38702
+SB width: 1.000
+BB agg: 0.261</title></circle>
+<circle cx="840.00" cy="567.09" r="2.5" fill="#80007e" stroke="black" stroke-width="0.5"><title>Step 29
+EV: 0.30833
+SB width: 1.000
+BB agg: 0.261</title></circle>
+<circle cx="840.00" cy="558.81" r="2.5" fill="#850079" stroke="black" stroke-width="0.5"><title>Step 30
+EV: 0.29571
+SB width: 1.000
+BB agg: 0.268</title></circle>
+<circle cx="840.00" cy="558.81" r="5" fill="#990065" stroke="black" stroke-width="1.5"><title>Step 31
+EV: 0.25157
+SB width: 1.000
+BB agg: 0.268</title></circle>
+<text x="840.00" y="558.81" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">31</text>
+<circle cx="840.00" cy="544.79" r="2.5" fill="#a0005e" stroke="black" stroke-width="0.5"><title>Step 32
+EV: 0.23584
+SB width: 1.000
+BB agg: 0.279</title></circle>
+<circle cx="840.00" cy="544.79" r="5" fill="#b90045" stroke="black" stroke-width="1.5"><title>Step 33
+EV: 0.18076
+SB width: 1.000
+BB agg: 0.279</title></circle>
+<text x="840.00" y="544.79" dx="-8" dy="8" text-anchor="end" font-size="9" fill="black">33</text>
+<text x="840.00" y="475.99" dx="-30" dy="-8" font-size="12" fill="darkgreen" font-weight="bold">start</text>
+<text x="840.00" y="544.79" dx="10" dy="8" font-size="12" fill="darkgreen" font-weight="bold">end</text>
+<circle cx="60.00" cy="328.83" r="7" fill="green" stroke="black" stroke-width="2"/>
+<text x="60.00" y="328.83" dx="12" dy="4" text-anchor="start" font-size="12" font-weight="bold" fill="green">S0</text>
+<circle cx="199.86" cy="60.00" r="7" fill="orange" stroke="black" stroke-width="2"/>
+<text x="199.86" y="60.00" dx="12" dy="4" text-anchor="start" font-size="12" font-weight="bold" fill="orange">S1</text>
+<rect x="680.00" y="30" width="12" height="12" fill="#ff0000" stroke="none"/>
+<rect x="692.00" y="30" width="12" height="12" fill="#e50019" stroke="none"/>
+<rect x="704.00" y="30" width="12" height="12" fill="#cb0033" stroke="none"/>
+<rect x="716.00" y="30" width="12" height="12" fill="#b2004c" stroke="none"/>
+<rect x="728.00" y="30" width="12" height="12" fill="#980066" stroke="none"/>
+<rect x="740.00" y="30" width="12" height="12" fill="#7f007f" stroke="none"/>
+<rect x="752.00" y="30" width="12" height="12" fill="#660099" stroke="none"/>
+<rect x="764.00" y="30" width="12" height="12" fill="#4c00b2" stroke="none"/>
+<rect x="776.00" y="30" width="12" height="12" fill="#3200cc" stroke="none"/>
+<rect x="788.00" y="30" width="12" height="12" fill="#1900e5" stroke="none"/>
+<rect x="800.00" y="30" width="12" height="12" fill="#0000ff" stroke="none"/>
+<text x="680" y="20" font-size="11" fill="black">EV (SB): 0.028</text>
+<text x="800" y="20" font-size="11" fill="black" text-anchor="end">0.591</text>
+</svg>

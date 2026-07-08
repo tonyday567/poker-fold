@@ -572,7 +572,23 @@ evTables s n sims acts =
 -- Just (-0.16999999999999993)
 ev2Ranges :: S.Vector Word16 -> Range Double -> Int -> [Double] -> Maybe Double
 ev2Ranges s' s sims (s0r : s0c : s1r : s2r : s3r : _) =
-  ev s' 2 sims [rcf s 10 s0r s0c, rcf s 10 s1r 1, rcf s 10 0 s2r, rcf s 10 0 s3r]
+  let ranges =
+        [ rcf s 10 s0r s0c,
+          rcf s 10 s1r 1,
+          rcf s 10 0 s2r,
+          rcf s 10 0 s3r
+        ]
+      tables = evalState (replicateM sims (dealTable defaultTableConfig)) (mkStdGen 42)
+      playOneTable t = go t
+        where
+          go t' = case cursor t' of
+            Nothing -> stacks (showdown s' t') !! 0 - 10.0
+            Just _ -> case decisionContext t' of
+              Nothing -> stacks (showdown s' t') !! 0 - 10.0
+              Just ctx ->
+                let raw = apply (ranges !! ctx) t'
+                 in go (actOn raw t')
+   in Just $ sum (playOneTable <$> tables) / fromIntegral sims
 ev2Ranges _ _ _ _ = Nothing
 
 -- | Apply a 'Range' 'RawAction', supplying a RawAction for the cursor.

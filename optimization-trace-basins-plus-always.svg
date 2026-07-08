@@ -1,0 +1,791 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700">
+<rect width="100%" height="100%" fill="white"/>
+<text x="450.0" y="30" text-anchor="middle" font-size="18" font-weight="bold">Coordinate-ascent paths with local optima marked</text>
+<line x1="-549.35" y1="60" x2="-549.35" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="772.38" x2="840" y2="772.38" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="-549.35" y1="640" x2="-549.35" y2="645" stroke="black"/>
+<text x="-549.35" y="660" text-anchor="middle" font-size="11">0.0</text>
+<line x1="55" y1="772.38" x2="60" y2="772.38" stroke="black"/>
+<text x="50" y="772.38" dy="4" text-anchor="end" font-size="11">0.0</text>
+<line x1="-271.48" y1="60" x2="-271.48" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="557.04" x2="840" y2="557.04" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="-271.48" y1="640" x2="-271.48" y2="645" stroke="black"/>
+<text x="-271.48" y="660" text-anchor="middle" font-size="11">0.2</text>
+<line x1="55" y1="557.04" x2="60" y2="557.04" stroke="black"/>
+<text x="50" y="557.04" dy="4" text-anchor="end" font-size="11">0.2</text>
+<line x1="6.39" y1="60" x2="6.39" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="341.70" x2="840" y2="341.70" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="6.39" y1="640" x2="6.39" y2="645" stroke="black"/>
+<text x="6.39" y="660" text-anchor="middle" font-size="11">0.4</text>
+<line x1="55" y1="341.70" x2="60" y2="341.70" stroke="black"/>
+<text x="50" y="341.70" dy="4" text-anchor="end" font-size="11">0.4</text>
+<line x1="284.26" y1="60" x2="284.26" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="126.37" x2="840" y2="126.37" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="284.26" y1="640" x2="284.26" y2="645" stroke="black"/>
+<text x="284.26" y="660" text-anchor="middle" font-size="11">0.6</text>
+<line x1="55" y1="126.37" x2="60" y2="126.37" stroke="black"/>
+<text x="50" y="126.37" dy="4" text-anchor="end" font-size="11">0.6</text>
+<line x1="562.13" y1="60" x2="562.13" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="-88.97" x2="840" y2="-88.97" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="562.13" y1="640" x2="562.13" y2="645" stroke="black"/>
+<text x="562.13" y="660" text-anchor="middle" font-size="11">0.8</text>
+<line x1="55" y1="-88.97" x2="60" y2="-88.97" stroke="black"/>
+<text x="50" y="-88.97" dy="4" text-anchor="end" font-size="11">0.8</text>
+<line x1="840.00" y1="60" x2="840.00" y2="640" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="60" y1="-304.31" x2="840" y2="-304.31" stroke="#e0e0e0" stroke-width="1"/>
+<line x1="840.00" y1="640" x2="840.00" y2="645" stroke="black"/>
+<text x="840.00" y="660" text-anchor="middle" font-size="11">1.0</text>
+<line x1="55" y1="-304.31" x2="60" y2="-304.31" stroke="black"/>
+<text x="50" y="-304.31" dy="4" text-anchor="end" font-size="11">1.0</text>
+<line x1="60" y1="640" x2="840" y2="640" stroke="black" stroke-width="2"/>
+<line x1="60" y1="60" x2="60" y2="640" stroke="black" stroke-width="2"/>
+<text x="450.0" y="690" text-anchor="middle" font-size="14">SB opening width (1 - C0_t0)</text>
+<text x="20" y="350.0" text-anchor="middle" font-size="14" transform="rotate(-90 20,350.0)">BB aggression index</text>
+<defs>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L0,6 L9,3 z" fill="#666"/>
+  </marker>
+</defs>
+<polyline points="232.29,451.92 232.29,519.04 232.29,385.88 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24 232.29,470.32 232.29,541.24" fill="none" stroke="#1f77b4" stroke-width="1.5" marker-mid="url(#arrow)"/>
+<circle cx="232.29" cy="451.92" r="5" fill="#990065" stroke="#1f77b4" stroke-width="1.5"><title>ABR step 1
+EV: -0.21154
+SB width: 0.563
+BB agg: 0.298</title></circle>
+<circle cx="232.29" cy="519.04" r="2.5" fill="#fa0004" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 2
+EV: -0.71982
+SB width: 0.563
+BB agg: 0.235</title></circle>
+<circle cx="232.29" cy="385.88" r="2.5" fill="#ff0000" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 3
+EV: -0.74570
+SB width: 0.563
+BB agg: 0.359</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 4
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 5
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="5" fill="#b80046" stroke="#1f77b4" stroke-width="1.5"><title>ABR step 6
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 7
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 8
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 9
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 10
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="5" fill="#e2001c" stroke="#1f77b4" stroke-width="1.5"><title>ABR step 11
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 12
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 13
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 14
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 15
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="5" fill="#b80046" stroke="#1f77b4" stroke-width="1.5"><title>ABR step 16
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 17
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 18
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 19
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 20
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="5" fill="#e2001c" stroke="#1f77b4" stroke-width="1.5"><title>ABR step 21
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 22
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 23
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="2.5" fill="#b80046" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 24
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 25
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="5" fill="#b80046" stroke="#1f77b4" stroke-width="1.5"><title>ABR step 26
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<circle cx="232.29" cy="470.32" r="2.5" fill="#e2001c" stroke="#1f77b4" stroke-width="0.5"><title>ABR step 27
+EV: -0.59559
+SB width: 0.563
+BB agg: 0.281</title></circle>
+<circle cx="232.29" cy="541.24" r="5" fill="#b80046" stroke="#1f77b4" stroke-width="1.5"><title>ABR step 28
+EV: -0.37389
+SB width: 0.563
+BB agg: 0.215</title></circle>
+<text x="232.29" y="451.92" dx="-30" dy="-8" font-size="10" fill="#1f77b4" font-weight="bold">ABR start</text>
+<text x="232.29" y="541.24" dx="10" dy="8" font-size="10" fill="#1f77b4" font-weight="bold">ABR end</text>
+<polyline points="286.77,184.61 286.77,194.35 286.77,194.35 286.77,202.47 286.77,202.47 286.77,202.47 286.77,202.47 286.77,202.47 286.77,202.47 286.77,202.47 286.77,202.47 286.77,201.83 253.24,201.83 207.14,201.83 169.42,201.83 129.47,201.83" fill="none" stroke="#ff7f0e" stroke-width="1.5" marker-mid="url(#arrow)"/>
+<circle cx="286.77" cy="184.61" r="5" fill="#790085" stroke="#ff7f0e" stroke-width="1.5"><title>midpoint step 1
+EV: -0.04324
+SB width: 0.602
+BB agg: 0.546</title></circle>
+<circle cx="286.77" cy="194.35" r="2.5" fill="#7a0084" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 2
+EV: -0.05085
+SB width: 0.602
+BB agg: 0.537</title></circle>
+<circle cx="286.77" cy="194.35" r="2.5" fill="#790085" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 3
+EV: -0.04393
+SB width: 0.602
+BB agg: 0.537</title></circle>
+<circle cx="286.77" cy="202.47" r="2.5" fill="#790085" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 4
+EV: -0.04699
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="202.47" r="2.5" fill="#7a0084" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 5
+EV: -0.04959
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="202.47" r="5" fill="#7b0083" stroke="#ff7f0e" stroke-width="1.5"><title>midpoint step 6
+EV: -0.05439
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="202.47" r="2.5" fill="#7c0082" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 7
+EV: -0.05900
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="202.47" r="2.5" fill="#7c0082" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 8
+EV: -0.06355
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="202.47" r="2.5" fill="#7d0081" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 9
+EV: -0.06802
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="202.47" r="2.5" fill="#7e0080" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 10
+EV: -0.07402
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="202.47" r="5" fill="#7f007f" stroke="#ff7f0e" stroke-width="1.5"><title>midpoint step 11
+EV: -0.07954
+SB width: 0.602
+BB agg: 0.529</title></circle>
+<circle cx="286.77" cy="201.83" r="2.5" fill="#81007d" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 12
+EV: -0.08539
+SB width: 0.602
+BB agg: 0.530</title></circle>
+<circle cx="253.24" cy="201.83" r="2.5" fill="#80007e" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 13
+EV: -0.08089
+SB width: 0.578
+BB agg: 0.530</title></circle>
+<circle cx="207.14" cy="201.83" r="2.5" fill="#7f007f" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 14
+EV: -0.07508
+SB width: 0.544
+BB agg: 0.530</title></circle>
+<circle cx="169.42" cy="201.83" r="2.5" fill="#7e0080" stroke="#ff7f0e" stroke-width="0.5"><title>midpoint step 15
+EV: -0.07001
+SB width: 0.517
+BB agg: 0.530</title></circle>
+<circle cx="129.47" cy="201.83" r="5" fill="#7c0082" stroke="#ff7f0e" stroke-width="1.5"><title>midpoint step 16
+EV: -0.06371
+SB width: 0.489
+BB agg: 0.530</title></circle>
+<text x="286.77" y="184.61" dx="-30" dy="-8" font-size="10" fill="#ff7f0e" font-weight="bold">midpoint start</text>
+<text x="129.47" y="201.83" dx="10" dy="8" font-size="10" fill="#ff7f0e" font-weight="bold">midpoint end</text>
+<polyline points="840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,413.48 840.00,429.72 840.00,443.80 840.00,453.54 840.00,465.45 840.00,477.36 840.00,489.27 840.00,499.01 840.00,490.89 840.00,490.89 840.00,483.86 840.00,483.86 840.00,471.95 840.00,471.95 840.00,463.83 840.00,463.83 840.00,454.08 840.00,454.08 840.00,443.80 840.00,443.80 840.00,436.22 840.00,436.22 840.00,424.31 840.00,424.31 840.00,414.57 840.00,414.57 840.00,404.28 840.00,404.28 777.13,404.28 722.65,404.28 684.93,404.28 638.83,404.28 592.72,404.28 546.62,404.28 508.90,404.28 508.90,416.19 508.90,425.93 508.90,435.68 508.90,447.59 508.90,457.33 508.90,469.24 508.90,478.98 508.90,490.89 508.90,501.18 508.90,510.92 508.90,520.67 508.90,534.74 508.90,542.32 508.90,552.60 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,562.35 508.90,576.42 508.90,586.17 508.90,586.17 508.90,576.42 508.90,562.35 508.90,562.35 508.90,562.35 508.90,554.77 508.90,554.77 508.90,542.32 508.90,542.32 508.90,534.74 508.90,534.74 508.90,520.67 508.90,520.67 508.90,513.09 508.90,513.09 508.90,502.80 508.90,502.80 508.90,490.89 508.90,490.89 508.90,501.18 508.90,508.76 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,520.67 508.90,512.55 508.90,505.51 508.90,493.60 508.90,485.48 508.90,475.74 508.90,465.45 508.90,457.87 508.90,445.96 508.90,436.22 508.90,425.93" fill="none" stroke="#2ca02c" stroke-width="1.5" marker-mid="url(#arrow)"/>
+<circle cx="840.00" cy="413.48" r="5" fill="#6b0093" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 1
+EV: 0.02814
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#5900a5" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 2
+EV: 0.12382
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#5600a8" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 3
+EV: 0.13854
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#4c00b2" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 4
+EV: 0.19006
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#4800b6" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 5
+EV: 0.20905
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="5" fill="#3c00c2" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 6
+EV: 0.27552
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#3a00c4" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 7
+EV: 0.28728
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#3200cc" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 8
+EV: 0.32845
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#2f00cf" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 9
+EV: 0.34099
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#2700d7" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 10
+EV: 0.38489
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="5" fill="#2500d9" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 11
+EV: 0.39579
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#1e00e0" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 12
+EV: 0.43394
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#1c00e2" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 13
+EV: 0.44161
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#1700e7" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 14
+EV: 0.46846
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#1500e9" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 15
+EV: 0.47960
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="5" fill="#0d00f1" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 16
+EV: 0.51860
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#0c00f2" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 17
+EV: 0.52697
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#0600f8" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 18
+EV: 0.55623
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#0500f9" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 19
+EV: 0.56407
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="413.48" r="2.5" fill="#0000ff" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 20
+EV: 0.59148
+SB width: 1.000
+BB agg: 0.333</title></circle>
+<circle cx="840.00" cy="429.72" r="5" fill="#0700f7" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 21
+EV: 0.55230
+SB width: 1.000
+BB agg: 0.318</title></circle>
+<circle cx="840.00" cy="443.80" r="2.5" fill="#0d00f1" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 22
+EV: 0.52160
+SB width: 1.000
+BB agg: 0.305</title></circle>
+<circle cx="840.00" cy="453.54" r="2.5" fill="#1100ed" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 23
+EV: 0.50082
+SB width: 1.000
+BB agg: 0.296</title></circle>
+<circle cx="840.00" cy="465.45" r="2.5" fill="#1500e9" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 24
+EV: 0.47703
+SB width: 1.000
+BB agg: 0.285</title></circle>
+<circle cx="840.00" cy="477.36" r="2.5" fill="#1b00e3" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 25
+EV: 0.44967
+SB width: 1.000
+BB agg: 0.274</title></circle>
+<circle cx="840.00" cy="489.27" r="5" fill="#1f00df" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 26
+EV: 0.42746
+SB width: 1.000
+BB agg: 0.263</title></circle>
+<circle cx="840.00" cy="499.01" r="2.5" fill="#2200dc" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 27
+EV: 0.40951
+SB width: 1.000
+BB agg: 0.254</title></circle>
+<circle cx="840.00" cy="490.89" r="2.5" fill="#2600d8" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 28
+EV: 0.38702
+SB width: 1.000
+BB agg: 0.261</title></circle>
+<circle cx="840.00" cy="490.89" r="2.5" fill="#3500c9" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 29
+EV: 0.30833
+SB width: 1.000
+BB agg: 0.261</title></circle>
+<circle cx="840.00" cy="483.86" r="2.5" fill="#3800c6" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 30
+EV: 0.29571
+SB width: 1.000
+BB agg: 0.268</title></circle>
+<circle cx="840.00" cy="483.86" r="5" fill="#4000be" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 31
+EV: 0.25157
+SB width: 1.000
+BB agg: 0.268</title></circle>
+<circle cx="840.00" cy="471.95" r="2.5" fill="#4300bb" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 32
+EV: 0.23584
+SB width: 1.000
+BB agg: 0.279</title></circle>
+<circle cx="840.00" cy="471.95" r="2.5" fill="#4e00b0" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 33
+EV: 0.18076
+SB width: 1.000
+BB agg: 0.279</title></circle>
+<circle cx="840.00" cy="463.83" r="2.5" fill="#5000ae" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 34
+EV: 0.16957
+SB width: 1.000
+BB agg: 0.287</title></circle>
+<circle cx="840.00" cy="463.83" r="2.5" fill="#5700a7" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 35
+EV: 0.13040
+SB width: 1.000
+BB agg: 0.287</title></circle>
+<circle cx="840.00" cy="454.08" r="5" fill="#5a00a4" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 36
+EV: 0.11792
+SB width: 1.000
+BB agg: 0.296</title></circle>
+<circle cx="840.00" cy="454.08" r="2.5" fill="#62009c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 37
+EV: 0.07423
+SB width: 1.000
+BB agg: 0.296</title></circle>
+<circle cx="840.00" cy="443.80" r="2.5" fill="#650099" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 38
+EV: 0.06084
+SB width: 1.000
+BB agg: 0.305</title></circle>
+<circle cx="840.00" cy="443.80" r="2.5" fill="#6e0090" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 39
+EV: 0.01400
+SB width: 1.000
+BB agg: 0.305</title></circle>
+<circle cx="840.00" cy="436.22" r="2.5" fill="#6f008f" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 40
+EV: 0.00464
+SB width: 1.000
+BB agg: 0.312</title></circle>
+<circle cx="840.00" cy="436.22" r="5" fill="#760088" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 41
+EV: -0.02813
+SB width: 1.000
+BB agg: 0.312</title></circle>
+<circle cx="840.00" cy="424.31" r="2.5" fill="#780086" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 42
+EV: -0.04189
+SB width: 1.000
+BB agg: 0.323</title></circle>
+<circle cx="840.00" cy="424.31" r="2.5" fill="#81007d" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 43
+EV: -0.09005
+SB width: 1.000
+BB agg: 0.323</title></circle>
+<circle cx="840.00" cy="414.57" r="2.5" fill="#83007b" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 44
+EV: -0.10000
+SB width: 1.000
+BB agg: 0.332</title></circle>
+<circle cx="840.00" cy="414.57" r="2.5" fill="#8a0074" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 45
+EV: -0.13479
+SB width: 1.000
+BB agg: 0.332</title></circle>
+<circle cx="840.00" cy="404.28" r="5" fill="#8c0072" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 46
+EV: -0.14499
+SB width: 1.000
+BB agg: 0.342</title></circle>
+<circle cx="840.00" cy="404.28" r="2.5" fill="#93006b" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 47
+EV: -0.18069
+SB width: 1.000
+BB agg: 0.342</title></circle>
+<circle cx="777.13" cy="404.28" r="2.5" fill="#8b0073" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 48
+EV: -0.14119
+SB width: 0.955
+BB agg: 0.342</title></circle>
+<circle cx="722.65" cy="404.28" r="2.5" fill="#860078" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 49
+EV: -0.11290
+SB width: 0.916
+BB agg: 0.342</title></circle>
+<circle cx="684.93" cy="404.28" r="2.5" fill="#82007c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 50
+EV: -0.09388
+SB width: 0.888
+BB agg: 0.342</title></circle>
+<circle cx="638.83" cy="404.28" r="5" fill="#7f007f" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 51
+EV: -0.07467
+SB width: 0.855
+BB agg: 0.342</title></circle>
+<circle cx="592.72" cy="404.28" r="2.5" fill="#7a0084" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 52
+EV: -0.05299
+SB width: 0.822
+BB agg: 0.342</title></circle>
+<circle cx="546.62" cy="404.28" r="2.5" fill="#770087" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 53
+EV: -0.03455
+SB width: 0.789
+BB agg: 0.342</title></circle>
+<circle cx="508.90" cy="404.28" r="2.5" fill="#74008a" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 54
+EV: -0.02085
+SB width: 0.762
+BB agg: 0.342</title></circle>
+<circle cx="508.90" cy="416.19" r="2.5" fill="#780086" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 55
+EV: -0.04301
+SB width: 0.762
+BB agg: 0.331</title></circle>
+<circle cx="508.90" cy="425.93" r="5" fill="#7c0082" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 56
+EV: -0.06134
+SB width: 0.762
+BB agg: 0.322</title></circle>
+<circle cx="508.90" cy="435.68" r="2.5" fill="#80007e" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 57
+EV: -0.08036
+SB width: 0.762
+BB agg: 0.313</title></circle>
+<circle cx="508.90" cy="447.59" r="2.5" fill="#84007a" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 58
+EV: -0.10168
+SB width: 0.762
+BB agg: 0.302</title></circle>
+<circle cx="508.90" cy="457.33" r="2.5" fill="#870077" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 59
+EV: -0.11927
+SB width: 0.762
+BB agg: 0.293</title></circle>
+<circle cx="508.90" cy="469.24" r="2.5" fill="#8b0073" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 60
+EV: -0.14081
+SB width: 0.762
+BB agg: 0.282</title></circle>
+<circle cx="508.90" cy="478.98" r="5" fill="#8e0070" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 61
+EV: -0.15738
+SB width: 0.762
+BB agg: 0.272</title></circle>
+<circle cx="508.90" cy="490.89" r="2.5" fill="#92006c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 62
+EV: -0.17809
+SB width: 0.762
+BB agg: 0.261</title></circle>
+<circle cx="508.90" cy="501.18" r="2.5" fill="#950069" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 63
+EV: -0.19299
+SB width: 0.762
+BB agg: 0.252</title></circle>
+<circle cx="508.90" cy="510.92" r="2.5" fill="#980066" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 64
+EV: -0.20959
+SB width: 0.762
+BB agg: 0.243</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#9b0063" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 65
+EV: -0.22468
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="534.74" r="5" fill="#9f005f" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 66
+EV: -0.24533
+SB width: 0.762
+BB agg: 0.221</title></circle>
+<circle cx="508.90" cy="542.32" r="2.5" fill="#a1005d" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 67
+EV: -0.25610
+SB width: 0.762
+BB agg: 0.214</title></circle>
+<circle cx="508.90" cy="552.60" r="2.5" fill="#a3005b" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 68
+EV: -0.26813
+SB width: 0.762
+BB agg: 0.204</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#a50059" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 69
+EV: -0.27798
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#a1005d" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 70
+EV: -0.25611
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="5" fill="#9e0060" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 71
+EV: -0.23740
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#9a0064" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 72
+EV: -0.21835
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#960068" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 73
+EV: -0.19765
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#93006b" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 74
+EV: -0.18039
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#8f006f" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 75
+EV: -0.15855
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="5" fill="#8b0073" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 76
+EV: -0.14253
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#870077" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 77
+EV: -0.12133
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#850079" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 78
+EV: -0.10714
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#82007c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 79
+EV: -0.09029
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#7e0080" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 80
+EV: -0.07416
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="5" fill="#7a0084" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 81
+EV: -0.05180
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#790085" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 82
+EV: -0.04303
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#760088" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 83
+EV: -0.03000
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#74008a" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 84
+EV: -0.02073
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#72008c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 85
+EV: -0.00642
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="576.42" r="5" fill="#74008a" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 86
+EV: -0.02070
+SB width: 0.762
+BB agg: 0.182</title></circle>
+<circle cx="508.90" cy="586.17" r="2.5" fill="#760088" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 87
+EV: -0.02925
+SB width: 0.762
+BB agg: 0.173</title></circle>
+<circle cx="508.90" cy="586.17" r="2.5" fill="#750089" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 88
+EV: -0.02354
+SB width: 0.762
+BB agg: 0.173</title></circle>
+<circle cx="508.90" cy="576.42" r="2.5" fill="#760088" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 89
+EV: -0.02857
+SB width: 0.762
+BB agg: 0.182</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#770087" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 90
+EV: -0.03574
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="5" fill="#780086" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 91
+EV: -0.04180
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="562.35" r="2.5" fill="#7a0084" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 92
+EV: -0.05057
+SB width: 0.762
+BB agg: 0.195</title></circle>
+<circle cx="508.90" cy="554.77" r="2.5" fill="#7b0083" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 93
+EV: -0.05397
+SB width: 0.762
+BB agg: 0.202</title></circle>
+<circle cx="508.90" cy="554.77" r="2.5" fill="#7c0082" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 94
+EV: -0.05930
+SB width: 0.762
+BB agg: 0.202</title></circle>
+<circle cx="508.90" cy="542.32" r="2.5" fill="#7d0081" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 95
+EV: -0.06410
+SB width: 0.762
+BB agg: 0.214</title></circle>
+<circle cx="508.90" cy="542.32" r="5" fill="#7e0080" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 96
+EV: -0.07403
+SB width: 0.762
+BB agg: 0.214</title></circle>
+<circle cx="508.90" cy="534.74" r="2.5" fill="#7f007f" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 97
+EV: -0.07612
+SB width: 0.762
+BB agg: 0.221</title></circle>
+<circle cx="508.90" cy="534.74" r="2.5" fill="#80007e" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 98
+EV: -0.08350
+SB width: 0.762
+BB agg: 0.221</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#81007d" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 99
+EV: -0.08686
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#84007a" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 100
+EV: -0.10113
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="513.09" r="5" fill="#84007a" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 101
+EV: -0.10185
+SB width: 0.762
+BB agg: 0.241</title></circle>
+<circle cx="508.90" cy="513.09" r="2.5" fill="#850079" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 102
+EV: -0.11114
+SB width: 0.762
+BB agg: 0.241</title></circle>
+<circle cx="508.90" cy="502.80" r="2.5" fill="#860078" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 103
+EV: -0.11254
+SB width: 0.762
+BB agg: 0.250</title></circle>
+<circle cx="508.90" cy="502.80" r="2.5" fill="#880076" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 104
+EV: -0.12476
+SB width: 0.762
+BB agg: 0.250</title></circle>
+<circle cx="508.90" cy="490.89" r="2.5" fill="#880076" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 105
+EV: -0.12494
+SB width: 0.762
+BB agg: 0.261</title></circle>
+<circle cx="508.90" cy="490.89" r="5" fill="#8b0073" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 106
+EV: -0.14100
+SB width: 0.762
+BB agg: 0.261</title></circle>
+<circle cx="508.90" cy="501.18" r="2.5" fill="#8c0072" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 107
+EV: -0.14540
+SB width: 0.762
+BB agg: 0.252</title></circle>
+<circle cx="508.90" cy="508.76" r="2.5" fill="#8d0071" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 108
+EV: -0.14912
+SB width: 0.762
+BB agg: 0.245</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#8e0070" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 109
+EV: -0.15450
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#8a0074" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 110
+EV: -0.13406
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="5" fill="#850079" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 111
+EV: -0.10656
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#82007c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 112
+EV: -0.09293
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#7e0080" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 113
+EV: -0.07274
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#7c0082" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 114
+EV: -0.06143
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#780086" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 115
+EV: -0.04274
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="5" fill="#770087" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 116
+EV: -0.03356
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#74008a" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 117
+EV: -0.02087
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#72008c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 118
+EV: -0.00857
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#70008e" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 119
+EV: 0.00241
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#6e0090" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 120
+EV: 0.01064
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="5" fill="#6d0091" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 121
+EV: 0.01923
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#6c0092" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 122
+EV: 0.02394
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="520.67" r="2.5" fill="#6b0093" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 123
+EV: 0.03034
+SB width: 0.762
+BB agg: 0.234</title></circle>
+<circle cx="508.90" cy="512.55" r="2.5" fill="#6d0091" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 124
+EV: 0.01988
+SB width: 0.762
+BB agg: 0.241</title></circle>
+<circle cx="508.90" cy="505.51" r="2.5" fill="#6f008f" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 125
+EV: 0.00471
+SB width: 0.762
+BB agg: 0.248</title></circle>
+<circle cx="508.90" cy="493.60" r="5" fill="#750089" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 126
+EV: -0.02375
+SB width: 0.762
+BB agg: 0.259</title></circle>
+<circle cx="508.90" cy="485.48" r="2.5" fill="#790085" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 127
+EV: -0.04368
+SB width: 0.762
+BB agg: 0.266</title></circle>
+<circle cx="508.90" cy="475.74" r="2.5" fill="#7d0081" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 128
+EV: -0.06762
+SB width: 0.762
+BB agg: 0.276</title></circle>
+<circle cx="508.90" cy="465.45" r="2.5" fill="#82007c" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 129
+EV: -0.09256
+SB width: 0.762
+BB agg: 0.285</title></circle>
+<circle cx="508.90" cy="457.87" r="2.5" fill="#860078" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 130
+EV: -0.11239
+SB width: 0.762
+BB agg: 0.292</title></circle>
+<circle cx="508.90" cy="445.96" r="5" fill="#8c0072" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 131
+EV: -0.14272
+SB width: 0.762
+BB agg: 0.303</title></circle>
+<circle cx="508.90" cy="436.22" r="2.5" fill="#91006d" stroke="#2ca02c" stroke-width="0.5"><title>always-call step 132
+EV: -0.16981
+SB width: 0.762
+BB agg: 0.312</title></circle>
+<circle cx="508.90" cy="425.93" r="5" fill="#960068" stroke="#2ca02c" stroke-width="1.5"><title>always-call step 133
+EV: -0.19948
+SB width: 0.762
+BB agg: 0.322</title></circle>
+<text x="840.00" y="413.48" dx="-30" dy="-8" font-size="10" fill="#2ca02c" font-weight="bold">always-call start</text>
+<text x="508.90" y="425.93" dx="10" dy="8" font-size="10" fill="#2ca02c" font-weight="bold">always-call end</text>
+<circle cx="232.29" cy="288.44" r="7" fill="green" stroke="black" stroke-width="2"/>
+<text x="232.29" y="288.44" dx="12" dy="4" text-anchor="start" font-size="12" font-weight="bold" fill="green">S0</text>
+<circle cx="341.26" cy="60.00" r="7" fill="orange" stroke="black" stroke-width="2"/>
+<text x="341.26" y="60.00" dx="12" dy="4" text-anchor="start" font-size="12" font-weight="bold" fill="orange">S1</text>
+<circle cx="129.47" cy="201.83" r="7" fill="purple" stroke="black" stroke-width="2"/>
+<text x="129.47" y="201.83" dx="12" dy="4" text-anchor="start" font-size="12" font-weight="bold" fill="purple">S2</text>
+<line x1="60" y1="0" x2="80" y2="0" stroke="#1f77b4" stroke-width="2"/>
+<text x="85" y="0" dy="4" font-size="11" fill="black">ABR</text>
+<line x1="60" y1="16" x2="80" y2="16" stroke="#ff7f0e" stroke-width="2"/>
+<text x="85" y="16" dy="4" font-size="11" fill="black">midpoint</text>
+<line x1="60" y1="32" x2="80" y2="32" stroke="#2ca02c" stroke-width="2"/>
+<text x="85" y="32" dy="4" font-size="11" fill="black">always-call</text>
+<rect x="680.00" y="30" width="12" height="12" fill="#ff0000" stroke="none"/>
+<rect x="692.00" y="30" width="12" height="12" fill="#e50019" stroke="none"/>
+<rect x="704.00" y="30" width="12" height="12" fill="#cc0033" stroke="none"/>
+<rect x="716.00" y="30" width="12" height="12" fill="#b2004c" stroke="none"/>
+<rect x="728.00" y="30" width="12" height="12" fill="#990066" stroke="none"/>
+<rect x="740.00" y="30" width="12" height="12" fill="#7f007f" stroke="none"/>
+<rect x="752.00" y="30" width="12" height="12" fill="#660099" stroke="none"/>
+<rect x="764.00" y="30" width="12" height="12" fill="#4c00b2" stroke="none"/>
+<rect x="776.00" y="30" width="12" height="12" fill="#3200cc" stroke="none"/>
+<rect x="788.00" y="30" width="12" height="12" fill="#1900e5" stroke="none"/>
+<rect x="800.00" y="30" width="12" height="12" fill="#0000ff" stroke="none"/>
+<text x="680" y="20" font-size="11" fill="black">EV (SB): -0.746</text>
+<text x="800" y="20" font-size="11" fill="black" text-anchor="end">0.591</text>
+</svg>

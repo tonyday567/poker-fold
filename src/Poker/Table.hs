@@ -33,6 +33,7 @@ module Poker.Table
     fromRawAction,
     fromRawActionType,
     actOn,
+    decisionContext,
 
     -- * Showdown
     showdown,
@@ -256,6 +257,23 @@ closed :: Table -> Bool
 closed t =
   notElem BettingOpen (seats t)
     || length (filter (/= Folded) (seats t)) <= 1
+
+-- | Map a table state to one of the preflop decision contexts.
+--
+-- In heads-up preflop, seat 0 (small blind) acts first.  The initial gap
+-- between the blinds is not a "facing a raise" situation, so we detect the
+-- first action by checking that no raise has occurred yet.  After a raise,
+-- contexts 2 and 3 apply.
+decisionContext :: Table -> Maybe Int
+decisionContext t = case cursor t of
+  Nothing -> Nothing
+  Just p ->
+    let gap = maximum (t ^. #bets) - ((t ^. #bets) List.!! p)
+        raised = any (\(a, _) -> case a of RawRaise _ -> True; _ -> False) (history t)
+     in Just $ case p of
+          0 -> if street t == Preflop && not raised then 0 else 2
+          1 -> if gap > 0 then 3 else 1
+          _ -> error "decisionContext: only two seats supported"
 
 -- | Index of seat and hands still in the pot
 --

@@ -1,0 +1,151 @@
+hand quantile sample (weakest / median / strongest): 0.5037707390648577 / 0.9683257918552037 / 0.995475113122172
+
+Reading candidate from candidate-s0-abr.strat
+
+=== Starting optimization (logs appended to results-abr.md) ===
+Search strategy: alternating-best-response
+Using exact best-response blocks for SB contexts (0,4,5) and BB contexts (1,2,3).
+
+=== Alternating-best-response step 1 ===
+Current EV: -2.4858515955466925e-2
+After SB block EV: 9.673612622435386e-2
+After BB block EV: -0.2115388572895361
+
+=== Alternating-best-response step 2 ===
+Current EV: -0.2115388572895361
+After SB block EV: 0.5476155960791969
+After BB block EV: -0.7198154406986166
+
+=== Alternating-best-response step 3 ===
+Current EV: -0.7198154406986166
+After SB block EV: 0.6635478004572709
+After BB block EV: -0.7456989095130709
+
+=== Alternating-best-response step 4 ===
+Current EV: -0.7456989095130709
+After SB block EV: 0.9999999999994996
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 5 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 6 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 7 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 8 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 9 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 10 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 11 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 12 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 13 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 14 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 15 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 16 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 17 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 18 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 19 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 20 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 21 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 22 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 23 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 24 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 25 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 26 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 27 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611
+After BB block EV: -0.5955930116628956
+
+=== Alternating-best-response step 28 ===
+Current EV: -0.5955930116628956
+After SB block EV: 0.5510337797546284
+After BB block EV: -0.3738886898615092
+
+=== Alternating-best-response step 29 ===
+Current EV: -0.3738886898615092
+After SB block EV: 1.1518053595860611

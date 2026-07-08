@@ -14,7 +14,6 @@ module Poker.Strategy
     seat0Baseline,
     seat1Baseline,
     randomStrategy,
-    decisionContext,
     contextLegalActions,
     intendedAction,
     strategyAction,
@@ -22,7 +21,9 @@ module Poker.Strategy
     posteriorActionDist,
     chooseAction,
     playOne,
+    playOneWith,
     evStrategy,
+    evStrategyWith,
     Obs (..),
     initialParticles,
     updateParticles,
@@ -45,11 +46,11 @@ import Data.Text (unpack)
 import Data.Vector.Storable qualified as S
 import Data.Word (Word16)
 import GHC.Generics (Generic)
-import Optics.Core ((^.), view)
+import Optics.Core (view)
 import Poker.Card (Hole)
 import Poker.Random (dealTable)
 import Poker.Range (Range, fromHole, startingHandI)
-import Poker.Table (RawAction (..), Table, actOn, bets, cards, cursor, defaultTableConfig, playerCards, showdown, stacks)
+import Poker.Table (RawAction (..), Table, actOn, cards, cursor, decisionContext, defaultTableConfig, playerCards, showdown, stacks)
 import System.Random (RandomGen, split, uniformR)
 import Prelude
 
@@ -146,18 +147,6 @@ randomStrategy g = evalState go g
             [a, b, c, d] -> pure (a, b, c, d)
             _ -> error "randomStrategy: expected four thresholds")
 
--- | Map a table state to one of the five preflop decision contexts.
--- Nothing means no decision is required.
-decisionContext :: Table -> Maybe Int
-decisionContext t = case cursor t of
-  Nothing -> Nothing
-  Just p ->
-    let gap = maximum (t ^. #bets) - ((t ^. #bets) !! p)
-     in Just $ case p of
-          0 -> if gap > 0 then 2 else 0
-          1 -> if gap > 0 then 3 else 1
-          _ -> error "decisionContext: only two seats supported"
-
 -- | Legal raw actions for each decision context, assuming standard 10bb stacks.
 contextLegalActions :: Int -> [RawAction]
 contextLegalActions 0 = [RawFold, RawCall, RawRaise 1.0, RawRaise 4.0, RawRaise 9.0]
@@ -224,27 +213,40 @@ chooseAction o2 ps ctx hole eps =
       best = fst $ List.maximumBy (compare `on` snd) probs
    in toRawAction best
 
--- | Play out one hand between a hero strategy (seat 0) and an opponent
--- strategy (seat 1) and return the hero's profit relative to the initial
--- 10bb buy-in (so posting the blinds counts as a cost).
-playOne :: S.Vector Word16 -> Range Double -> Strategy -> Strategy -> Table -> Double
-playOne hvs o2 hero opp t0 = go t0
+-- | Play out one hand using a generic context-decider and action selector.
+-- The decider maps the current table state to a decision context (or 'Nothing'
+-- when the hand is over).  The selector receives the acting seat, the decision
+-- context, and the hole cards.
+playOneWith :: S.Vector Word16 -> (Table -> Maybe Int) -> (Int -> Int -> Hole -> RawAction) -> Table -> Double
+playOneWith hvs decide choose t0 = go t0
   where
     go t = case cursor t of
       Nothing -> stacks (showdown hvs t) !! 0 - 10.0
       Just p ->
-        let ctx = fromMaybe (error "playOne: no decision context") (decisionContext t)
+        let ctx = fromMaybe (error "playOneWith: no decision context") (decide t)
             hole = playerCards (cards t) !! p
-            raw = strategyAction o2 (if p == 0 then hero else opp) ctx hole
+            raw = choose p ctx hole
          in go (actOn raw t)
+
+-- | Play out one hand between a hero strategy (seat 0) and an opponent
+-- strategy (seat 1) and return the hero's profit relative to the initial
+-- 10bb buy-in (so posting the blinds counts as a cost).
+playOne :: S.Vector Word16 -> Range Double -> Strategy -> Strategy -> Table -> Double
+playOne hvs o2 hero opp =
+  playOneWith hvs decisionContext (\p ctx hole -> strategyAction o2 (if p == 0 then hero else opp) ctx hole)
+
+-- | Expected value using a generic context-decider and action selector.
+evStrategyWith :: (RandomGen g) => S.Vector Word16 -> (Table -> Maybe Int) -> (Int -> Int -> Hole -> RawAction) -> Int -> State g Double
+evStrategyWith hvs decide choose n = do
+  tables <- replicateM n (dealTable defaultTableConfig)
+  let profits = playOneWith hvs decide choose <$> tables
+  pure (sum profits / fromIntegral n)
 
 -- | Expected value of a hero strategy against an opponent strategy over n
 -- randomly dealt hands.
 evStrategy :: (RandomGen g) => S.Vector Word16 -> Range Double -> Strategy -> Strategy -> Int -> State g Double
-evStrategy hvs o2 hero opp n = do
-  tables <- replicateM n (dealTable defaultTableConfig)
-  let profits = playOne hvs o2 hero opp <$> tables
-  pure (sum profits / fromIntegral n)
+evStrategy hvs o2 hero opp n =
+  evStrategyWith hvs decisionContext (\p ctx hole -> strategyAction o2 (if p == 0 then hero else opp) ctx hole) n
 
 -- | One observed opponent action, including the exact hole cards revealed at
 -- showdown.

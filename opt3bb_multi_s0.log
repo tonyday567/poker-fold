@@ -1,0 +1,14 @@
+hand quantile sample (weakest / median / strongest): 0.5037707390648577 / 0.9683257918552037 / 0.995475113122172
+
+Reading candidate from candidate-s0-multi.strat
+
+=== Starting optimization (logs appended to results-multi.md) ===
+Search strategy: greedy-multi
+Using greedy multi-coordinate blocks (jump=5).
+
+=== Multi-coordinate step 1 ===
+Current EV: -2.4858515955466925e-2
+No improving SB or BB block found at step 1. Stopping.
+
+Final EV: -2.4858515955466925e-2
+Wrote optimized strategy to candidate-s0-multi-out.strat

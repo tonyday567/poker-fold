@@ -1,0 +1,14 @@
+hand quantile sample (weakest / median / strongest): 0.5037707390648577 / 0.9683257918552037 / 0.995475113122172
+
+Reading candidate from candidate-always-call-optimized-jump5.strat
+
+=== Starting optimization (logs appended to results-s1-verify.md) ===
+Search strategy: greedy-highest-magnitude
+Jump size: 5
+
+=== Step 1 ===
+Current EV: -7.017898565380207e-2
+No improving coordinate found at step 1. Stopping.
+
+Final EV: -7.017898565380207e-2
+Wrote optimized strategy to candidate-s1-verified.strat

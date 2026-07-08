@@ -1,0 +1,20 @@
+Watching candidate.strat for changes. Edit and save the file to trigger an optimization run.
+Local optimum is preserved in local-optima.strat.
+Press Ctrl-C to stop.
+
+=== Sun 28 Jun 2026 11:48:03 AEST : change detected in candidate.strat ===
+hand quantile sample (weakest / median / strongest): 0.5037707390648577 / 0.9683257918552037 / 0.995475113122172
+
+Reading candidate from candidate.strat
+
+=== Starting coordinate ascent (logs appended to results2.md) ===
+Search strategy: greedy-highest-magnitude
+
+=== Step 1 ===
+Current EV: -2.4858515955466925e-2
+No improving coordinate found at step 1. Stopping.
+
+Final EV: -2.4858515955466925e-2
+Wrote optimized strategy to candidate-optimized.strat
+=== optimization complete ===
+

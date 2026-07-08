@@ -1,0 +1,403 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wall #-}
+
+-- | Exact best-response solver for a simplified preflop action model:
+-- Fold / Call / Raise 3bb / All-in, with 10bb starting stacks.
+--
+-- The strategy space is threshold-based: for each of 6 decision contexts a
+-- sorted list of equity cutoffs determines which action each hand takes.
+-- Because there are only 169 distinct starting-hand classes, the best response
+-- in any one context can be found exactly by dynamic programming over the
+-- ordered hand classes.  We then cycle through contexts (coordinate ascent)
+-- and alternate optimising SB and BB to approach a Nash equilibrium.
+module Main where
+
+import Control.Monad (forM_, replicateM, when)
+import Control.Monad.State.Lazy (State, evalState, state)
+import Data.Function (on)
+import Data.Functor.Rep (index)
+import Data.List (foldl', maximumBy, minimumBy, sort, sortOn)
+import Data.List qualified as List
+import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
+import Data.Vector.Storable qualified as S
+import Data.Word (Word16)
+import Optics.Core (review, view)
+import Poker.Card (Hole)
+import Poker.EquityMatrix (EqMatrix, contextActionValues, evAnalyticalWith, readEquityMatrix, disjointHoles)
+import Poker.Range (Range, StartingHandS (..), fromHole, readSomeRanges, startingHandI, toHoles)
+import Poker.Strategy (Thresh4, evStrategyWith, playOneWith)
+import Poker.Table (RawAction (..), Table (..))
+import System.IO (hSetBuffering, stdout, BufferMode (LineBuffering))
+import System.Random (RandomGen, mkStdGen)
+import Prelude
+
+-- | Simplified preflop actions.
+data Action3 = Fold3 | Call3 | Raise3 | AllIn3
+  deriving (Eq, Show, Enum, Ord)
+
+-- | Raise 3bb means a total bet of 3.0 (the big blind is 1.0, so the raise
+-- amount above the current max bet is 2.0).  All-in for a 10bb stack is a
+-- total bet of 10.0, i.e. a raise of 9.0 above the big blind.
+toRaw3 :: Action3 -> RawAction
+toRaw3 Fold3 = RawFold
+toRaw3 Call3 = RawCall
+toRaw3 Raise3 = RawRaise 2.0
+toRaw3 AllIn3 = RawRaise 9.0
+
+-- | Decision contexts for the 3bb model.  Even indices are seat 0 (SB),
+-- odd indices are seat 1 (BB).
+--
+--   0: SB first action (no prior raise)
+--   1: BB first action after SB call/check (no prior raise)
+--   2: BB facing an SB raise to 3bb
+--   3: BB facing an SB all-in
+--   4: SB facing a BB raise to 3bb
+--   5: SB facing a BB all-in
+--
+-- All-ins are detected by the opponent having zero remaining stack.
+decisionContext3bb :: Table -> Maybe Int
+decisionContext3bb t = case cursor t of
+  Nothing -> Nothing
+  Just p ->
+    let opponent = 1 - p
+        isRaise (RawRaise _, _) = True
+        isRaise _ = False
+        raised = any isRaise (history t)
+        oppAllIn = stacks t List.!! opponent <= 0
+     in Just $ case p of
+          0 -> if not raised then 0 else if oppAllIn then 5 else 4
+          1 -> if not raised then 1 else if oppAllIn then 3 else 2
+          _ -> error "decisionContext3bb: only two seats supported"
+
+-- | Intended action from a threshold tuple and a hand-strength value.
+-- The four thresholds are interpreted as:
+--   * e < t0 : fold
+--   * t0 <= e < t1 : call
+--   * t1 <= e < t2 : raise 3bb
+--   * otherwise : all-in
+-- strategyAction3 maps these to context-legal raw actions.
+intendedAction3 :: Thresh4 -> Double -> Action3
+intendedAction3 (t0, t1, t2, _) e
+  | e < t0 = Fold3
+  | e < t1 = Call3
+  | e < t2 = Raise3
+  | otherwise = AllIn3
+
+-- | A full strategy is one threshold tuple for each of the 6 preflop decision
+-- contexts.
+newtype Strategy3 = Strategy3
+  { thresholds3 :: [Thresh4]
+  }
+  deriving (Eq, Show)
+
+-- | Map an intended action to the actual raw action, respecting the legal
+-- actions available in each context.  'qs' is the per-hand-class quantile
+-- (cumulative hand-combo percentage weaker than this hand).
+--
+-- For C4/C5 (SB responding after calling in C0) the thresholds are stored as
+-- offsets above the C0 call threshold: the effective threshold is
+--   C0_call_start + stored_threshold
+-- This keeps response thresholds tied to the hands that actually reach them.
+strategyAction3 :: [Double] -> Strategy3 -> Int -> Hole -> RawAction
+strategyAction3 qs strat ctx hole =
+  let StartingHandS handIdx = view startingHandI (fromHole hole)
+      q = qs !! fromIntegral handIdx
+      (c0t0, _, _, _) = thresholds3 strat !! 0
+      rawThresholds
+        | ctx == 4 || ctx == 5 =
+            let (t0, t1, t2, t3) = thresholds3 strat !! ctx
+                offset t = max 0.0 (min 1.0 (c0t0 + t))
+             in (offset t0, offset t1, offset t2, offset t3)
+        | otherwise = thresholds3 strat !! ctx
+      (t0, t1, t2, _) = rawThresholds
+      intended
+        | q < t0 = Fold3
+        | q < t1 = Call3
+        | q < t2 = Raise3
+        | otherwise = AllIn3
+   in case ctx of
+        0 -> toRaw3 intended
+        1 -> case intended of
+          Fold3 -> RawCall
+          Call3 -> RawCall
+          Raise3 -> RawRaise 2.0
+          AllIn3 -> RawRaise 9.0
+        2 -> case intended of
+          Fold3 -> RawFold
+          Call3 -> RawCall
+          _ -> RawRaise 9.0
+        3 -> case intended of
+          Fold3 -> RawFold
+          _ -> RawCall
+        4 -> case intended of
+          Fold3 -> RawFold
+          Call3 -> RawCall
+          _ -> RawRaise 9.0
+        5 -> case intended of
+          Fold3 -> RawFold
+          _ -> RawCall
+        _ -> error "strategyAction3: unknown context"
+
+-- | Effective actions for each context, in the order they appear on the
+-- hand-strength axis.  Some intended actions collapse to the same raw action
+-- in restricted contexts.
+contextActions :: Int -> [Action3]
+contextActions ctx = case ctx of
+  0 -> [Fold3, Call3, Raise3, AllIn3]
+  1 -> [Call3, Raise3, AllIn3]
+  2 -> [Fold3, Call3, AllIn3]
+  3 -> [Fold3, Call3]
+  4 -> [Fold3, Call3, AllIn3]
+  5 -> [Fold3, Call3]
+  _ -> error "contextActions: unknown context"
+
+
+-- | Raw action corresponding to an intended action in a given context.
+contextRawAction :: Int -> Action3 -> RawAction
+contextRawAction ctx a = case ctx of
+  0 -> toRaw3 a
+  1 -> case a of
+    Fold3 -> RawCall
+    Call3 -> RawCall
+    Raise3 -> RawRaise 2.0
+    AllIn3 -> RawRaise 9.0
+  2 -> case a of
+    Fold3 -> RawFold
+    Call3 -> RawCall
+    _ -> RawRaise 9.0
+  3 -> case a of
+    Fold3 -> RawFold
+    _ -> RawCall
+  4 -> case a of
+    Fold3 -> RawFold
+    Call3 -> RawCall
+    _ -> RawRaise 9.0
+  5 -> case a of
+    Fold3 -> RawFold
+    _ -> RawCall
+  _ -> error "contextRawAction: unknown context"
+
+playOne3 :: S.Vector Word16 -> [Double] -> Strategy3 -> Strategy3 -> Table -> Double
+playOne3 hvs qs hero opp =
+  playOneWith hvs decisionContext3bb (\p ctx hole -> strategyAction3 qs (if p == 0 then hero else opp) ctx hole)
+
+evStrategy3 :: (RandomGen g) => S.Vector Word16 -> [Double] -> Strategy3 -> Strategy3 -> Int -> State g Double
+evStrategy3 hvs qs hero opp n =
+  evStrategyWith hvs decisionContext3bb (\p ctx hole -> strategyAction3 qs (if p == 0 then hero else opp) ctx hole) n
+
+runEv3 :: S.Vector Word16 -> [Double] -> Strategy3 -> Strategy3 -> Int -> Double
+runEv3 hvs qs hero opp n = evalState (evStrategy3 hvs qs hero opp n) (mkStdGen 123)
+
+-- | Deterministic analytical EV for the 3bb model, using the class-average
+-- equity matrix.  No MC noise.
+scoreAnalytical3 :: EqMatrix -> [Double] -> Strategy3 -> Strategy3 -> Double
+scoreAnalytical3 eq qs hero opp =
+  evAnalyticalWith eq decisionContext3bb (\p ctx hole -> strategyAction3 qs (if p == 0 then hero else opp) ctx hole)
+
+pct :: Double -> String
+pct x = show (round (x * 100) :: Int)
+
+pad :: Int -> String -> String
+pad n s = take n (s ++ repeat ' ')
+
+-- | Quantile (cumulative combo-weight of all strictly weaker hands) for every
+-- hand class, indexed by hand-class number.
+handQuantiles :: Range Double -> Range Double -> [Double]
+handQuantiles o2 weights =
+  let n = 169
+      eq i = index o2 (StartingHandS (fromIntegral i))
+      wt i = index weights (StartingHandS (fromIntegral i))
+      order = sortOn eq [0 .. n - 1]
+      sortedWts = map wt order
+      total = sum sortedWts
+      cum = scanl (+) 0 sortedWts
+      quantMap = Map.fromList [(order !! k, cum !! k / total) | k <- [0 .. n - 1]]
+   in [quantMap Map.! i | i <- [0 .. n - 1]]
+
+-- | Compact display of action frequencies for each context.
+compactStrategy3 :: Strategy3 -> String
+compactStrategy3 (Strategy3 ts) = unwords $ zipWith fmt [0 .. 5 :: Int] ts
+  where
+    fmt 0 (t0, t1, t2, t3) =
+      "C0: " ++ unwords (pct <$> [t0, t1 - t0, t2 - t1, t3 - t2, 1 - t3])
+    fmt 1 (_, t1, t2, t3) =
+      "C1: " ++ unwords (pct <$> [t1, t2 - t1, t3 - t2, 1 - t3])
+    fmt 2 (t0, t1, _, _) =
+      "C2: " ++ unwords (pct <$> [t0, t1 - t0, 1 - t1])
+    fmt 3 (t0, _, _, _) =
+      "C3: " ++ unwords (pct <$> [t0, 1 - t0])
+    fmt 4 (t0, t1, _, _) =
+      "C4: " ++ unwords (pct <$> [t0, t1 - t0, 1 - t1])
+    fmt 5 (t0, _, _, _) =
+      "C5: " ++ unwords (pct <$> [t0, 1 - t0])
+    fmt _ _ = ""
+
+-- | Order of hand classes by equity (weakest first).
+equityOrder :: Range Double -> [Int]
+equityOrder o2 = sortOn (\i -> index o2 (StartingHandS (fromIntegral i))) [0 .. 168]
+
+-- | Marginal EV contribution of every hand class taking every effective action
+-- in one context, holding everything else fixed.
+--
+-- Result: one list per effective action; each inner list is indexed by hand
+-- class (0..168) and contains the weighted sum of payoffs for that hand class
+-- choosing that action in the given context.
+contextMarginals3 :: EqMatrix -> [Double] -> Strategy3 -> Strategy3 -> Int -> [[Double]]
+contextMarginals3 eq qs hero opp ctx =
+  let actions = contextActions ctx
+      raws = map (contextRawAction ctx) actions
+      choose p c h = strategyAction3 qs (if p == 0 then hero else opp) c h
+      holes = fmap (toHoles . review startingHandI . StartingHandS . fromIntegral) [0 .. 168 :: Int]
+      totalPairs = 2652.0 * 2450.0
+      weight hs vs = fromIntegral (length [(h, v) | h <- hs, v <- vs, disjointHoles h v]) / totalPairs
+      nActs = length actions
+      emptyAcc = replicate nActs (replicate 169 0.0)
+      updateAt i x xs = take i xs ++ [x] ++ drop (i + 1) xs
+      accum acc hi vi =
+        let wh = weight (holes !! hi) (holes !! vi)
+            vals = contextActionValues eq decisionContext3bb choose raws ctx hi vi
+         in case vals of
+              [_] -> acc
+              _ ->
+                let hidx = if ctx `elem` [0, 4, 5] then hi else vi
+                    add v as = updateAt hidx (as !! hidx + wh * v) as
+                 in zipWith add vals acc
+   in foldl' (\acc hi -> foldl' (\acc' vi -> accum acc' hi vi) acc [0 .. 168]) emptyAcc [0 .. 168]
+
+-- | Convert a list of boundary values (one per gap between effective actions)
+-- into the full 4-threshold tuple for a specific context.
+cutsToThresh4 :: Int -> [Double] -> Thresh4
+cutsToThresh4 ctx ts = case ctx of
+  0 -> case ts of [c0, c1, c2] -> (c0, c1, c2, 1.0); _ -> error "cutsToThresh4: C0 needs 3 cuts"
+  1 -> case ts of [c1, c2] -> (c1, c1, c2, 1.0); _ -> error "cutsToThresh4: C1 needs 2 cuts"
+  2 -> case ts of [c0, c1] -> (c0, c1, 1.0, 1.0); _ -> error "cutsToThresh4: C2 needs 2 cuts"
+  3 -> case ts of [c0] -> (c0, 1.0, 1.0, 1.0); _ -> error "cutsToThresh4: C3 needs 1 cut"
+  4 -> case ts of [c0, c1] -> (c0, c1, 1.0, 1.0); _ -> error "cutsToThresh4: C4 needs 2 cuts"
+  5 -> case ts of [c0] -> (c0, 1.0, 1.0, 1.0); _ -> error "cutsToThresh4: C5 needs 1 cut"
+  _ -> error "cutsToThresh4: unknown context"
+
+-- | Find the exact optimal quantile-threshold tuple for one context by DP over
+-- the ordered hand classes.  'maximize' is True for SB and False for BB.
+optimalContextThresholds :: Range Double -> Range Double -> Int -> [[Double]] -> Bool -> Thresh4
+optimalContextThresholds o2 weights ctx vals maximize =
+  let order = equityOrder o2
+      wts = map (\i -> index weights (StartingHandS (fromIntegral i))) order
+      total = sum wts
+      cum = scanl (+) 0 wts
+      l = length vals
+      n = 169
+      inf = 1e100
+      extreme = if maximize then maximumBy else minimumBy
+      initDP = 0 : replicate (l - 1) (if maximize then -inf else inf)
+      step (dps, prevs) pos =
+        let i = order !! pos
+            v = map (!! i) vals
+            prevDp = last dps
+            (newDp, newPrev) =
+              unzip
+                [ let candidates = [(prevDp !! a', a') | a' <- [0 .. a]]
+                      (bestVal, bestA) = extreme (compare `on` fst) candidates
+                   in (v !! a + bestVal, bestA)
+                  | a <- [0 .. l - 1]
+                ]
+         in (dps ++ [newDp], prevs ++ [newPrev])
+      (dps, prevs) = foldl' step ([initDP], []) [0 .. n - 1]
+      finalDp = last dps
+      bestA = snd $ extreme (compare `on` fst) (zip finalDp [0 ..])
+      assign = backtrack n bestA []
+      backtrack 0 _ acc = acc
+      backtrack pos a acc =
+        let prevA = prevs !! (pos - 1) !! a
+         in backtrack (pos - 1) prevA (a : acc)
+      -- quantile boundary: cumulative combo weight of the lower band
+      boundary k =
+        case List.findIndex (>= k) assign of
+          Nothing -> 1.0
+          Just 0 -> 0.0
+          Just pos -> (cum !! pos) / total
+      cuts = [boundary k | k <- [1 .. l - 1]]
+   in cutsToThresh4 ctx cuts
+
+-- | Optimise a single context, returning a new strategy with only that context
+-- changed.
+bestResponseContext3 :: EqMatrix -> Range Double -> Range Double -> [Double] -> Strategy3 -> Strategy3 -> Int -> Bool -> Strategy3
+bestResponseContext3 eq o2 weights qs hero opp ctx maximize =
+  let vals = contextMarginals3 eq qs hero opp ctx
+      newTup = optimalContextThresholds o2 weights ctx vals maximize
+      s = if ctx `elem` [0, 4, 5] then hero else opp
+      ts = thresholds3 s
+   in Strategy3 (take ctx ts ++ [newTup] ++ drop (ctx + 1) ts)
+
+-- | Exact coordinate-ascent best response for seat 0 (SB): cycle through
+-- contexts 0, 4, 5 until no context can improve EV.
+bestResponseSeat03 :: EqMatrix -> Range Double -> Range Double -> [Double] -> Strategy3 -> Strategy3 -> Strategy3
+bestResponseSeat03 eq o2 weights qs hero opp = go hero (scoreAnalytical3 eq qs hero opp) (0 :: Int)
+  where
+    go s lastEV iter
+      | iter > 20 = s
+      | otherwise =
+          let s' = foldl' (\s0 ctx -> bestResponseContext3 eq o2 weights qs s0 opp ctx True) s [0, 4, 5]
+              ev = scoreAnalytical3 eq qs s' opp
+           in if abs (ev - lastEV) < 1e-7 then s' else go s' ev (iter + 1)
+
+-- | Exact coordinate-ascent best response for seat 1 (BB): cycle through
+-- contexts 1, 2, 3 until no context can reduce seat-0 EV.
+bestResponseSeat13 :: EqMatrix -> Range Double -> Range Double -> [Double] -> Strategy3 -> Strategy3 -> Strategy3
+bestResponseSeat13 eq o2 weights qs hero opp = go opp (scoreAnalytical3 eq qs hero opp) (0 :: Int)
+  where
+    go s lastEV iter
+      | iter > 20 = s
+      | otherwise =
+          let s' = foldl' (\s1 ctx -> bestResponseContext3 eq o2 weights qs hero s1 ctx False) s [1, 2, 3]
+              ev = scoreAnalytical3 eq qs hero s'
+           in if abs (ev - lastEV) < 1e-7 then s' else go s' ev (iter + 1)
+
+main :: IO ()
+main = do
+  hSetBuffering stdout LineBuffering
+  eq <- readEquityMatrix
+  ranges <- fromMaybe (error "could not read some.str") <$> readSomeRanges
+  let o2 = ranges Map.! "o2"
+      weights = ranges Map.! "any2"
+      qs = handQuantiles o2 weights
+
+  putStrLn $ "hand quantile sample (weakest / median / strongest): " ++ show (qs !! 0) ++ " / " ++ show (qs !! 84) ++ " / " ++ show (qs !! 168)
+
+  -- Baseline strategy defined directly in global-quantile space.
+  -- C0/C1/C2/C3 are absolute quantiles; C4/C5 are offsets above C0's call start.
+  let candidate =
+        Strategy3
+          [ (0.46, 0.70, 0.90, 1.00), -- C0 : SB first action
+            (0.00, 0.49, 0.69, 1.00), -- C1 : BB after SB call
+            (0.50, 0.73, 1.00, 1.00), -- C2 : BB facing SB raise 3bb
+            (0.55, 1.00, 1.00, 1.00), -- C3 : BB facing SB all-in
+            (0.20, 0.50, 1.00, 1.00), -- C4 : SB after calling, facing BB raise 3bb
+            (0.20, 1.00, 1.00, 1.00)  -- C5 : SB after calling, facing BB all-in
+          ]
+
+  putStrLn "\n=== Candidate strategy (quantile thresholds) ==="
+  putStrLn $ "candidate vs candidate: " ++ show (scoreAnalytical3 eq qs candidate candidate)
+  putStrLn $ compactStrategy3 candidate
+
+  putStrLn "\nFinite-difference gradients of candidate self-play EV (±1% quantile per threshold):"
+  let eps = 0.01
+      perturbTuple (t0, t1, t2, t3) idx delta =
+        let xs = case idx of 0 -> [t0 + delta, t1, t2, t3]; 1 -> [t0, t1 + delta, t2, t3]; 2 -> [t0, t1, t2 + delta, t3]; 3 -> [t0, t1, t2, t3 + delta]; _ -> error "bad idx"
+            ys = map (max 0.0 . min 1.0) xs
+         in case sort ys of [a, b, c, d] -> (a, b, c, d); _ -> error "perturbTuple"
+      candidatePlus i j =
+        let ts = thresholds3 candidate
+            t' = perturbTuple (ts !! i) j eps
+         in Strategy3 (take i ts ++ [t'] ++ drop (i + 1) ts)
+      candidateMinus i j =
+        let ts = thresholds3 candidate
+            t' = perturbTuple (ts !! i) j (-eps)
+         in Strategy3 (take i ts ++ [t'] ++ drop (i + 1) ts)
+      grad i j =
+        let evPlus = scoreAnalytical3 eq qs (candidatePlus i j) (candidatePlus i j)
+            evMinus = scoreAnalytical3 eq qs (candidateMinus i j) (candidateMinus i j)
+         in (evPlus - evMinus) / (2 * eps)
+  mapM_ (\i -> putStrLn $ "  C" ++ show i ++ ": " ++ unwords [pad 8 (show (grad i j)) | j <- [0 .. 3 :: Int]]) [0 .. 5 :: Int]
+
+  putStrLn "\n(diagnostics only: EV + gradients)"
