@@ -7,3 +7,15 @@ cabal.project.local
 /other/*.vec
 /cabal.project.local*
 .ghc.environment.*
+
+# poker EV optimization campaign — scratch/generated (git is not the archive for these)
+*.strat
+opt3bb_*.log
+loop.log
+optimization-trace-*.png
+optimization-trace-*.svg
+/other/eqmatrix.str
+/other/eqmatrixSuit.str
+app/opt3bb.hs.bak
+results2.md
+results2-archive.md
