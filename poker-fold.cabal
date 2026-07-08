@@ -135,6 +135,8 @@ library
         Poker.Card.Storable
         Poker.Charts
         Poker.Equity
+        Poker.EquityMatrix
+        Poker.EquitySuit
         Poker.HandRank
         Poker.Lexico
         Poker.Policy

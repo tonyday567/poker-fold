@@ -2,11 +2,13 @@
 
 import Options.Applicative
 import Poker.Charts
-import Poker.HandRank
+import Poker.EquityMatrix (buildEquityMatrix, writeMatrix)
+import Poker.EquitySuit (buildEquityMatrixSuit, writeSuitMatrix)
+import Poker.HandRank (hvs7, hvs7Write)
 import Poker.Range
 import Prelude
 
-data RunType = RunHvs7 | RunSomeRanges | RunCharts deriving (Eq, Show)
+data RunType = RunHvs7 | RunSomeRanges | RunCharts | RunEqMatrix Int | RunEqMatrixSuit Int deriving (Eq, Show)
 
 data Options = Options
   { optionSims :: Int,
@@ -23,6 +25,8 @@ runType :: Parser RunType
 runType =
   flag' RunHvs7 (long "hvs7" <> help "write hvs7.vec file")
     <|> flag' RunCharts (long "charts" <> help "write charts")
+    <|> (RunEqMatrix <$> option auto (long "eqmatrix" <> short 'e' <> metavar "BOARDS" <> help "build equity matrix with N boards (e.g. 1000000)"))
+    <|> (RunEqMatrixSuit <$> option auto (long "eqmatrix-suit" <> metavar "DEALS" <> help "build suit-aware equity matrix with N deals (e.g. 10000000)"))
     <|> pure RunSomeRanges
 
 options :: Parser Options
@@ -50,3 +54,17 @@ main = do
     RunCharts -> do
       putStrLn "writing charts"
       writeAllCharts
+    RunEqMatrix n -> do
+      putStrLn $ "building equity matrix with " ++ show n ++ " boards... (this will take a while)"
+      s <- hvs7
+      let eq = buildEquityMatrix s n
+      putStrLn "writing other/eqmatrix.str"
+      writeMatrix eq "other/eqmatrix.str"
+      putStrLn "done."
+    RunEqMatrixSuit n -> do
+      putStrLn $ "building suit-aware equity matrix with " ++ show n ++ " deals... (this will take a while)"
+      s <- hvs7
+      let eqSuit = buildEquityMatrixSuit s n
+      putStrLn "writing other/eqmatrixSuit.str"
+      writeSuitMatrix eqSuit "other/eqmatrixSuit.str"
+      putStrLn "done."
