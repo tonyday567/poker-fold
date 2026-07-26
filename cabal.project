@@ -5,5 +5,3 @@ packages:
 
 write-ghc-environment-files: always
 
-allow-newer:
-  tdigest:base
