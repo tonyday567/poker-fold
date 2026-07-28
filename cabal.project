@@ -2,6 +2,16 @@ packages:
   poker-fold.cabal
   ../circuits-meter/circuits-meter.cabal
   ../circuits/circuits.cabal
+  ../circuits-parser/circuits-parser.cabal
+  ../chart-svg/chart-svg.cabal
+  ../markup-parse/markup-parse.cabal
+  ../numhask/numhask.cabal
+  ../numhask-space/numhask-space.cabal
+  ../numhask-diff/numhask-diff.cabal
+  ../formatn/formatn.cabal
+  ../harpie/harpie.cabal
+  ../harpie-numhask/harpie-numhask.cabal
+  ../process-stats/process-stats.cabal
 
 write-ghc-environment-files: always
 

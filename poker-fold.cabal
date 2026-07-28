@@ -119,7 +119,7 @@ library
         , distributive      >=0.4 && <0.7
         , formatn           >=0.2.1 && <0.4
         , mtl               >=2.2.2 && <2.4
-        , harpie >=0.1 && <0.3
+        , harpie >=0.1 && <0.4
         , numhask-space
         , optics-core       >=0.4 && <0.5
         , prettyprinter     >=1.7.1 && <1.8
