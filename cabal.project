@@ -11,6 +11,6 @@ packages:
   ../../haskell/circuits-mat/circuits-mat.cabal
   ../../haskell/formatn/formatn.cabal
   ../../haskell/harpie/harpie.cabal
-  ../../haskell/process-stats/process-stats.cabal
+  ../../haskell/circuits-stats/circuits-stats.cabal
 
 write-ghc-environment-files: always
