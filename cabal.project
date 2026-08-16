@@ -1,16 +1,16 @@
 packages:
-  poker-fold.cabal
-  ../circuits-meter/circuits-meter.cabal
-  ../circuits/circuits.cabal
-  ../circuits-parser/circuits-parser.cabal
-  ../chart-svg/chart-svg.cabal
-  ../markup-parse/markup-parse.cabal
-  ../numhask/numhask.cabal
-  ../numhask-space/numhask-space.cabal
-  ../circuits-diff/circuits-diff.cabal
-  ../formatn/formatn.cabal
-  ../harpie/harpie.cabal
-  ../process-stats/process-stats.cabal
+  .
+  ../../haskell/circuits/circuits.cabal
+  ../../haskell/circuits-meter/circuits-meter.cabal
+  ../../haskell/circuits-parser/circuits-parser.cabal
+  ../../haskell/chart-svg/chart-svg.cabal
+  ../../haskell/markup-parse/markup-parse.cabal
+  ../../haskell/numhask/numhask.cabal
+  ../../haskell/numhask-space/numhask-space.cabal
+  ../../haskell/circuits-diff/circuits-diff.cabal
+  ../../haskell/circuits-mat/circuits-mat.cabal
+  ../../haskell/formatn/formatn.cabal
+  ../../haskell/harpie/harpie.cabal
+  ../../haskell/process-stats/process-stats.cabal
 
 write-ghc-environment-files: always
-
